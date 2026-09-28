@@ -6,7 +6,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const liquidTemplate = `
     {% if customer == blank %}
-      <script>window.location.href = "/account/login?checkout_url=/apps/purrkins/kitten";</script>
+      <script>window.location.href = "/apps/purrkins/login";</script>
     {% endif %}\n\n<style>\n
       .pk-dashboard-wrapper {
         max-width: 1200px;
