@@ -866,10 +866,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     <div class="pk-dashboard-wrapper">
       
+      <div class="pk-dashboard-header">
+        <h1>Welcome back, {{ customer.first_name | default: 'Friend' }}</h1>
+        <div class="pk-header-actions">
+          <a href="/apps/purrkins/dashboard" class="pk-action-btn">Profile</a>
+          <a href="#" class="pk-action-btn">Wishlist</a>
+          <a href="/account/logout" class="pk-action-btn">Log out</a>
+        </div>
+      </div>
+
       <!-- PET SELECTOR HEADER -->
       <div class="pk-pet-selector-row">
         {% for pet in pets %}
-          <a href="?pet_index={{ forloop.index0 }}" class="pk-pet-pill {% if forloop.index0 == active_index %}active{% endif %}">
+          <a href="/apps/purrkins/kitten?pet_index={{ forloop.index0 }}" class="pk-pet-pill {% if forloop.index0 == active_index %}active{% endif %}">
             <div class="pk-pet-avatar" {% if forloop.index0 != active_index %}style="background:#e0e0e0;"{% endif %}>
               {% if pet.profile.value %}
                 <img src="{{ pet.profile.value | image_url: width: 100 }}" {% if forloop.index0 != active_index %}style="opacity:0.6"{% endif %} alt="{{ pet.name.value }}">
@@ -1387,14 +1396,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     <script>
       document.addEventListener("click", async function(e) {
-        var link = e.target.closest("a.pk-menu-item");
+        var link = e.target.closest("a.pk-menu-item, a.pk-pet-pill");
         if (link && link.getAttribute("href").startsWith("/apps/purrkins/")) {
           e.preventDefault();
           
           document.querySelectorAll(".pk-menu-item").forEach(function(el) { el.classList.remove("active") });
           link.classList.add("active");
           
-          var mainContent = document.querySelector(".pk-dashboard-content");
+          var mainContent = document.querySelector(".pk-dashboard-wrapper");
           if (!mainContent) return;
           mainContent.style.opacity = "0.5";
           mainContent.style.pointerEvents = "none";
@@ -1410,7 +1419,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             var parser = new DOMParser();
             var doc = parser.parseFromString(text, "text/html");
             
-            var newContent = doc.querySelector(".pk-dashboard-content");
+            var newContent = doc.querySelector(".pk-dashboard-wrapper");
             if (newContent) {
               mainContent.innerHTML = newContent.innerHTML;
               

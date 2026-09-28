@@ -852,6 +852,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     \n</style>
 
+    {% assign pets = customer.metafields.custom.pets.value %}
+    {% assign active_index = -1 %}
     <div class="pk-dashboard-wrapper">
       <div class="pk-dashboard-header">
         <h1>Welcome back, {{ customer.first_name | default: 'Friend' }}</h1>
@@ -860,6 +862,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <a href="#" class="pk-action-btn">Wishlist</a>
           <a href="/account/logout" class="pk-action-btn">Log out</a>
         </div>
+      </div>
+
+      <!-- PET SELECTOR HEADER -->
+      <div class="pk-pet-selector-row">
+        {% for pet in pets %}
+          <a href="/apps/purrkins/kitten?pet_index={{ forloop.index0 }}" class="pk-pet-pill {% if forloop.index0 == active_index %}active{% endif %}">
+            <div class="pk-pet-avatar" {% if forloop.index0 != active_index %}style="background:#e0e0e0;"{% endif %}>
+              {% if pet.profile.value %}
+                <img src="{{ pet.profile.value | image_url: width: 100 }}" {% if forloop.index0 != active_index %}style="opacity:0.6"{% endif %} alt="{{ pet.name.value }}">
+              {% else %}
+                <svg width="100%" height="100%" viewBox="0 0 24 24" fill="#d1d1d1" xmlns="http://www.w3.org/2000/svg" {% if forloop.index0 != active_index %}style="opacity:0.6"{% endif %}><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+              {% endif %}
+            </div>
+            <div class="pk-pet-info">
+              <strong>{{ pet.name.value | default: 'Kitten' }}</strong>
+              <span>{{ pet.age.value | default: 'Unknown' }}</span>
+            </div>
+          </a>
+        {% endfor %}
+        <a href="/pages/byob" class="pk-pet-add-btn">+ Add Kitten</a>
       </div>
 
       <div class="pk-dashboard-layout">
@@ -1013,14 +1035,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     <script>
       document.addEventListener("click", async function(e) {
-        var link = e.target.closest("a.pk-menu-item");
+        var link = e.target.closest("a.pk-menu-item, a.pk-pet-pill");
         if (link && link.getAttribute("href").startsWith("/apps/purrkins/")) {
           e.preventDefault();
           
           document.querySelectorAll(".pk-menu-item").forEach(function(el) { el.classList.remove("active") });
           link.classList.add("active");
           
-          var mainContent = document.querySelector(".pk-dashboard-content");
+          var mainContent = document.querySelector(".pk-dashboard-wrapper");
           if (!mainContent) return;
           mainContent.style.opacity = "0.5";
           mainContent.style.pointerEvents = "none";
@@ -1036,7 +1058,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             var parser = new DOMParser();
             var doc = parser.parseFromString(text, "text/html");
             
-            var newContent = doc.querySelector(".pk-dashboard-content");
+            var newContent = doc.querySelector(".pk-dashboard-wrapper");
             if (newContent) {
               mainContent.innerHTML = newContent.innerHTML;
               
