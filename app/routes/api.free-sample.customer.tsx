@@ -3,27 +3,26 @@ import { authenticate } from "../shopify.server";
 
 export const loader = async () => {
   return Response.json(
-    { success: false, message: "This endpoint only accepts POST requests from the frontend form. Please submit the form." },
+    { success: false, message: "This endpoint only accepts POST requests. Please submit the form." },
     { status: 405 }
   );
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  // Only allow POST requests
   if (request.method !== "POST") {
     return Response.json({ success: false, message: "Method not allowed" }, { status: 405 });
   }
 
   try {
-    // 1. Authenticate the App Proxy request
     const { admin } = await authenticate.public.appProxy(request);
 
     if (!admin) {
       return Response.json({ success: false, message: "Unauthorized access" }, { status: 401 });
     }
 
-    // 2. Parse the incoming JSON payload from the frontend
     const body = await request.json();
+    console.log("[FreeSample] Received payload:", JSON.stringify(body));
+
     const { name, phone, tag, email, accepts_marketing } = body;
 
     if (!phone) {
@@ -31,26 +30,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     const customerTag = tag || "free-sample-claim";
-
-    // Split name into first and last name
     const nameParts = name ? name.trim().split(" ") : ["Customer"];
     const firstName = nameParts[0];
     const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : ".";
 
-    // Email is REQUIRED to set email marketing subscription in Shopify
+    // Always generate a safe email (required for email marketing subscription)
     const safeEmail =
-      email && email.trim() !== ""
+      email && email.trim() !== "" && !email.includes("noemail")
         ? email.trim()
-        : `lead-${Date.now()}-${Math.floor(Math.random() * 1000)}@noemail.purrkins.com`;
+        : `lead-${Date.now()}@noemail.purrkins.com`;
 
-    // Marketing consent object for Shopify GraphQL
+    console.log(`[FreeSample] Processing: name=${name}, phone=${phone}, email=${safeEmail}, accepts_marketing=${accepts_marketing}`);
+
+    // Marketing consent — CONFIRMED_OPT_IN bypasses double opt-in requirement
     const emailMarketingConsent = {
       marketingState: "SUBSCRIBED",
       marketingOptInLevel: "CONFIRMED_OPT_IN",
       consentUpdatedAt: new Date().toISOString(),
     };
 
-    // 3. Check if a customer with this phone number already exists
+    // Search by phone to find existing customer
     const searchResponse = await admin.graphql(
       `#graphql
       query findCustomerByPhone($query: String!) {
@@ -58,6 +57,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           edges {
             node {
               id
+              phone
+              email
               tags
               emailMarketingConsent {
                 marketingState
@@ -66,29 +67,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           }
         }
       }`,
-      {
-        variables: {
-          query: `phone:${phone}`,
-        },
-      }
+      { variables: { query: `phone:${phone}` } }
     );
 
     const searchData = await searchResponse.json();
+    console.log("[FreeSample] Search result:", JSON.stringify(searchData?.data?.customers?.edges));
     const existingCustomer = searchData.data?.customers?.edges?.[0]?.node;
 
+    let customerId: string;
+
     if (existingCustomer) {
-      // 4a. Update existing customer — add tag + email
-      const existingTags = existingCustomer.tags || [];
+      console.log("[FreeSample] Existing customer found:", existingCustomer.id);
+      const existingTags: string[] = existingCustomer.tags || [];
       const updatedTags = existingTags.includes(customerTag)
         ? existingTags
         : [...existingTags, customerTag];
 
+      // Update existing customer — include phone to ensure it's set
       const updateResponse = await admin.graphql(
         `#graphql
         mutation customerUpdate($input: CustomerInput!) {
           customerUpdate(input: $input) {
             customer {
               id
+              phone
+              email
             }
             userErrors {
               field
@@ -100,66 +103,36 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           variables: {
             input: {
               id: existingCustomer.id,
+              phone,
+              email: existingCustomer.email || safeEmail,
+              firstName,
+              lastName,
               tags: updatedTags,
-              email: safeEmail,
             },
           },
         }
       );
 
       const updateData = await updateResponse.json();
+      console.log("[FreeSample] Customer update result:", JSON.stringify(updateData?.data?.customerUpdate));
+
       if (updateData.data?.customerUpdate?.userErrors?.length > 0) {
         throw new Error(updateData.data.customerUpdate.userErrors[0].message);
       }
 
-      // 4a-ii. Update email marketing consent via dedicated mutation
-      if (accepts_marketing) {
-        const consentResponse = await admin.graphql(
-          `#graphql
-          mutation customerEmailMarketingConsentUpdate($input: CustomerEmailMarketingConsentUpdateInput!) {
-            customerEmailMarketingConsentUpdate(input: $input) {
-              customer {
-                id
-                emailMarketingConsent {
-                  marketingState
-                }
-              }
-              userErrors {
-                field
-                message
-              }
-            }
-          }`,
-          {
-            variables: {
-              input: {
-                customerId: existingCustomer.id,
-                emailMarketingConsent,
-              },
-            },
-          }
-        );
+      customerId = existingCustomer.id;
 
-        const consentData = await consentResponse.json();
-        console.log("Consent update result:", JSON.stringify(consentData?.data?.customerEmailMarketingConsentUpdate, null, 2));
-
-        if (consentData.data?.customerEmailMarketingConsentUpdate?.userErrors?.length > 0) {
-          console.error("Consent update error:", consentData.data.customerEmailMarketingConsentUpdate.userErrors);
-        }
-      }
     } else {
-      // 4b. Create a new customer with emailMarketingConsent inline
+      console.log("[FreeSample] No existing customer — creating new one");
+
       const createInput: any = {
         firstName,
         lastName,
         phone,
         email: safeEmail,
         tags: [customerTag],
+        emailMarketingConsent,
       };
-
-      if (accepts_marketing) {
-        createInput.emailMarketingConsent = emailMarketingConsent;
-      }
 
       const createResponse = await admin.graphql(
         `#graphql
@@ -167,6 +140,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           customerCreate(input: $input) {
             customer {
               id
+              phone
+              email
               emailMarketingConsent {
                 marketingState
               }
@@ -177,37 +152,60 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             }
           }
         }`,
-        {
-          variables: {
-            input: createInput,
-          },
-        }
+        { variables: { input: createInput } }
       );
 
       const createData = await createResponse.json();
-      console.log("Customer create result:", JSON.stringify(createData?.data?.customerCreate, null, 2));
+      console.log("[FreeSample] Customer create result:", JSON.stringify(createData?.data?.customerCreate));
 
       if (createData.data?.customerCreate?.userErrors?.length > 0) {
         throw new Error(createData.data.customerCreate.userErrors[0].message);
       }
+
+      customerId = createData.data?.customerCreate?.customer?.id;
     }
 
-    // 5. Return success response to the frontend
-    return Response.json({
-      success: true,
-      message: "Free sample registered successfully.",
-    });
+    // Always run email marketing consent update to ensure Subscribed status
+    if (customerId && accepts_marketing) {
+      const consentResponse = await admin.graphql(
+        `#graphql
+        mutation customerEmailMarketingConsentUpdate($input: CustomerEmailMarketingConsentUpdateInput!) {
+          customerEmailMarketingConsentUpdate(input: $input) {
+            customer {
+              id
+              emailMarketingConsent {
+                marketingState
+                marketingOptInLevel
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        {
+          variables: {
+            input: {
+              customerId,
+              emailMarketingConsent,
+            },
+          },
+        }
+      );
+
+      const consentData = await consentResponse.json();
+      console.log("[FreeSample] Email consent update result:", JSON.stringify(consentData?.data?.customerEmailMarketingConsentUpdate));
+    }
+
+    return Response.json({ success: true, message: "Free sample registered successfully." });
+
   } catch (error: any) {
-    if (error instanceof Response) {
-      return error;
-    }
+    if (error instanceof Response) return error;
 
-    console.error("Free Sample API Error:", error);
+    console.error("[FreeSample] API Error:", error);
     return Response.json(
-      {
-        success: false,
-        message: String(error) + " | Stack: " + (error.stack || ""),
-      },
+      { success: false, message: String(error) + " | Stack: " + (error.stack || "") },
       { status: 200 }
     );
   }
