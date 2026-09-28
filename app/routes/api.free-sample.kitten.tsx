@@ -327,135 +327,217 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             <button class="pk-yellow-btn">Talk to a Vet</button>
           </div>
 
+          <script>
+            window.initPurrkinsKitten = function() {
+              var editBtn = document.getElementById("edit-details-btn");
+              var cancelBtn = document.getElementById("cancel-edit-btn");
+              var viewMode = document.getElementById("profile-view-mode");
+              var editMode = document.getElementById("profile-edit-mode");
+              var weightBanner = document.getElementById("weight-banner-ui");
+              var fileInput = document.getElementById("profile-image-file");
+              var urlInput = document.getElementById("profile-image-url-input");
+              var saveBtn = document.getElementById("save-changes-btn");
+              var loadingText = document.getElementById("save-loading-text");
+
+              if (editMode) {
+                editMode.addEventListener("submit", async function(e) {
+                  e.preventDefault();
+                  saveBtn.disabled = true;
+                  loadingText.style.display = "inline";
+
+                  var file = fileInput.files[0];
+                  try {
+                    if (file) {
+                      // 1. Get Upload URL
+                      var urlFormData = new FormData();
+                      urlFormData.append("filename", file.name);
+                      urlFormData.append("mimeType", file.type);
+                      
+                      var res = await fetch("/apps/purrkins/get-upload-url", {
+                        method: "POST",
+                        body: urlFormData
+                      });
+                      var data = await res.json();
+                      
+                      if (data.success && data.target) {
+                        // 2. Upload file directly to Cloud Bucket
+                        var uploadForm = new FormData();
+                        data.target.parameters.forEach(function(param) {
+                          uploadForm.append(param.name, param.value);
+                        });
+                        uploadForm.append("file", file);
+
+                        var uploadRes = await fetch(data.target.url, {
+                          method: "POST",
+                          body: uploadForm
+                        });
+
+                        if (uploadRes.ok) {
+                          // 3. Save the resourceUrl
+                          urlInput.value = data.target.resourceUrl;
+                        } else {
+                          alert("Image upload failed. Please try again.");
+                          saveBtn.disabled = false;
+                          loadingText.style.display = "none";
+                          return; // Stop execution
+                        }
+                      } else {
+                         alert("Could not initialize upload.");
+                         saveBtn.disabled = false;
+                         loadingText.style.display = "none";
+                         return; // Stop execution
+                      }
+                    }
+
+                    // Submit the final form data to update-pet via AJAX
+                    var finalFormData = new FormData(editMode);
+                    var finalRes = await fetch("/apps/purrkins/update-pet", {
+                      method: "POST",
+                      body: finalFormData
+                    });
+                    var finalData = await finalRes.json();
+
+                    if (finalData.success) {
+                      // Instantly update the DOM to avoid Shopify Liquid caching
+                      if (file) {
+                        var reader = new FileReader();
+                        reader.onload = function(event) {
+                          var profilePhotos = document.querySelectorAll(".pk-profile-photo img, .pk-profile-photo svg");
+                          profilePhotos.forEach(function(el) {
+                             if (el.tagName.toLowerCase() === 'svg') {
+                                var newImg = document.createElement('img');
+                                newImg.src = event.target.result;
+                                newImg.alt = "Profile";
+                                newImg.style.width = "100%";
+                                newImg.style.height = "100%";
+                                newImg.style.objectFit = "cover";
+                                el.parentNode.replaceChild(newImg, el);
+                             } else {
+                                el.src = event.target.result;
+                             }
+                          });
+                          // Also update active sidebar card image
+                          var activeSidebarImg = document.querySelector(".pk-pet-card.active img, .pk-pet-card.active svg");
+                          if (activeSidebarImg) {
+                             if (activeSidebarImg.tagName.toLowerCase() === 'svg') {
+                                var sImg = document.createElement('img');
+                                sImg.src = event.target.result;
+                                sImg.alt = "Profile";
+                                sImg.style.width = "40px";
+                                sImg.style.height = "40px";
+                                sImg.style.borderRadius = "50%";
+                                sImg.style.objectFit = "cover";
+                                activeSidebarImg.parentNode.replaceChild(sImg, activeSidebarImg);
+                             } else {
+                                activeSidebarImg.src = event.target.result;
+                             }
+                          }
+                        };
+                        reader.readAsDataURL(file);
+                      }
+
+                      // Update text fields in view mode
+                      var updateStat = function(labelName, newValue) {
+                         var boxes = document.querySelectorAll('.pk-stat-box');
+                         boxes.forEach(function(box) {
+                            var label = box.querySelector('label');
+                            if(label && label.innerText.trim() === labelName) {
+                               var span = box.querySelector('span');
+                               if(span) span.innerText = newValue || '-';
+                            }
+                         });
+                      };
+                      
+                      updateStat('Age', finalFormData.get('age'));
+                      updateStat('Weight', finalFormData.get('weight'));
+                      updateStat('Body Type', finalFormData.get('body'));
+                      updateStat('Sex', finalFormData.get('gender') + ', ' + finalFormData.get('neutered'));
+                      updateStat('Activity Level', finalFormData.get('activity'));
+                      updateStat('Focus Area', finalFormData.get('focus'));
+                      updateStat('Allergies', finalFormData.get('allergies'));
+                      
+                      var h2 = document.querySelector('.pk-profile-header h2');
+                      if (h2) h2.innerText = (finalFormData.get('name') || 'Kitten') + "'s profile";
+                      var sidebarName = document.querySelector('.pk-pet-card.active strong');
+                      if (sidebarName) sidebarName.innerText = finalFormData.get('name') || 'Kitten';
+
+                      // Switch back to view mode
+                      editMode.style.display = "none";
+                      viewMode.style.display = "flex";
+                      if (weightBanner) weightBanner.style.display = "flex";
+                      if (editBtn) editBtn.style.display = "inline-block";
+                      
+                      // Reset buttons
+                      saveBtn.disabled = false;
+                      loadingText.style.display = "none";
+
+                      // Create a toast notification
+                      var toast = document.createElement("div");
+                      toast.innerText = "Profile updated successfully!";
+                      toast.style.position = "fixed";
+                      toast.style.bottom = "20px";
+                      toast.style.right = "20px";
+                      toast.style.backgroundColor = "#000";
+                      toast.style.color = "#fff";
+                      toast.style.padding = "12px 24px";
+                      toast.style.borderRadius = "8px";
+                      toast.style.fontFamily = "inherit";
+                      toast.style.zIndex = "9999";
+                      toast.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+                      document.body.appendChild(toast);
+
+                      setTimeout(function() {
+                        toast.style.opacity = '0';
+                        toast.style.transition = 'opacity 0.5s ease';
+                        setTimeout(function() { toast.remove(); }, 500);
+                      }, 2000);
+                    } else {
+                      alert("Failed to update: " + (finalData.message || "Unknown error"));
+                      saveBtn.disabled = false;
+                      loadingText.style.display = "none";
+                    }
+
+                  } catch (err) {
+                    console.error(err);
+                    alert("An error occurred during update.");
+                    saveBtn.disabled = false;
+                    loadingText.style.display = "none";
+                  }
+                });
+              }
+
+              if (editBtn) {
+                editBtn.addEventListener("click", function(e) {
+                  e.preventDefault();
+                  viewMode.style.display = "none";
+                  weightBanner.style.display = "none";
+                  editMode.style.display = "block";
+                  editBtn.style.display = "none";
+                });
+              }
+
+              if (cancelBtn) {
+                cancelBtn.addEventListener("click", function(e) {
+                  e.preventDefault();
+                  editMode.style.display = "none";
+                  viewMode.style.display = "flex";
+                  weightBanner.style.display = "flex";
+                  editBtn.style.display = "block";
+                });
+              }
+            };
+            
+            // Initialize immediately if script runs
+            if (document.readyState === "loading") {
+              document.addEventListener("DOMContentLoaded", window.initPurrkinsKitten);
+            } else {
+              window.initPurrkinsKitten();
+            }
+          </script>
+
         </div>
       </div>
     </div>
-
-    <script>
-      document.addEventListener("DOMContentLoaded", function() {
-        var editBtn = document.getElementById("edit-details-btn");
-        var cancelBtn = document.getElementById("cancel-edit-btn");
-        var viewMode = document.getElementById("profile-view-mode");
-        var editMode = document.getElementById("profile-edit-mode");
-        var weightBanner = document.getElementById("weight-banner-ui");
-        var fileInput = document.getElementById("profile-image-file");
-        var urlInput = document.getElementById("profile-image-url-input");
-        var saveBtn = document.getElementById("save-changes-btn");
-        var loadingText = document.getElementById("save-loading-text");
-
-        if (editMode) {
-          editMode.addEventListener("submit", async function(e) {
-            e.preventDefault();
-            saveBtn.disabled = true;
-            loadingText.style.display = "inline";
-
-            var file = fileInput.files[0];
-            try {
-              if (file) {
-                // 1. Get Upload URL
-                var urlFormData = new FormData();
-                urlFormData.append("filename", file.name);
-                urlFormData.append("mimeType", file.type);
-                
-                var res = await fetch("/apps/purrkins/get-upload-url", {
-                  method: "POST",
-                  body: urlFormData
-                });
-                var data = await res.json();
-                
-                if (data.success && data.target) {
-                  // 2. Upload file directly to Cloud Bucket
-                  var uploadForm = new FormData();
-                  data.target.parameters.forEach(function(param) {
-                    uploadForm.append(param.name, param.value);
-                  });
-                  uploadForm.append("file", file);
-
-                  var uploadRes = await fetch(data.target.url, {
-                    method: "POST",
-                    body: uploadForm
-                  });
-
-                  if (uploadRes.ok) {
-                    // 3. Save the resourceUrl
-                    urlInput.value = data.target.resourceUrl;
-                  } else {
-                    alert("Image upload failed. Please try again.");
-                    saveBtn.disabled = false;
-                    loadingText.style.display = "none";
-                    return; // Stop execution
-                  }
-                } else {
-                   alert("Could not initialize upload.");
-                   saveBtn.disabled = false;
-                   loadingText.style.display = "none";
-                   return; // Stop execution
-                }
-              }
-
-              // Submit the final form data to update-pet via AJAX
-              var finalFormData = new FormData(editMode);
-              var finalRes = await fetch("/apps/purrkins/update-pet", {
-                method: "POST",
-                body: finalFormData
-              });
-              var finalData = await finalRes.json();
-
-              if (finalData.success) {
-                // Create a toast notification
-                var toast = document.createElement("div");
-                toast.innerText = "Profile updated successfully!";
-                toast.style.position = "fixed";
-                toast.style.bottom = "20px";
-                toast.style.right = "20px";
-                toast.style.backgroundColor = "#000";
-                toast.style.color = "#fff";
-                toast.style.padding = "12px 24px";
-                toast.style.borderRadius = "8px";
-                toast.style.fontFamily = "inherit";
-                toast.style.zIndex = "9999";
-                toast.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
-                document.body.appendChild(toast);
-
-                setTimeout(function() {
-                  window.location.reload();
-                }, 1500);
-              } else {
-                alert("Failed to update: " + (finalData.message || "Unknown error"));
-                saveBtn.disabled = false;
-                loadingText.style.display = "none";
-              }
-
-            } catch (err) {
-              console.error(err);
-              alert("An error occurred during update.");
-              saveBtn.disabled = false;
-              loadingText.style.display = "none";
-            }
-          });
-        }
-
-        if (editBtn) {
-          editBtn.addEventListener("click", function(e) {
-            e.preventDefault();
-            viewMode.style.display = "none";
-            weightBanner.style.display = "none";
-            editMode.style.display = "block";
-            editBtn.style.display = "none";
-          });
-        }
-
-        if (cancelBtn) {
-          cancelBtn.addEventListener("click", function(e) {
-            e.preventDefault();
-            editMode.style.display = "none";
-            viewMode.style.display = "flex";
-            weightBanner.style.display = "flex";
-            editBtn.style.display = "block";
-          });
-        }
-      });
-    </script>
 
     <style>
       .pk-dashboard-wrapper {
@@ -912,6 +994,54 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         .pk-vet-card { flex-direction: column; gap: 20px; text-align: center; }
       }
     </style>
+
+    <script>
+      document.addEventListener("click", async function(e) {
+        var link = e.target.closest("a.pk-menu-item");
+        if (link && link.getAttribute("href").startsWith("/apps/purrkins/")) {
+          e.preventDefault();
+          
+          document.querySelectorAll(".pk-menu-item").forEach(function(el) { el.classList.remove("active") });
+          link.classList.add("active");
+          
+          var mainContent = document.querySelector(".pk-dashboard-content");
+          if (!mainContent) return;
+          mainContent.style.opacity = "0.5";
+          mainContent.style.pointerEvents = "none";
+          mainContent.style.transition = "opacity 0.2s";
+          
+          var url = link.getAttribute("href");
+          window.history.pushState({}, "", url);
+          
+          try {
+            var res = await fetch(url);
+            var text = await res.text();
+            
+            var parser = new DOMParser();
+            var doc = parser.parseFromString(text, "text/html");
+            
+            var newContent = doc.querySelector(".pk-dashboard-content");
+            if (newContent) {
+              mainContent.innerHTML = newContent.innerHTML;
+              
+              var scripts = mainContent.querySelectorAll("script");
+              scripts.forEach(function(oldScript) {
+                var newScript = document.createElement("script");
+                Array.from(oldScript.attributes).forEach(function(attr) { newScript.setAttribute(attr.name, attr.value); });
+                newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+                oldScript.parentNode.replaceChild(newScript, oldScript);
+              });
+            }
+          } catch (err) {
+             console.error("PJAX Error:", err);
+             window.location.href = url;
+          }
+          
+          mainContent.style.opacity = "1";
+          mainContent.style.pointerEvents = "auto";
+        }
+      });
+    </script>
   `;
 
   return new Response(liquidTemplate, {

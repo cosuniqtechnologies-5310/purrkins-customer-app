@@ -556,6 +556,54 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
       }
     </style>
+
+    <script>
+      document.addEventListener("click", async function(e) {
+        var link = e.target.closest("a.pk-menu-item");
+        if (link && link.getAttribute("href").startsWith("/apps/purrkins/")) {
+          e.preventDefault();
+          
+          document.querySelectorAll(".pk-menu-item").forEach(function(el) { el.classList.remove("active") });
+          link.classList.add("active");
+          
+          var mainContent = document.querySelector(".pk-dashboard-content");
+          if (!mainContent) return;
+          mainContent.style.opacity = "0.5";
+          mainContent.style.pointerEvents = "none";
+          mainContent.style.transition = "opacity 0.2s";
+          
+          var url = link.getAttribute("href");
+          window.history.pushState({}, "", url);
+          
+          try {
+            var res = await fetch(url);
+            var text = await res.text();
+            
+            var parser = new DOMParser();
+            var doc = parser.parseFromString(text, "text/html");
+            
+            var newContent = doc.querySelector(".pk-dashboard-content");
+            if (newContent) {
+              mainContent.innerHTML = newContent.innerHTML;
+              
+              var scripts = mainContent.querySelectorAll("script");
+              scripts.forEach(function(oldScript) {
+                var newScript = document.createElement("script");
+                Array.from(oldScript.attributes).forEach(function(attr) { newScript.setAttribute(attr.name, attr.value); });
+                newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+                oldScript.parentNode.replaceChild(newScript, oldScript);
+              });
+            }
+          } catch (err) {
+             console.error("PJAX Error:", err);
+             window.location.href = url;
+          }
+          
+          mainContent.style.opacity = "1";
+          mainContent.style.pointerEvents = "auto";
+        }
+      });
+    </script>
   `;
 
   return new Response(liquidTemplate, {
