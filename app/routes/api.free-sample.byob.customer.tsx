@@ -23,182 +23,132 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     const body = await request.json();
-    console.log("[BYOB] Received payload:", JSON.stringify(body));
+    const { customerId: rawCustomerId, quiz_data } = body;
 
-    const { name, phone, email, tag, quiz_data, accepts_marketing } = body;
-
-    if (!phone && !email) {
-      return Response.json({ success: false, message: "Phone or email is required" }, { status: 400 });
+    if (!rawCustomerId) {
+      return Response.json({ success: false, message: "Customer ID is required" }, { status: 400 });
     }
 
-    const customerTag = tag || "byob-lead";
-    const nameParts = name ? name.trim().split(" ") : ["Customer"];
-    const firstName = nameParts[0];
-    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : ".";
+    let customerId = rawCustomerId;
+    if (!customerId.includes("gid://shopify/Customer/")) {
+      customerId = `gid://shopify/Customer/${customerId}`;
+    }
 
-    const emailMarketingConsent = accepts_marketing ? {
-      marketingState: "SUBSCRIBED",
-      marketingOptInLevel: "CONFIRMED_OPT_IN",
-      consentUpdatedAt: new Date().toISOString(),
-    } : undefined;
-
-    let customerId: string | undefined;
-    
-    // Prepare metafields array
-    const metafieldsToSet = Object.entries(quiz_data || {}).map(([key, value]) => ({
-      namespace: "custom",
-      key: `custom_quiz_${key}`,
-      value: String(value).substring(0, 5000), // Protect against too long strings
-      type: "single_line_text_field"
-    }));
-
-    // Try to find the customer first
-    const searchParams = phone ? `phone:${phone}` : `email:${email}`;
+    // 1. Fetch existing pets list from the customer
     const searchResponse = await admin.graphql(
       `#graphql
-      query findCustomer($query: String!) {
-        customers(first: 1, query: $query) {
-          edges {
-            node {
-              id
-              tags
-              emailMarketingConsent {
-                marketingState
-              }
-            }
+      query getCustomer($id: ID!) {
+        customer(id: $id) {
+          petsMetafield: metafield(namespace: "custom", key: "pets") {
+            value
           }
         }
       }`,
-      { variables: { query: searchParams } }
+      { variables: { id: customerId } }
     );
-
     const searchData = await searchResponse.json();
-    const existingCustomer = searchData.data?.customers?.edges?.[0]?.node;
+    const existingCustomer = searchData.data?.customer;
 
-    if (existingCustomer) {
-      const existingTags: string[] = existingCustomer.tags || [];
-      const updatedTags = existingTags.includes(customerTag)
-        ? existingTags
-        : [...existingTags, customerTag];
+    if (!existingCustomer) {
+      return Response.json({ success: false, message: "Customer not found" }, { status: 404 });
+    }
 
-      const updateResponse = await admin.graphql(
+    // 2. Prepare metaobject fields
+    const fieldsToSet = Object.entries(quiz_data || {}).map(([key, value]) => ({
+      key: key,
+      value: String(value).substring(0, 5000)
+    }));
+
+    if (fieldsToSet.length > 0) {
+      // 3. Create Pet Profile Metaobject
+      const moResponse = await admin.graphql(
         `#graphql
-        mutation customerUpdate($input: CustomerInput!) {
-          customerUpdate(input: $input) {
-            customer { id tags }
+        mutation CreateMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id }
             userErrors { field message }
           }
         }`,
         {
           variables: {
-            input: {
-              id: existingCustomer.id,
-              tags: updatedTags
+            metaobject: {
+              type: "pet_profile",
+              capabilities: {
+                publishable: {
+                  status: "ACTIVE"
+                }
+              },
+              fields: fieldsToSet
+            }
+          }
+        }
+      );
+      const moData = await moResponse.json();
+      
+      const moErrors = moData.data?.metaobjectCreate?.userErrors;
+      if (moErrors && moErrors.length > 0) {
+        // Debug: fetch available types
+        const defResponse = await admin.graphql(`
+          query {
+            metaobjectDefinitions(first: 20) {
+              edges { node { type name } }
+            }
+          }
+        `);
+        const defData = await defResponse.json();
+        const availableTypes = defData.data?.metaobjectDefinitions?.edges.map((e: any) => e.node.type).join(", ");
+        
+        return Response.json({ success: false, message: "Failed to create. Available types in your store: [" + availableTypes + "]. Error: " + JSON.stringify(moErrors) }, { status: 400 });
+      }
+
+      const metaobjectId = moData.data?.metaobjectCreate?.metaobject?.id;
+
+      // 4. Append to customer's custom.pets
+      if (metaobjectId) {
+        let existingPetsList: string[] = [];
+        if (existingCustomer.petsMetafield?.value) {
+          try {
+            existingPetsList = JSON.parse(existingCustomer.petsMetafield.value);
+            if (!Array.isArray(existingPetsList)) existingPetsList = [];
+          } catch(e) {
+            existingPetsList = [];
+          }
+        }
+        
+        existingPetsList.push(metaobjectId);
+
+        const mfResponse = await admin.graphql(
+          `#graphql
+          mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+            metafieldsSet(metafields: $metafields) {
+              metafields { key value }
+              userErrors { field message }
+            }
+          }`,
+          {
+            variables: { 
+              metafields: [{
+                ownerId: customerId,
+                namespace: "custom",
+                key: "pets",
+                type: "list.metaobject_reference",
+                value: JSON.stringify(existingPetsList)
+              }] 
             },
-          },
-        }
-      );
-      const updateData = await updateResponse.json();
-      console.log("[BYOB] Update customer result:", JSON.stringify(updateData));
-      
-      try {
-        fs.appendFileSync(
-          path.join(process.cwd(), "byob-debug.log"),
-          new Date().toISOString() + " UPDATE: " + JSON.stringify(updateData) + "\n"
-        );
-      } catch(e) {}
-      
-      customerId = existingCustomer.id;
-
-    } else {
-      const createResponse = await admin.graphql(
-        `#graphql
-        mutation customerCreate($input: CustomerInput!) {
-          customerCreate(input: $input) {
-            customer { id }
-            userErrors { field message }
           }
-        }`,
-        {
-          variables: {
-            input: {
-              firstName,
-              lastName,
-              ...(phone && { phone }),
-              ...(email && { email }),
-              tags: [customerTag],
-              ...(emailMarketingConsent && { emailMarketingConsent }),
-            },
-          },
-        }
-      );
-
-      const createData = await createResponse.json();
-      console.log("[BYOB] Create result:", JSON.stringify(createData));
-
-      try {
-        fs.appendFileSync(
-          path.join(process.cwd(), "byob-debug.log"),
-          new Date().toISOString() + " CREATE: " + JSON.stringify(createData) + "\n"
         );
-      } catch(e) {}
-
-      customerId = createData.data?.customerCreate?.customer?.id;
+        const mfData = await mfResponse.json();
+        const mfErrors = mfData.data?.metafieldsSet?.userErrors;
+        if (mfErrors && mfErrors.length > 0) {
+          return Response.json({ success: false, message: "Failed to link pet to customer: " + JSON.stringify(mfErrors) }, { status: 400 });
+        }
+      }
     }
 
-    if (customerId && metafieldsToSet.length > 0) {
-      const setMetafields = metafieldsToSet.map(mf => ({
-        ownerId: customerId,
-        namespace: mf.namespace,
-        key: mf.key,
-        type: mf.type,
-        value: mf.value
-      }));
-
-      const mfResponse = await admin.graphql(
-        `#graphql
-        mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
-          metafieldsSet(metafields: $metafields) {
-            metafields { key value }
-            userErrors { field message }
-          }
-        }`,
-        {
-          variables: { metafields: setMetafields },
-        }
-      );
-      const mfData = await mfResponse.json();
-      console.log("[BYOB] Metafields Set Result:", JSON.stringify(mfData));
-      
-      try {
-        fs.appendFileSync(
-          path.join(process.cwd(), "byob-debug.log"),
-          new Date().toISOString() + " METAFIELDS: " + JSON.stringify(mfData) + "\n"
-        );
-      } catch(e) {}
-    }
-
-    if (customerId && accepts_marketing && emailMarketingConsent) {
-      await admin.graphql(
-        `#graphql
-        mutation customerEmailMarketingConsentUpdate($input: CustomerEmailMarketingConsentUpdateInput!) {
-          customerEmailMarketingConsentUpdate(input: $input) {
-            customer { id }
-          }
-        }`,
-        {
-          variables: {
-            input: { customerId, emailMarketingConsent },
-          },
-        }
-      );
-    }
-
-    return Response.json({ success: true, message: "Customer tagged and quiz saved for BYOB" });
-
+    return Response.json({ success: true, message: "Quiz saved successfully" });
   } catch (error: any) {
-    if (error instanceof Response) return error;
     console.error("[BYOB] API Error:", error);
-    return Response.json({ success: false, message: String(error) }, { status: 200 });
+    return Response.json({ success: false, message: String(error) }, { status: 500 });
   }
 };
+
