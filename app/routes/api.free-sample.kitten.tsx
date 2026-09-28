@@ -73,6 +73,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               
               <div class="pk-profile-details" id="profile-view-mode">
                 <div class="pk-profile-photo">
+                  <!-- DEBUG: profile={{ current_pet.profile }} id={{ current_pet.profile.value.id }} -->
                   {% if current_pet.profile.value %}
                     <img src="{{ current_pet.profile.value | image_url: width: 300 }}" alt="{{ current_pet.name.value }}">
                   {% else %}
@@ -116,9 +117,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               </div>
 
               <!-- EDIT MODE FORM (Hidden by default) -->
-              <form class="pk-profile-edit-form" id="profile-edit-mode" action="/apps/purrkins/update-pet" method="POST" enctype="multipart/form-data" style="display:none;">
+              <form class="pk-profile-edit-form" id="profile-edit-mode" action="/apps/purrkins/update-pet" method="POST" style="display:none;">
                 <input type="hidden" name="pet_id" value="{{ current_pet.system.id }}">
                 <input type="hidden" name="customer_id" value="{{ customer.id }}">
+                <input type="hidden" name="profile_image_url" id="profile-image-url-input">
                 
                 <div class="pk-edit-img-row">
                   <div class="pk-profile-photo" style="width: 100px; height: 100px;">
@@ -130,7 +132,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   </div>
                   <div class="pk-file-upload">
                     <label>Change Profile Image</label>
-                    <input type="file" name="profile_image" accept="image/*">
+                    <input type="file" id="profile-image-file" accept="image/*">
                   </div>
                 </div>
 
@@ -179,9 +181,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   </div>
                 </div>
 
-                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <div style="display: flex; gap: 10px; margin-top: 20px; align-items: center;">
                   <button type="button" class="pk-outline-btn" id="cancel-edit-btn">Cancel</button>
-                  <button type="submit" class="pk-dark-btn">Save Changes</button>
+                  <button type="submit" class="pk-dark-btn" id="save-changes-btn">Save Changes</button>
+                  <span id="save-loading-text" style="display:none; font-size: 13px; color: #555;">Uploading image, please wait...</span>
                 </div>
               </form>
 
@@ -335,6 +338,102 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         var viewMode = document.getElementById("profile-view-mode");
         var editMode = document.getElementById("profile-edit-mode");
         var weightBanner = document.getElementById("weight-banner-ui");
+        var fileInput = document.getElementById("profile-image-file");
+        var urlInput = document.getElementById("profile-image-url-input");
+        var saveBtn = document.getElementById("save-changes-btn");
+        var loadingText = document.getElementById("save-loading-text");
+
+        if (editMode) {
+          editMode.addEventListener("submit", async function(e) {
+            e.preventDefault();
+            saveBtn.disabled = true;
+            loadingText.style.display = "inline";
+
+            var file = fileInput.files[0];
+            try {
+              if (file) {
+                // 1. Get Upload URL
+                var urlFormData = new FormData();
+                urlFormData.append("filename", file.name);
+                urlFormData.append("mimeType", file.type);
+                
+                var res = await fetch("/apps/purrkins/get-upload-url", {
+                  method: "POST",
+                  body: urlFormData
+                });
+                var data = await res.json();
+                
+                if (data.success && data.target) {
+                  // 2. Upload file directly to Cloud Bucket
+                  var uploadForm = new FormData();
+                  data.target.parameters.forEach(function(param) {
+                    uploadForm.append(param.name, param.value);
+                  });
+                  uploadForm.append("file", file);
+
+                  var uploadRes = await fetch(data.target.url, {
+                    method: "POST",
+                    body: uploadForm
+                  });
+
+                  if (uploadRes.ok) {
+                    // 3. Save the resourceUrl
+                    urlInput.value = data.target.resourceUrl;
+                  } else {
+                    alert("Image upload failed. Please try again.");
+                    saveBtn.disabled = false;
+                    loadingText.style.display = "none";
+                    return; // Stop execution
+                  }
+                } else {
+                   alert("Could not initialize upload.");
+                   saveBtn.disabled = false;
+                   loadingText.style.display = "none";
+                   return; // Stop execution
+                }
+              }
+
+              // Submit the final form data to update-pet via AJAX
+              var finalFormData = new FormData(editMode);
+              var finalRes = await fetch("/apps/purrkins/update-pet", {
+                method: "POST",
+                body: finalFormData
+              });
+              var finalData = await finalRes.json();
+
+              if (finalData.success) {
+                // Create a toast notification
+                var toast = document.createElement("div");
+                toast.innerText = "Profile updated successfully!";
+                toast.style.position = "fixed";
+                toast.style.bottom = "20px";
+                toast.style.right = "20px";
+                toast.style.backgroundColor = "#000";
+                toast.style.color = "#fff";
+                toast.style.padding = "12px 24px";
+                toast.style.borderRadius = "8px";
+                toast.style.fontFamily = "inherit";
+                toast.style.zIndex = "9999";
+                toast.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+                document.body.appendChild(toast);
+
+                setTimeout(function() {
+                  window.location.reload();
+                }, 1500);
+              } else {
+                alert("Failed to update: " + (finalData.message || "Unknown error"));
+                saveBtn.disabled = false;
+                loadingText.style.display = "none";
+              }
+
+            } catch (err) {
+              console.error(err);
+              alert("An error occurred during update.");
+              saveBtn.disabled = false;
+              loadingText.style.display = "none";
+            }
+          });
+        }
 
         if (editBtn) {
           editBtn.addEventListener("click", function(e) {
