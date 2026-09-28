@@ -25,7 +25,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     // 2. Parse the incoming JSON payload from the frontend
     const body = await request.json();
-    const { name, phone, tag } = body;
+    const { name, phone, tag, email, accepts_marketing } = body;
 
     if (!phone) {
       return Response.json({ success: false, message: "Phone number is required" }, { status: 400 });
@@ -37,6 +37,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const nameParts = name ? name.trim().split(" ") : ["Customer"];
     const firstName = nameParts[0];
     const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : ".";
+
+    const emailMarketingConsent = accepts_marketing ? {
+      marketingState: "SUBSCRIBED",
+      marketingOptInLevel: "SINGLE_OPT_IN"
+    } : undefined;
 
     // 3. Check if a customer with this phone number already exists
     const searchResponse = await admin.graphql(
@@ -68,6 +73,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         ? existingTags
         : [...existingTags, customerTag];
 
+      const input: any = {
+        id: existingCustomer.id,
+        tags: updatedTags,
+      };
+
+      if (email) input.email = email;
+      if (emailMarketingConsent) input.emailMarketingConsent = emailMarketingConsent;
+
       const updateResponse = await admin.graphql(
         `#graphql
         mutation customerUpdate($input: CustomerInput!) {
@@ -84,10 +97,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }`,
         {
           variables: {
-            input: {
-              id: existingCustomer.id,
-              tags: updatedTags,
-            },
+            input,
           },
         }
       );
@@ -100,6 +110,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     } else {
       // 4b. Create a new customer
+      const input: any = {
+        firstName,
+        lastName,
+        phone,
+        tags: [customerTag]
+      };
+
+      if (email) input.email = email;
+      if (emailMarketingConsent) input.emailMarketingConsent = emailMarketingConsent;
+
       const createResponse = await admin.graphql(
         `#graphql
         mutation customerCreate($input: CustomerInput!) {
@@ -115,12 +135,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }`,
         {
           variables: {
-            input: {
-              firstName,
-              lastName,
-              phone,
-              tags: [customerTag]
-            },
+            input,
           },
         }
       );
