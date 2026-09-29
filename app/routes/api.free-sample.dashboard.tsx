@@ -101,7 +101,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                       title
                       handle
                       featuredImage { url altText }
-                      priceRange { minVariantPrice { amount currencyCode } } variants(first: 1) { edges { node { title } } }
+                      priceRange { minVariantPrice { amount currencyCode } } variants(first: 1) { edges { node { title price } } }
                     }
                   }
                 }
@@ -160,7 +160,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           const title = p.variants?.edges?.[0]?.node?.title || "70g";
           const weight = title.includes("g") ? title.replace(/[^0-9]/g, "") : 70;
           const weightUnit = title.includes("kg") ? "kg" : "g";
-          const price = parseFloat(p.priceRange?.minVariantPrice?.amount || 0).toFixed(0);
+          const price = parseFloat(p.variants?.edges?.[0]?.node?.price || p.priceRange?.minVariantPrice?.amount || 0).toFixed(0);
           const desc = p.description ? (p.description.length > 50 ? p.description.substring(0, 47) + '...' : p.description) : 'Real broth for daily hydration';
           const type = p.productType || 'Wet Food';
           
@@ -1050,6 +1050,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <div class="pk-sidebar-menu">
             <a href="/apps/purrkins/dashboard" class="pk-menu-item active"><span class="pk-dot"></span> Overview</a>
             <a href="/apps/purrkins/kitten" class="pk-menu-item"><span class="pk-dot"></span> Kitten's Profile</a>
+            <a href="#pk-tab-wishlist" class="pk-menu-item"><span class="pk-dot"></span> Wishlist <span class="pk-badge">${customer.wishlist?.references?.nodes?.length || '0'}</span></a>
           </div>
 
           <div class="pk-whatsapp-card">
@@ -1105,7 +1106,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           </div>
 
           <!-- Wishlist -->
-          <div class="pk-card pk-wishlist-card">
+          <div id="pk-tab-wishlist" class="pk-card pk-wishlist-card">
             <h3 class="pk-section-title">Your Wishlist</h3>
             <div class="pk-wishlist-grid" style="display:block;">
               ${wishlistHtml}
