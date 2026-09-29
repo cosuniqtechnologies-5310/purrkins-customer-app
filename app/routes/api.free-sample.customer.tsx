@@ -23,7 +23,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const body = await request.json();
     console.log("[FreeSample] Received payload:", JSON.stringify(body));
 
-    const { name, phone, tag, email, accepts_marketing } = body;
+    const { name, phone, tag, email, accepts_marketing, note } = body;
 
     if (!phone) {
       return Response.json({ success: false, message: "Phone number is required" }, { status: 400 });
@@ -108,6 +108,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               firstName,
               lastName,
               tags: updatedTags,
+              ...(note ? { note } : {}),
             },
           },
         }
@@ -132,6 +133,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         email: safeEmail,
         tags: [customerTag],
         emailMarketingConsent,
+        ...(note ? { note } : {}),
       };
 
       const createResponse = await admin.graphql(
