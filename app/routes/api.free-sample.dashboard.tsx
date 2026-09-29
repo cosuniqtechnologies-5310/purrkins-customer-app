@@ -70,30 +70,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 city
               }
               addresses(first: 2) {
-                edges {
-                  node {
-                    id
-                    name
-                    phone
-                    address1
-                    address2
-                    city
-                    province
-                    zip
-                  }
-                }
-              }
-              orders(first: 3, sortKey: CREATED_AT, reverse: true) {
-                edges {
-                  node {
-                    name
-                    createdAt
-                    totalPriceSet { shopMoney { amount } }
-                    displayFulfillmentStatus
-                    statusPageUrl
-                    lineItems(first: 1) { edges { node { title } } }
-                  }
-                }
+                id
+                name
+                phone
+                address1
+                address2
+                city
+                province
+                zip
               }
               pets: metafield(namespace: "custom", key: "pets") { value }
               wishlist: metafield(namespace: "custom", key: "wishlist") { value }
@@ -109,6 +93,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (data.errors) {
     console.error("GraphQL errors:", JSON.stringify(data.errors));
   }
+  console.log("=== DASHBOARD DEBUG ===");
+  console.log("customerId from JWT:", customerId);
+  console.log("customer from GraphQL:", JSON.stringify(data?.data?.customer, null, 2));
   const customer = data?.data?.customer || {};
   const defaultAddress = customer.defaultAddress || {};
   
@@ -130,10 +117,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     `).join('')
     : '<div class="pk-tr"><div style="grid-column: 1/-1; color: #595961;">No orders found.</div></div>';
 
-  const addressesHtml = customer.addresses?.edges?.length > 0
-    ? customer.addresses.edges.map((edge: any, index: number) => {
-        const a = edge.node;
-        return `
+  const addressesHtml = customer.addresses?.length > 0
+    ? customer.addresses.map((a: any, index: number) => `
       <div class="pk-address-box">
         <div class="pk-addr-top">
           <h4>${index === 0 ? 'Home' : 'Office'} ${a.id === defaultAddress.id ? '<span class="pk-default-tag">Default</span>' : ''}</h4>
@@ -143,8 +128,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         ${a.address1 || ''}, ${a.address2 || ''}<br>
         ${a.city || ''}, ${a.province || ''} ${a.zip || ''}</p>
       </div>
-    `;
-      }).join('')
+    `).join('')
     : '<p style="color: #595961;">No addresses found.</p>';
 
   const liquidTemplate = `

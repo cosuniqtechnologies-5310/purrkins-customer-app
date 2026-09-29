@@ -1,13 +1,147 @@
 import type { LoaderFunctionArgs } from "react-router";
+import prisma from "../db.server";
+import jwt from "jsonwebtoken";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  try {
   const url = new URL(request.url);
   const petIndex = parseInt(url.searchParams.get("pet_index") || "0", 10);
+  const token = url.searchParams.get("session");
+  let customerId: string | null = null;
+  let customerFirstName = "Friend";
+
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, process.env.SHOPIFY_API_SECRET || "s3cr3t") as any;
+      customerId = decoded.customerId;
+    } catch (e) { /* invalid token */ }
+  }
+
+  if (!customerId) {
+    return new Response(`
+      <script>
+        var t = localStorage.getItem('pk_session');
+        if (t) {
+          window.location.replace(window.location.pathname + "?session=" + t);
+        } else {
+          window.location.href = '/apps/purrkins/login';
+        }
+      </script>
+    `, { headers: { "Content-Type": "application/liquid" } });
+  }
+
+  // Fetch customer + pets metafield from Admin API
+  const shopSession = await prisma.session.findFirst({
+    where: { shop: "purrkins-mhrlfymw.myshopify.com", isOnline: false }
+  });
+
+  let pets: any[] = [];
+
+  if (shopSession?.accessToken) {
+    const gqlRes = await fetch(
+      `https://purrkins-mhrlfymw.myshopify.com/admin/api/2026-07/graphql.json`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Access-Token": shopSession.accessToken,
+        },
+        body: JSON.stringify({
+          query: `
+            query($id: ID!) {
+              customer(id: $id) {
+                firstName
+                pets: metafield(namespace: "custom", key: "pets") {
+                  references(first: 10) {
+                    nodes {
+                      ... on Metaobject {
+                        id
+                        name: field(key: "name") { value }
+                        age: field(key: "age") { value }
+                        breed: field(key: "breed") { value }
+                        gender: field(key: "gender") { value }
+                        weight: field(key: "weight") { value }
+                        profile: field(key: "profile") {
+                          reference {
+                            ... on MediaImage {
+                              image { url }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          `,
+          variables: { id: customerId }
+        })
+      }
+    );
+    const gqlData = await gqlRes.json();
+    console.log("Kitten GQL errors:", JSON.stringify(gqlData?.errors));
+    console.log("Kitten customer:", JSON.stringify(gqlData?.data?.customer?.firstName));
+    customerFirstName = gqlData?.data?.customer?.firstName || "Friend";
+    pets = gqlData?.data?.customer?.pets?.references?.nodes || [];
+  }
+
+  const activePet = pets[petIndex] || null;
+
+  // Build pet pills HTML
+  const petPillsHtml = pets.map((pet: any, i: number) => {
+    const name = pet.name?.value || "Kitten";
+    const imgUrl = pet.profile?.reference?.image?.url;
+    const isActive = i === petIndex;
+    const sessionParam = token ? `?pet_index=${i}&session=${token}` : `?pet_index=${i}`;
+    return `
+      <a href="/apps/purrkins/kitten${sessionParam}" class="pk-pet-pill ${isActive ? 'active' : ''}">
+        <div class="pk-pet-avatar" ${!isActive ? 'style="background:#e0e0e0;"' : ''}>
+          ${imgUrl ? `<img src="${imgUrl}" style="${!isActive ? 'opacity:0.6' : ''}" alt="${name}">` :
+          `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="#d1d1d1" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>`}
+        </div>
+        <div class="pk-pet-info">
+          <strong>${name}</strong>
+          <span>${pet.age?.value || 'Unknown'}</span>
+        </div>
+      </a>
+    `;
+  }).join('');
+
+  // Build current pet content
+  const petContentHtml = activePet ? `
+    <div class="pk-card pk-profile-card">
+      <div class="pk-card-header">
+        <h2>${activePet.name?.value || 'Kitten'}'s profile</h2>
+        <button class="pk-outline-btn" id="edit-details-btn" style="border-radius:30px; cursor:pointer; background:none;">Edit Details</button>
+      </div>
+      <div class="pk-profile-details" id="profile-view-mode">
+        <div class="pk-profile-photo">
+          ${activePet.profile?.reference?.image?.url
+            ? `<img src="${activePet.profile.reference.image.url}" alt="${activePet.name?.value || ''}">`
+            : `<svg width="200" height="200" viewBox="0 0 24 24" fill="#d1d1d1" xmlns="http://www.w3.org/2000/svg" style="background:#f4f4f5; padding:10px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>`}
+        </div>
+        <div class="pk-profile-stats">
+          <div class="pk-stat-box"><label>Age</label><span>${activePet.age?.value || '-'}</span></div>
+          <div class="pk-stat-box"><label>Breed</label><span>${activePet.breed?.value || '-'}</span></div>
+          <div class="pk-stat-box"><label>Gender</label><span>${activePet.gender?.value || '-'}</span></div>
+          <div class="pk-stat-box"><label>Weight</label><span>${activePet.weight?.value || '-'}</span></div>
+        </div>
+      </div>
+    </div>
+  ` : `
+    <div class="pk-card" style="text-align:center; padding:60px 30px;">
+      <h2 style="margin:0 0 16px 0; font-size:24px;">No Kittens Found!</h2>
+      <p style="color:#595961; margin:0 0 30px 0;">Take the quiz to create a profile for your kitten and get personalized recommendations.</p>
+      <a href="/pages/byob" style="display:inline-block; padding:14px 32px; border-radius:30px; background:#121217; color:#fff; text-decoration:none; font-weight:700;">Take the Quiz</a>
+    </div>
+  `;
+
+  const dashUrl = token ? `/apps/purrkins/dashboard?session=${token}` : '/apps/purrkins/dashboard';
 
   const liquidTemplate = `
-    {% if customer == blank %}
-      <script>window.location.href = "/apps/purrkins/login";</script>
-    {% endif %}\n\n<style>\n
+<style>
+\n
       .pk-dashboard-wrapper {
         max-width: 1200px;
         margin: 40px auto;
@@ -853,23 +987,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     \n</style>
 
-    {% assign pets = customer.metafields.custom.pets.value %}
-    {% assign pet_count = pets.count | default: 0 %}
-    {% assign active_index = ${petIndex} %}
-    {% assign current_pet = blank %}
     
-    {% for pet in pets %}
-      {% if forloop.index0 == active_index %}
-        {% assign current_pet = pet %}
-      {% endif %}
-    {% endfor %}
+    
+    
+    
+    
+    
 
     <div class="pk-dashboard-wrapper">
       
       <div class="pk-dashboard-header">
-        <h1>Welcome back, {{ customer.first_name | default: 'Friend' }}</h1>
+        <h1>Welcome back, ${customerFirstName}</h1>
         <div class="pk-header-actions">
-          <a href="/apps/purrkins/dashboard" class="pk-action-btn">Profile</a>
+          <a href="${dashUrl}" class="pk-action-btn">Profile</a>
           <a href="#" class="pk-action-btn">Wishlist</a>
           <a href="/account/logout" class="pk-action-btn">Log out</a>
         </div>
@@ -877,21 +1007,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
       <!-- PET SELECTOR HEADER -->
       <div class="pk-pet-selector-row">
-        {% for pet in pets %}
-          <a href="/apps/purrkins/kitten?pet_index={{ forloop.index0 }}" class="pk-pet-pill {% if forloop.index0 == active_index %}active{% endif %}">
-            <div class="pk-pet-avatar" {% if forloop.index0 != active_index %}style="background:#e0e0e0;"{% endif %}>
-              {% if pet.profile.value %}
-                <img src="{{ pet.profile.value | image_url: width: 100 }}" {% if forloop.index0 != active_index %}style="opacity:0.6"{% endif %} alt="{{ pet.name.value }}">
-              {% else %}
-                <svg width="100%" height="100%" viewBox="0 0 24 24" fill="#d1d1d1" xmlns="http://www.w3.org/2000/svg" {% if forloop.index0 != active_index %}style="opacity:0.6"{% endif %}><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
-              {% endif %}
-            </div>
-            <div class="pk-pet-info">
-              <strong>{{ pet.name.value | default: 'Kitten' }}</strong>
-              <span>{{ pet.age.value | default: 'Unknown' }}</span>
-            </div>
-          </a>
-        {% endfor %}
+        ${petPillsHtml}
         <a href="/pages/byob" class="pk-pet-add-btn">+ Add Kitten</a>
       </div>
 
@@ -899,7 +1015,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <!-- SIDEBAR -->
         <div class="pk-dashboard-sidebar">
           <div class="pk-sidebar-menu">
-            <a href="/apps/purrkins/dashboard" class="pk-menu-item"><span class="pk-dot"></span> Overview</a>
+            <a href="${dashUrl}" class="pk-menu-item"><span class="pk-dot"></span> Overview</a>
             <a href="/apps/purrkins/kitten" class="pk-menu-item active"><span class="pk-dot"></span> Kitten's Profile</a>
             <a href="#quiz" class="pk-menu-item"><span class="pk-dot"></span> Your Quiz Answers</a>
             <a href="#subscription" class="pk-menu-item"><span class="pk-dot"></span> Subscriptions <span class="pk-badge">1</span></a>
@@ -915,261 +1031,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
         <!-- MAIN CONTENT -->
         <div class="pk-dashboard-content">
-          {% if current_pet != blank %}
-            
-            <!-- PROFILE CARD -->
-            <div class="pk-card pk-profile-card">
-              <div class="pk-card-header">
-                <h2>{{ current_pet.name.value | default: 'Kitten' }}'s profile</h2>
-                <button class="pk-outline-btn" id="edit-details-btn" style="border-radius:30px; cursor:pointer; background:none;">Edit Details</button>
-              </div>
-              
-              <div class="pk-profile-details" id="profile-view-mode">
-                <div class="pk-profile-photo">
-                  <!-- DEBUG: profile={{ current_pet.profile }} id={{ current_pet.profile.value.id }} -->
-                  {% if current_pet.profile.value %}
-                    <img src="{{ current_pet.profile.value | image_url: width: 300 }}" alt="{{ current_pet.name.value }}">
-                  {% else %}
-                    <svg width="100%" height="100%" viewBox="0 0 24 24" fill="#d1d1d1" xmlns="http://www.w3.org/2000/svg" style="background:#f4f4f5; padding:10px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
-                  {% endif %}
-                </div>
-                <div class="pk-profile-stats">
-                  <div class="pk-stat-box">
-                    <label>Age</label>
-                    <span>{{ current_pet.age.value | default: '-' }}</span>
-                  </div>
-                  <div class="pk-stat-box">
-                    <label>Weight</label>
-                    <span>{{ current_pet.weight.value | default: '-' }}</span>
-                  </div>
-                  <div class="pk-stat-box">
-                    <label>Body Type</label>
-                    <span>{{ current_pet.body.value | default: 'Normal' }}</span>
-                  </div>
-                  <div class="pk-stat-box">
-                    <label>Sex</label>
-                    <span>{{ current_pet.gender.value | default: '-' }}, {{ current_pet.neutered.value | default: '-' }}</span>
-                  </div>
-                  <div class="pk-stat-box">
-                    <label>Activity Level</label>
-                    <span>{{ current_pet.activity.value | default: 'Playful, indoor only' }}</span>
-                  </div>
-                  <div class="pk-stat-box">
-                    <label>Birthday</label>
-                    <span>-</span>
-                  </div>
-                  <div class="pk-stat-box">
-                    <label>Focus Area</label>
-                    <span>{{ current_pet.focus.value | default: 'None' }}</span>
-                  </div>
-                  <div class="pk-stat-box">
-                    <label>Allergies</label>
-                    <span>{{ current_pet.allergies.value | default: 'None recorded' }}</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- EDIT MODE FORM (Hidden by default) -->
-              <form class="pk-profile-edit-form" id="profile-edit-mode" action="/apps/purrkins/update-pet" method="POST" style="display:none;">
-                <input type="hidden" name="pet_id" value="{{ current_pet.system.id }}">
-                <input type="hidden" name="customer_id" value="{{ customer.id }}">
-                <input type="hidden" name="profile_image_url" id="profile-image-url-input">
-                
-                <div class="pk-edit-img-row">
-                  <div class="pk-profile-photo" style="width: 100px; height: 100px;">
-                    {% if current_pet.profile.value %}
-                      <img src="{{ current_pet.profile.value | image_url: width: 200 }}" alt="{{ current_pet.name.value }}">
-                    {% else %}
-                      <svg width="100%" height="100%" viewBox="0 0 24 24" fill="#d1d1d1" xmlns="http://www.w3.org/2000/svg" style="background:#f4f4f5; padding:10px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
-                    {% endif %}
-                  </div>
-                  <div class="pk-file-upload">
-                    <label>Change Profile Image</label>
-                    <input type="file" id="profile-image-file" accept="image/*">
-                  </div>
-                </div>
-
-                <div class="pk-edit-grid">
-                  <div class="pk-input-group">
-                    <label>Name</label>
-                    <input type="text" name="name" value="{{ current_pet.name.value }}">
-                  </div>
-                  <div class="pk-input-group">
-                    <label>Age</label>
-                    <input type="text" name="age" value="{{ current_pet.age.value }}">
-                  </div>
-                  <div class="pk-input-group">
-                    <label>Weight</label>
-                    <input type="text" name="weight" value="{{ current_pet.weight.value }}">
-                  </div>
-                  <div class="pk-input-group">
-                    <label>Sex</label>
-                    <select name="gender">
-                      <option value="Male" {% if current_pet.gender.value == 'Male' %}selected{% endif %}>Male</option>
-                      <option value="Female" {% if current_pet.gender.value == 'Female' %}selected{% endif %}>Female</option>
-                    </select>
-                  </div>
-                  <div class="pk-input-group">
-                    <label>Neutered</label>
-                    <select name="neutered">
-                      <option value="Neutered" {% if current_pet.neutered.value == 'Neutered' %}selected{% endif %}>Neutered</option>
-                      <option value="Not Neutered" {% if current_pet.neutered.value == 'Not Neutered' %}selected{% endif %}>Not Neutered</option>
-                    </select>
-                  </div>
-                  <div class="pk-input-group">
-                    <label>Body Type</label>
-                    <input type="text" name="body" value="{{ current_pet.body.value }}">
-                  </div>
-                  <div class="pk-input-group">
-                    <label>Activity Level</label>
-                    <input type="text" name="activity" value="{{ current_pet.activity.value }}">
-                  </div>
-                  <div class="pk-input-group">
-                    <label>Focus Area</label>
-                    <input type="text" name="focus" value="{{ current_pet.focus.value }}">
-                  </div>
-                  <div class="pk-input-group" style="grid-column: 1/-1;">
-                    <label>Allergies</label>
-                    <input type="text" name="allergies" value="{{ current_pet.allergies.value }}">
-                  </div>
-                </div>
-
-                <div style="display: flex; gap: 10px; margin-top: 20px; align-items: center;">
-                  <button type="button" class="pk-outline-btn" id="cancel-edit-btn">Cancel</button>
-                  <button type="submit" class="pk-dark-btn" id="save-changes-btn">Save Changes</button>
-                  <span id="save-loading-text" style="display:none; font-size: 13px; color: #555;">Uploading image, please wait...</span>
-                </div>
-              </form>
-
-              <div class="pk-weight-banner" id="weight-banner-ui">
-                <div>
-                  <strong>{{ current_pet.weight.value | default: '0 kg' }} logged recently</strong>
-                  <p>Portions and pack quantities update automatically when you log a new weight.</p>
-                </div>
-                <button class="pk-dark-btn">Log New Weight</button>
-              </div>
-            </div>
-
-            <!-- YOUR QUIZ ANSWERS CARD -->
-            <div class="pk-card" id="quiz">
-              <div class="pk-card-header">
-                <div>
-                  <h2>Your quiz answers</h2>
-                  <p style="color:#8c8c9a; font-size:13px; margin-top:5px;">Everything below is built from these answers.</p>
-                </div>
-                <a href="/pages/byob" class="pk-outline-btn" style="border-radius:30px;">Retake Quiz</a>
-              </div>
-
-              <div class="pk-quiz-tags">
-                {% if current_pet.age.value != blank %}<span class="pk-tag-pill">{{ current_pet.age.value }}</span>{% endif %}
-                {% if current_pet.weight.value != blank %}<span class="pk-tag-pill">{{ current_pet.weight.value }}</span>{% endif %}
-                {% if current_pet.gender.value != blank %}<span class="pk-tag-pill">{{ current_pet.gender.value }}</span>{% endif %}
-                {% if current_pet.neutered.value != blank %}<span class="pk-tag-pill">{{ current_pet.neutered.value }}</span>{% endif %}
-                {% if current_pet.health_flags.value != blank %}<span class="pk-tag-pill">{{ current_pet.health_flags.value }}</span>{% endif %}
-              </div>
-
-              <h3 class="pk-sub-title">Recommend for {{ current_pet.name.value | default: 'Kitten' }}</h3>
-              
-              <!-- Fetch recommendations from a generic collection or metafield -->
-              <div class="pk-recommend-grid">
-                {% assign recs = collections['all'].products %}
-                {% for prod in recs limit: 3 %}
-                  {% assign bg_color = '#EAF4FE' %}
-                  {% if forloop.index == 2 %}{% assign bg_color = '#FEF3EB' %}{% endif %}
-                  {% if forloop.index == 3 %}{% assign bg_color = '#EAF7EC' %}{% endif %}
-                  
-                  <div class="pk-rec-box" style="background: {{ bg_color }};">
-                    <div class="pk-rec-img">
-                      <img src="{{ prod.featured_image | image_url: width: 100 }}" alt="{{ prod.title }}">
-                    </div>
-                    <h4>{{ prod.title }}</h4>
-                    <p>{{ prod.metafields.custom.short_description | default: 'Nutrition tailored to keep them healthy and active.' }}</p>
-                    <a href="{{ prod.url }}" class="pk-dark-btn" style="text-align:center; text-decoration:none; display:block; {% if forloop.index == 3 %}background:#121217;{% endif %}">In Your Box</a>
-                  </div>
-                {% else %}
-                  <p>No products found in the store.</p>
-                {% endfor %}
-              </div>
-            </div>
-
-            <!-- SUBSCRIPTION MONTHLY PLAN -->
-            <div class="pk-card pk-sub-card" id="subscription">
-              <div class="pk-card-header" style="justify-content: flex-start; gap: 15px;">
-                <h2>{{ current_pet.name.value | default: 'Kitten' }}'s monthly plan</h2>
-                <span class="pk-active-badge">Active</span>
-              </div>
-
-              <div class="pk-sub-stats-banner">
-                <div><label>STARTED</label><span>Recently</span></div>
-                <div><label>FREQUENCY</label><span>Every 30 days</span></div>
-                <div><label>NEXT CHARGE</label><span>Upcoming</span></div>
-                <div><label>DELIVERIES SO FAR</label><span>2</span></div>
-                <div><label>YOU SAVE</label><span>15% vs one-time</span></div>
-              </div>
-
-              <div class="pk-sub-items">
-                <!-- Fetch active subscription data (placeholder logic here using recent orders as example) -->
-                {% for order in customer.orders limit: 1 %}
-                  {% for item in order.line_items limit: 3 %}
-                    <div class="pk-sub-item-row {% if forloop.last %}no-border{% endif %}">
-                      <div class="pk-sub-img"><img src="{{ item.image | image_url: width: 100 }}" alt="{{ item.title }}"></div>
-                      <div class="pk-sub-info">
-                        <h4>{{ item.product.title }}</h4>
-                        <p>{{ item.variant.title | default: '70g pouch' }}</p>
-                      </div>
-                      <div class="pk-sub-actions">
-                        <a href="#">Swap flavour</a>
-                        <div class="pk-qty-box">- {{ item.quantity }} +</div>
-                        <div class="pk-sub-price">{{ item.final_price | money }}</div>
-                      </div>
-                    </div>
-                  {% endfor %}
-                {% else %}
-                  <p style="padding:20px; color:#595961; margin:0;">No active subscriptions found.</p>
-                {% endfor %}
-              </div>
-
-              <div class="pk-sub-add-bar">
-                <span>+ Add a product to this box — treats, broths and supplement measures</span>
-                <a href="/collections/all">Browse</a>
-              </div>
-
-              <div class="pk-sub-action-btns">
-                <button class="pk-outline-btn" style="border-radius:30px;">Change Frequency</button>
-                <button class="pk-outline-btn" style="border-radius:30px;">Change Delivery Date</button>
-                <button class="pk-outline-btn" style="border-radius:30px;">Skip Next Delivery</button>
-                <button class="pk-outline-btn" style="border-radius:30px;">Pause Plan</button>
-                <a href="#" class="pk-cancel-link">Cancel Subscription</a>
-              </div>
-
-              <div class="pk-sub-benefits-banner">
-                <div class="pk-benefit">
-                  <strong>Vet on call</strong>
-                  <p>Unlimited chats with the Purrkins panel</p>
-                </div>
-                <div class="pk-benefit">
-                  <strong>12% off every order</strong>
-                  <p>Applied automatically on renewal</p>
-                </div>
-                <div class="pk-benefit">
-                  <strong>Free delivery</strong>
-                  <p>On every subscription box</p>
-                </div>
-                <div class="pk-benefit">
-                  <strong>Insurance benefit</strong>
-                  <p>Partner cover</p>
-                </div>
-              </div>
-            </div>
-
-          {% else %}
-            <!-- EMPTY STATE IF NO PETS -->
-            <div class="pk-card" style="text-align:center; padding: 60px 20px;">
-              <h2 style="font-family: var(--purrkins-heading-font); margin-bottom: 20px; font-size:28px;">No Kittens Found!</h2>
-              <p style="color:#595961; margin-bottom:30px; font-size:16px;">Take the quiz to create a profile for your kitten and get personalized recommendations.</p>
-              <a href="/pages/byob" class="pk-dark-btn" style="text-decoration:none; display:inline-block; padding:15px 30px;">Take the Quiz</a>
-            </div>
-          {% endif %}
+          ${petContentHtml}
 
           <!-- VET CARD -->
           <div class="pk-vet-card" id="vet">
@@ -1448,4 +1310,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       "Content-Type": "application/liquid",
     },
   });
+  } catch (err: any) {
+    console.error("Kitten loader error:", err);
+    return new Response(`<script>window.location.href='/apps/purrkins/login';</script><p style="color:red;padding:20px;">Error: ${err?.message}</p>`, {
+      headers: { "Content-Type": "application/liquid" }
+    });
+  }
 };

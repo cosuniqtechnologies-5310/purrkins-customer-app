@@ -81,51 +81,37 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     
     const searchRes = await admin.graphql(`
       query {
-        customers(first: 1, query: "email:${email}") {
-          edges { node { id } }
+        customers(first: 5, query: "email:${email}") {
+          edges { node { id email firstName } }
         }
       }
     `);
     const searchData = await searchRes.json();
+    console.log("=== LOGIN SEARCH RESULT ===", JSON.stringify(searchData?.data?.customers?.edges, null, 2));
     const customerEdge = searchData.data.customers.edges[0];
     
     let customerId;
     if (customerEdge) {
       customerId = customerEdge.node.id;
-      const numericId = customerId.split('/').pop();
-      
-      if (session && session.accessToken) {
-        const restUrl = `https://${session.shop}/admin/api/2026-07/customers/${numericId}.json`;
-        
-        await fetch(restUrl, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Shopify-Access-Token': session.accessToken,
-          },
-          body: JSON.stringify({
-            customer: {
-              id: numericId,
-              password: tempPassword,
-              password_confirmation: tempPassword
-            }
-          })
-        });
-      }
+      console.log("Found existing customer:", customerId, customerEdge.node.firstName, customerEdge.node.email);
     } else {
+      // Create customer without password (Shopify New Customer Accounts doesn't support password field)
       const createRes = await admin.graphql(`
         mutation customerCreate($input: CustomerInput!) {
           customerCreate(input: $input) {
-            customer { id }
+            customer { id email firstName }
             userErrors { field message }
           }
         }
       `, {
-        variables: { input: { email, password: tempPassword } }
+        variables: { input: { email } }
       });
       const createData = await createRes.json();
+      console.log("Create customer result:", JSON.stringify(createData?.data?.customerCreate, null, 2));
       customerId = createData.data?.customerCreate?.customer?.id;
     }
+
+    console.log("Final customerId for JWT:", customerId);
 
     // @ts-ignore
     await prisma.oTP.delete({ where: { id: validOtp.id } });
