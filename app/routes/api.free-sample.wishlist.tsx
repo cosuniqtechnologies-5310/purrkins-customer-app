@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs } from "react-router";
 import jwt from "jsonwebtoken";
-import prisma from "../db.server"; // Or whatever path to prisma
+import { unauthenticated } from "../shopify.server";
 
 export const loader = async () => {
   return Response.json(
@@ -47,36 +47,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       ? product_id 
       : `gid://shopify/Product/${product_id}`;
 
-    // Fetch admin session from db
-    const shopSession = await prisma.session.findFirst({
-      where: { shop: "purrkins-mhrlfymw.myshopify.com", isOnline: false }
-    });
+    const { admin } = await unauthenticated.admin("purrkins-mhrlfymw.myshopify.com");
 
-    if (!shopSession) {
-      return Response.json({ success: false, message: "Shop session not found" }, { status: 500 });
+    if (!admin) {
+      return Response.json({ success: false, message: "Shop admin access denied" }, { status: 500 });
     }
 
     // 1. Fetch current wishlist
-    const getMetafieldResponse = await fetch(`https://${shopSession.shop}/admin/api/2026-07/graphql.json`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Shopify-Access-Token": shopSession.accessToken
-      },
-      body: JSON.stringify({
-        query: `
-          query getCustomerWishlist($id: ID!) {
-            customer(id: $id) {
-              metafield(namespace: "custom", key: "wishlist") {
-                id
-                value
-              }
-            }
+    const getMetafieldResponse = await admin.graphql(
+      `#graphql
+      query getCustomerWishlist($id: ID!) {
+        customer(id: $id) {
+          metafield(namespace: "custom", key: "wishlist") {
+            id
+            value
           }
-        `,
-        variables: { id: customerGid }
-      })
-    });
+        }
+      }`,
+      { variables: { id: customerGid } }
+    );
 
     const getMetafieldData = await getMetafieldResponse.json();
     const metafield = getMetafieldData.data?.customer?.metafield;
@@ -102,27 +91,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     // 3. Save wishlist back to metafield
-    const setMetafieldResponse = await fetch(`https://${shopSession.shop}/admin/api/2026-07/graphql.json`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Shopify-Access-Token": shopSession.accessToken
-      },
-      body: JSON.stringify({
-        query: `
-          mutation setCustomerMetafield($metafields: [MetafieldsSetInput!]!) {
-            metafieldsSet(metafields: $metafields) {
-              metafields {
-                id
-                value
-              }
-              userErrors {
-                field
-                message
-              }
-            }
+    const setMetafieldResponse = await admin.graphql(
+      `#graphql
+      mutation setCustomerMetafield($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields {
+            id
+            value
           }
-        `,
+          userErrors {
+            field
+            message
+          }
+        }
+      }`,
+      {
         variables: {
           metafields: [
             {
@@ -134,8 +117,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             }
           ]
         }
-      })
-    });
+      }
+    );
 
     const setMetafieldData = await setMetafieldResponse.json();
     if (setMetafieldData.data?.metafieldsSet?.userErrors?.length > 0) {

@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import jwt from "jsonwebtoken";
+import { unauthenticated } from "../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -38,28 +39,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
 
-  // Use the stored offline session to call Shopify Admin API directly
-  const shopSession = await prisma.session.findFirst({
-    where: { shop: "purrkins-mhrlfymw.myshopify.com", isOnline: false }
-  });
-
-  if (!shopSession?.accessToken) {
-    console.error("No shop session found in DB");
-    return new Response(`<script>window.location.href='/apps/purrkins/login';</script>`, {
+  // Use unauthenticated.admin to ensure token refresh is handled
+  const { admin } = await unauthenticated.admin("purrkins-mhrlfymw.myshopify.com");
+  if (!admin) {
+    console.error("Admin access denied");
+    return new Response("<script>window.location.href='/apps/purrkins/login';</script>", {
       headers: { "Content-Type": "application/liquid" }
     });
   }
 
-  const graphqlRes = await fetch(
-    `https://purrkins-mhrlfymw.myshopify.com/admin/api/2026-07/graphql.json`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Shopify-Access-Token": shopSession.accessToken,
-      },
-      body: JSON.stringify({
-        query: `
+  const graphqlRes = await admin.graphql(`
           query($id: ID!) {
             customer(id: $id) {
               firstName
@@ -119,17 +108,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               }
             }
           }
-        `,
-        variables: { id: customerId }
-      })
-    }
-  );
-
-  const data = await graphqlRes.json();
+        `, { variables: { id: customerId } });
+  const data = await graphqlRes.json() as any;
   if (data.errors) {
     console.error("GraphQL errors:", JSON.stringify(data.errors));
   }
   const customer = data?.data?.customer || {};
+  console.log("DASHBOARD WISHLIST DATA:", JSON.stringify(customer.wishlist, null, 2));
+
   const defaultAddress = customer.defaultAddress || {};
   
   const ordersHtml = customer.orders?.edges?.length > 0 
@@ -167,19 +153,38 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     : '<p style="color:#595961;margin:0;">No delivery addresses saved yet.</p>';
 
   const wishlistHtml = customer.wishlist?.references?.nodes?.length > 0
-    ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:20px;">
-        ${customer.wishlist.references.nodes.map((p: any) => `
-          <div style="border:1px solid #eaeaea;border-radius:12px;overflow:hidden;background:#fff;">
-            ${p.featuredImage ? `<img src="${p.featuredImage.url}" alt="${p.featuredImage.altText || p.title}" style="width:100%;height:150px;object-fit:cover;">` : '<div style="height:150px;background:#f4f4f5;"></div>'}
-            <div style="padding:12px;">
-              <p style="margin:0 0 8px 0;font-weight:700;font-size:14px;">${p.title}</p>
-              <p style="margin:0 0 12px 0;color:#595961;font-size:13px;">₹${parseFloat(p.priceRange?.minVariantPrice?.amount || 0).toFixed(0)}</p>
-              <a href="/products/${p.handle}" style="display:block;text-align:center;padding:8px;background:#121217;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:700;">Shop Now</a>
+    ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px;">
+        ${customer.wishlist.references.nodes.map((p: any) => {
+          const bgColors = ['#EBF4F6', '#EBF4F6', '#EBF4F6']; // Using same light blue from screenshot
+          const bgColor = bgColors[Math.floor(Math.random() * bgColors.length)];
+          const title = p.variants?.edges?.[0]?.node?.title || "70g";
+          const weight = title.includes("g") ? title.replace(/[^0-9]/g, "") : 70;
+          const weightUnit = title.includes("kg") ? "kg" : "g";
+          const price = parseFloat(p.priceRange?.minVariantPrice?.amount || 0).toFixed(0);
+          const desc = p.description ? (p.description.length > 50 ? p.description.substring(0, 47) + '...' : p.description) : 'Real broth for daily hydration';
+          const type = p.productType || 'Wet Food';
+          
+          return `
+          <div style="border:1px solid #eaeaea;border-radius:12px;overflow:hidden;background:#fff;display:flex;flex-direction:column;">
+            <div style="background:${bgColor}; padding:20px; position:relative; display:flex; justify-content:center; align-items:center; height:180px;">
+              <span style="position:absolute; top:16px; left:16px; background:rgba(255,255,255,0.7); border:1px solid #66C2FF; color:#4DA6FF; padding:4px 10px; border-radius:20px; font-size:10px; font-weight:800;">${type}</span>
+              ${p.featuredImage ? `<img src="${p.featuredImage.url}" alt="${p.featuredImage.altText || p.title}" style="max-height:100%; max-width:100%; object-fit:contain;">` : ''}
+            </div>
+            <div style="padding:20px; text-align:center; display:flex; flex-direction:column; flex-grow:1;">
+              <h4 style="margin:0 0 8px 0; font-size:18px; font-weight:800; color:#121217;">${p.title}</h4>
+              <div style="display:flex; justify-content:center; align-items:center; gap:8px; margin-bottom:12px;">
+                <span style="font-weight:800; font-size:16px;">₹${price}</span>
+                <span style="color:#e0e0e0;">|</span>
+                <span style="color:#595961; font-size:13px; font-weight:600;">${weight}${weightUnit.toLowerCase()}</span>
+              </div>
+              <p style="margin:0 0 20px 0; font-size:12px; color:#595961; line-height:1.4; flex-grow:1;">${desc}</p>
+              <a href="/products/${p.handle}" style="display:inline-block; padding:10px 24px; background:#FFE600; color:#121217; border-radius:30px; text-decoration:none; font-weight:800; font-size:14px; margin:0 auto;">Add to Cart</a>
             </div>
           </div>
-        `).join('')}
+          `;
+        }).join('')}
       </div>`
-    : '<p style="color:#595961;margin:0;">Your wishlist is empty. Browse products and add to wishlist!</p>';
+    : '<p style="color:#595961;margin:0;">Your wishlist is empty. (Wishlist products are managed in Shopify admin)</p>';
 
   const sessionParam = token ? `?session=${token}` : '';
   const apiBase = `/apps/purrkins/customer-api${sessionParam}&intent=`;
