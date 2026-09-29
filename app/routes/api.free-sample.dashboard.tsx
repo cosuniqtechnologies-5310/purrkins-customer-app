@@ -1,12 +1,154 @@
 import type { LoaderFunctionArgs } from "react-router";
+import prisma from "../db.server";
+import jwt from "jsonwebtoken";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  // We return a Liquid template string. 
-  // Shopify's App Proxy will automatically execute this Liquid and wrap it in the theme's layout!
+  try {
+  const url = new URL(request.url);
+  const token = url.searchParams.get("session");
+  let customerId: string | null = null;
+
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, process.env.SHOPIFY_API_SECRET || "s3cr3t") as any;
+      customerId = decoded.customerId;
+    } catch (e) {
+      // invalid token
+    }
+  }
+  
+  if (!customerId) {
+    return new Response(`
+      <script>
+        var t = localStorage.getItem('pk_session');
+        if (t) {
+          window.location.replace(window.location.pathname + "?session=" + t);
+        } else {
+          window.location.href = '/apps/purrkins/login';
+        }
+      </script>
+    `, {
+      headers: { "Content-Type": "application/liquid" }
+    });
+  }
+
+  // Use the stored offline session to call Shopify Admin API directly
+  const shopSession = await prisma.session.findFirst({
+    where: { shop: "purrkins-mhrlfymw.myshopify.com", isOnline: false }
+  });
+
+  if (!shopSession?.accessToken) {
+    console.error("No shop session found in DB");
+    return new Response(`<script>window.location.href='/apps/purrkins/login';</script>`, {
+      headers: { "Content-Type": "application/liquid" }
+    });
+  }
+
+  const graphqlRes = await fetch(
+    `https://purrkins-mhrlfymw.myshopify.com/admin/api/2026-07/graphql.json`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": shopSession.accessToken,
+      },
+      body: JSON.stringify({
+        query: `
+          query($id: ID!) {
+            customer(id: $id) {
+              firstName
+              email
+              phone
+              defaultAddress {
+                id
+                firstName
+                lastName
+                country
+                province
+                zip
+                address2
+                city
+              }
+              addresses(first: 2) {
+                edges {
+                  node {
+                    id
+                    name
+                    phone
+                    address1
+                    address2
+                    city
+                    province
+                    zip
+                  }
+                }
+              }
+              orders(first: 3, sortKey: CREATED_AT, reverse: true) {
+                edges {
+                  node {
+                    name
+                    createdAt
+                    totalPriceSet { shopMoney { amount } }
+                    displayFulfillmentStatus
+                    statusPageUrl
+                    lineItems(first: 1) { edges { node { title } } }
+                  }
+                }
+              }
+              pets: metafield(namespace: "custom", key: "pets") { value }
+              wishlist: metafield(namespace: "custom", key: "wishlist") { value }
+            }
+          }
+        `,
+        variables: { id: customerId }
+      })
+    }
+  );
+
+  const data = await graphqlRes.json();
+  if (data.errors) {
+    console.error("GraphQL errors:", JSON.stringify(data.errors));
+  }
+  const customer = data?.data?.customer || {};
+  const defaultAddress = customer.defaultAddress || {};
+  
+  const ordersHtml = customer.orders?.edges?.length > 0 
+    ? customer.orders.edges.map((e: any) => `
+      <div class="pk-tr">
+        <div>
+          <strong>${e.node.name}</strong><br>
+          <span class="pk-subtext">${e.node.lineItems.edges[0]?.node?.title?.substring(0, 30) || ''}</span>
+        </div>
+        <div>${new Date(e.node.createdAt).toLocaleDateString()}</div>
+        <div><span class="pk-status ${e.node.displayFulfillmentStatus === 'FULFILLED' ? 'delivered' : 'transit'}">${e.node.displayFulfillmentStatus || 'UNFULFILLED'}</span></div>
+        <div>₹${e.node.totalPriceSet?.shopMoney?.amount}</div>
+        <div class="pk-order-actions" style="display:flex; gap:10px;">
+          ${e.node.displayFulfillmentStatus === 'FULFILLED' ? `<a href="${e.node.statusPageUrl}" class="pk-outline-btn">Reorder</a>` : ''}
+          <a href="${e.node.statusPageUrl}" class="pk-outline-btn">Invoice</a>
+        </div>
+      </div>
+    `).join('')
+    : '<div class="pk-tr"><div style="grid-column: 1/-1; color: #595961;">No orders found.</div></div>';
+
+  const addressesHtml = customer.addresses?.edges?.length > 0
+    ? customer.addresses.edges.map((edge: any, index: number) => {
+        const a = edge.node;
+        return `
+      <div class="pk-address-box">
+        <div class="pk-addr-top">
+          <h4>${index === 0 ? 'Home' : 'Office'} ${a.id === defaultAddress.id ? '<span class="pk-default-tag">Default</span>' : ''}</h4>
+          <a href="#" class="pk-edit-link">Edit</a>
+        </div>
+        <p>${a.name || ''} - ${a.phone || ''}<br>
+        ${a.address1 || ''}, ${a.address2 || ''}<br>
+        ${a.city || ''}, ${a.province || ''} ${a.zip || ''}</p>
+      </div>
+    `;
+      }).join('')
+    : '<p style="color: #595961;">No addresses found.</p>';
+
   const liquidTemplate = `
-    {% if customer == blank %}
-      <script>window.location.href = "/apps/purrkins/login";</script>
-    {% endif %}\n\n<style>\n
+    \n\n<style>\n
       .pk-dashboard-wrapper {
         max-width: 1200px;
         margin: 40px auto;
@@ -852,11 +994,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     \n</style>
 
-    {% assign pets = customer.metafields.custom.pets.value %}
+    
     {% assign active_index = -1 %}
     <div class="pk-dashboard-wrapper">
       <div class="pk-dashboard-header">
-        <h1>Welcome back, {{ customer.first_name | default: 'Friend' }}</h1>
+        <h1>Welcome back, ${customer.firstName || "Friend"}</h1>
         <div class="pk-header-actions">
           <a href="/apps/purrkins/dashboard" class="pk-action-btn">Profile</a>
           <a href="#" class="pk-action-btn">Wishlist</a>
@@ -911,7 +1053,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               <div class="pk-form-row">
                 <div class="pk-input-group">
                   <label>Username *</label>
-                  <input type="text" value="{{ customer.first_name }}" readonly>
+                  <input type="text" value="${customer.firstName || ""}" readonly>
                 </div>
                 <div class="pk-input-group">
                   <label>Change Password</label>
@@ -927,17 +1069,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             <!-- Billing Address -->
             <h3 class="pk-section-title">Customer Billing Address</h3>
             <div class="pk-form-grid">
-              <input type="text" placeholder="First Name" value="{{ customer.default_address.first_name }}">
-              <input type="text" placeholder="Last Name" value="{{ customer.default_address.last_name }}">
-              <input type="email" placeholder="Email" value="{{ customer.email }}" readonly>
+              <input type="text" placeholder="First Name" value="${defaultAddress.firstName || ""}">
+              <input type="text" placeholder="Last Name" value="${defaultAddress.lastName || ""}">
+              <input type="email" placeholder="Email" value="${customer.email || ""}" readonly>
               
-              <input type="text" placeholder="Country/Region" value="{{ customer.default_address.country | default: 'India' }}">
-              <input type="text" placeholder="State" value="{{ customer.default_address.province }}">
-              <input type="text" placeholder="Phone (optional)" value="{{ customer.phone }}">
+              <input type="text" placeholder="Country/Region" value="${defaultAddress.country || "India"}">
+              <input type="text" placeholder="State" value="${defaultAddress.province || ""}">
+              <input type="text" placeholder="Phone (optional)" value="${customer.phone || ""}">
               
-              <input type="text" placeholder="Pin Code" value="{{ customer.default_address.zip }}">
-              <input type="text" placeholder="Apartment, suite, etc. (optional)" value="{{ customer.default_address.address2 }}" style="grid-column: span 2;">
-              <input type="text" placeholder="City" value="{{ customer.default_address.city }}">
+              <input type="text" placeholder="Pin Code" value="${defaultAddress.zip || ""}">
+              <input type="text" placeholder="Apartment, suite, etc. (optional)" value="${defaultAddress.address2 || ""}" style="grid-column: span 2;">
+              <input type="text" placeholder="City" value="${defaultAddress.city || ""}">
             </div>
             <div class="pk-form-actions">
               <a href="#" class="pk-link-btn">Update</a>
@@ -948,23 +1090,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <div class="pk-card pk-wishlist-card">
             <h3 class="pk-section-title">Your Wishlist</h3>
             <div class="pk-wishlist-grid">
-              {% assign w_count = 0 %}
-              {% for item in customer.metafields.custom.wishlist.value limit: 3 %}
-                {% assign w_count = w_count | plus: 1 %}
-                <div class="pk-product-card">
-                  <div class="pk-pc-img">
-                    <span class="pk-tag">Wet Food</span>
-                    <img src="{{ item.featured_image | image_url: width: 200 }}" alt="{{ item.title }}">
-                  </div>
-                  <h4>{{ item.title }}</h4>
-                  <p class="pk-price">{{ item.price | money }} <span class="pk-weight">70g</span></p>
-                  <p class="pk-desc">{{ item.metafields.custom.short_description | default: 'Healthy meal for your cat' }}</p>
-                  <button class="pk-add-btn">Add to Cart</button>
-                </div>
-              {% endfor %}
-              {% if w_count == 0 %}
-                <div style="grid-column: 1/-1; color: #595961; padding: 20px 0;">Your wishlist is empty.</div>
-              {% endif %}
+              <div style="grid-column: 1/-1; color: #595961; padding: 20px 0;">Your wishlist is empty. (Wishlist products are managed in Shopify admin)</div>
             </div>
           </div>
 
@@ -979,25 +1105,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 <div>TOTAL</div>
                 <div></div>
               </div>
-              {% for order in customer.orders limit: 3 %}
-                <div class="pk-tr">
-                  <div>
-                    <strong>{{ order.name }}</strong><br>
-                    <span class="pk-subtext">{{ order.line_items.first.title | truncate: 30 }}</span>
-                  </div>
-                  <div>{{ order.created_at | date: "%d %b %Y" }}</div>
-                  <div><span class="pk-status {% if order.fulfillment_status == 'fulfilled' %}delivered{% else %}transit{% endif %}">{{ order.fulfillment_status_label | default: 'Unfulfilled' }}</span></div>
-                  <div>{{ order.total_price | money }}</div>
-                  <div class="pk-order-actions" style="display:flex; gap:10px;">
-                    {% if order.fulfillment_status == 'fulfilled' %}
-                      <a href="{{ order.customer_url }}" class="pk-outline-btn">Reorder</a>
-                    {% endif %}
-                    <a href="{{ order.customer_url }}" class="pk-outline-btn">Invoice</a>
-                  </div>
-                </div>
-              {% else %}
-                <div class="pk-tr"><div style="grid-column: 1/-1; color: #595961;">No orders found.</div></div>
-              {% endfor %}
+              ${ordersHtml}
             </div>
             <div style="margin-top: 15px;">
               <a href="#" class="pk-outline-btn">View all orders</a>
@@ -1011,19 +1119,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               <a href="#" class="pk-outline-btn">Add address</a>
             </div>
             <div class="pk-address-grid">
-              {% for address in customer.addresses limit: 2 %}
-                <div class="pk-address-box">
-                  <div class="pk-addr-top">
-                    <h4>{% if forloop.index == 1 %}Home{% else %}Office{% endif %} {% if address == customer.default_address %}<span class="pk-default-tag">Default</span>{% endif %}</h4>
-                    <a href="#" class="pk-edit-link">Edit</a>
-                  </div>
-                  <p>{{ address.name }} - {{ address.phone }}<br>
-                  {{ address.address1 }}, {{ address.address2 }}<br>
-                  {{ address.city }}, {{ address.province }} {{ address.zip }}</p>
-                </div>
-              {% else %}
-                 <p style="color: #595961;">No addresses found.</p>
-              {% endfor %}
+              ${addressesHtml}
             </div>
           </div>
 
@@ -1087,4 +1183,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       "Content-Type": "application/liquid",
     },
   });
+  } catch (err: any) {
+    console.error("Dashboard loader error:", err);
+    return new Response(`
+      <script>window.location.href='/apps/purrkins/login';</script>
+      <p style="color:red;padding:20px;">Dashboard error: ${err?.message || 'Unknown error'}. Please try logging in again.</p>
+    `, {
+      headers: { "Content-Type": "application/liquid" }
+    });
+  }
 };

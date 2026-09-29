@@ -2,6 +2,7 @@ import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import nodemailer from "nodemailer";
+import jwt from "jsonwebtoken";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate.public.appProxy(request);
@@ -11,17 +12,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const formData = await request.formData();
   const intent = formData.get("intent");
-  const email = formData.get("email") as string;
+  const email = (formData.get("email") as string).trim().toLowerCase();
 
   if (intent === "send_otp") {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     
+    // Delete any existing OTPs for this email first
+    // @ts-ignore
+    await prisma.oTP.deleteMany({ where: { email } });
+
     // @ts-ignore
     await prisma.oTP.create({
       data: {
         email,
         code,
-        expiresAt: new Date(Date.now() + 10 * 60000), // 10 minutes
+        expiresAt: new Date(Date.now() + 15 * 60000), // 15 minutes
       }
     });
 
@@ -37,7 +42,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       await transporter.sendMail({
         from: `"Purrkins" <${process.env.GMAIL_USER}>`,
         to: email,
-        subject: "Your Purrkins Login Code",
+        subject: `Your Purrkins Login Code - ${new Date().toLocaleTimeString()}`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
             <h2 style="color: #121217; text-align: center;">Purrkins Login</h2>
@@ -61,7 +66,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (intent === "verify_otp") {
-    const code = formData.get("code") as string;
+    const code = (formData.get("code") as string).trim();
     
     // @ts-ignore
     const validOtp = await prisma.oTP.findFirst({
@@ -125,7 +130,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // @ts-ignore
     await prisma.oTP.delete({ where: { id: validOtp.id } });
 
-    return new Response(JSON.stringify({ success: true, password: tempPassword }), {
+    // Generate JWT token for session
+    const token = jwt.sign({ customerId, email }, process.env.SHOPIFY_API_SECRET || "s3cr3t", { expiresIn: "7d" });
+
+    return new Response(JSON.stringify({ success: true, token, redirect: "/apps/purrkins/dashboard" }), {
       headers: { "Content-Type": "application/json" }
     });
   }
@@ -409,16 +417,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               <div id="verifying-text" style="display: none; color: #0056b3; font-weight: 600; margin-top: 10px;">Verifying...</div>
             </form>
           </div>
-
-          <!-- Hidden Native Form for final login -->
-          <form id="hidden-login-form" action="/account/login" method="post" style="display: none;">
-            <input type="hidden" name="form_type" value="customer_login">
-            <input type="hidden" name="utf8" value="✓">
-            <input type="hidden" name="checkout_url" value="/apps/purrkins/dashboard">
-            <input type="hidden" name="customer[email]" id="hidden-email">
-            <input type="hidden" name="customer[password]" id="hidden-password">
-          </form>
-
         </div>
         <div class="pk-login-right"></div>
       </div>
@@ -430,7 +428,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         var verifyForm = document.getElementById('otp-verify-form');
         var emailInput = document.getElementById('otp-email');
         var displayEmail = document.getElementById('display-email');
-        var hiddenLoginForm = document.getElementById('hidden-login-form');
         var currentEmail = '';
 
         // Step 1: Handle Email Submission
@@ -490,10 +487,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           fetch(window.location.pathname, { method: 'POST', body: formData })
           .then(function(r) { return r.json(); })
           .then(function(data) {
-            if(data.success) {
-              document.getElementById('hidden-email').value = currentEmail;
-              document.getElementById('hidden-password').value = data.password;
-              hiddenLoginForm.submit();
+            if(data.success && data.token) {
+              localStorage.setItem('pk_session', data.token);
+              window.location.href = (data.redirect || "/apps/purrkins/dashboard") + "?session=" + data.token;
             } else {
               resetOtpForm(data.error || 'Invalid code');
             }
