@@ -101,7 +101,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                       title
                       handle
                       featuredImage { url altText }
-                      priceRange { minVariantPrice { amount currencyCode } }
+                      priceRange { minVariantPrice { amount currencyCode } } variants(first: 1) { edges { node { title } } }
                     }
                   }
                 }
@@ -1107,8 +1107,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <!-- Wishlist -->
           <div class="pk-card pk-wishlist-card">
             <h3 class="pk-section-title">Your Wishlist</h3>
-            <div class="pk-wishlist-grid">
-              <div style="grid-column: 1/-1; color: #595961; padding: 20px 0;">Your wishlist is empty. (Wishlist products are managed in Shopify admin)</div>
+            <div class="pk-wishlist-grid" style="display:block;">
+              ${wishlistHtml}
             </div>
           </div>
 

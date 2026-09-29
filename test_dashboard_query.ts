@@ -7,6 +7,10 @@ async function run() {
     where: { shop: 'purrkins-mhrlfymw.myshopify.com', isOnline: false }
   });
 
+  if (!session) {
+    throw new Error('Session not found');
+  }
+
   const customerId = "gid://shopify/Customer/10673120641271";
 
   const query = `
@@ -23,7 +27,6 @@ async function run() {
                       description
                       featuredImage { url altText }
                       priceRange { minVariantPrice { amount currencyCode } }
-                      variants(first: 1) { edges { node { weight weightUnit title } } }
                     }
                   }
                 }
