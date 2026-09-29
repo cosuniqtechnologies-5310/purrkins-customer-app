@@ -1253,15 +1253,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <div class="pk-dashboard-content">
           ${petContentHtml}
 
-          <!-- VET CARD -->
-          <div class="pk-vet-card" id="vet">
-            <div>
-              <h3>Something not right with your kitten?</h3>
-              <p>Vet chat is included with your plan. Most questions get an answer in an hour.</p>
-            </div>
-            <button class="pk-yellow-btn">Talk to a Vet</button>
-          </div>
-
           <script>
             window.initPurrkinsKitten = function() {
               var editBtn = document.getElementById("edit-details-btn");
@@ -1551,7 +1542,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   });
   } catch (err: any) {
     console.error("Kitten loader error:", err);
-    return new Response(`<script>window.location.href='/apps/purrkins/login';</script><p style="color:red;padding:20px;">Error: ${err?.message}</p>`, {
+    return new Response(`
+    <!-- QUIZ MODAL -->
+    <div id="pk-quiz-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:99999; align-items:center; justify-content:center;">
+      <div style="background:#fff; width:95%; max-width:900px; height:85vh; border-radius:16px; position:relative; overflow:hidden; display:flex; flex-direction:column; box-shadow: 0 20px 40px rgba(0,0,0,0.2);">
+        <div style="padding:16px 24px; border-bottom:1px solid #eaeaea; display:flex; justify-content:space-between; align-items:center; background:#f4f4f5;">
+          <h3 style="margin:0; font-size:18px; font-weight:800;">Purrkins Quiz</h3>
+          <button id="pk-quiz-close" style="background:none; border:none; font-size:28px; cursor:pointer; color:#121217; padding:0; line-height:1;">&times;</button>
+        </div>
+        <iframe src="" id="pk-quiz-iframe" style="flex-grow:1; width:100%; border:none;"></iframe>
+      </div>
+    </div>
+<script>
+      // Handle /pages/byob popup
+      document.addEventListener("click", function(e) {
+        var target = e.target.closest('a[href="/pages/byob"]');
+        if (target) {
+          e.preventDefault();
+          document.getElementById("pk-quiz-iframe").src = "/pages/byob";
+          document.getElementById("pk-quiz-modal").style.display = "flex";
+        }
+      });
+      
+      document.getElementById("pk-quiz-close")?.addEventListener("click", function() {
+        document.getElementById("pk-quiz-modal").style.display = "none";
+        document.getElementById("pk-quiz-iframe").src = "";
+      });
+window.location.href='/apps/purrkins/login';</script><p style="color:red;padding:20px;">Error: ${err?.message}</p>`, {
       headers: { "Content-Type": "application/liquid" }
     });
   }

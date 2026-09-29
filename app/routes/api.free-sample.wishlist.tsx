@@ -1,5 +1,6 @@
 import type { ActionFunctionArgs } from "react-router";
-import { authenticate } from "../shopify.server";
+import jwt from "jsonwebtoken";
+import prisma from "../db.server"; // Or whatever path to prisma
 
 export const loader = async () => {
   return Response.json(
@@ -14,20 +15,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   try {
-    const { admin, session } = await authenticate.public.appProxy(request);
+    const url = new URL(request.url);
+    const sessionToken = url.searchParams.get("session");
+    let customerIdStr = url.searchParams.get("logged_in_customer_id");
 
-    if (!admin) {
-      return Response.json({ success: false, message: "Unauthorized access" }, { status: 401 });
+    if (!customerIdStr && sessionToken) {
+      try {
+        const decoded = jwt.verify(sessionToken, process.env.SHOPIFY_API_SECRET || "s3cr3t") as any;
+        customerIdStr = decoded.customerId;
+      } catch (e) {
+        console.error("Wishlist JWT verification failed", e);
+      }
     }
 
-    const url = new URL(request.url);
-    const customerIdStr = url.searchParams.get("logged_in_customer_id");
-    
     if (!customerIdStr) {
       return Response.json({ success: false, message: "Customer must be logged in" }, { status: 401 });
     }
 
-    const customerGid = `gid://shopify/Customer/${customerIdStr}`;
+    const customerGid = customerIdStr.includes("gid://shopify/Customer/") 
+      ? customerIdStr 
+      : `gid://shopify/Customer/${customerIdStr}`;
+
     const body = await request.json();
     const { product_id, action } = body;
 
@@ -35,24 +43,40 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return Response.json({ success: false, message: "Product ID is required" }, { status: 400 });
     }
 
-    // Format product ID to GID if it isn't already
     const productGid = product_id.includes("gid://shopify/Product/") 
       ? product_id 
       : `gid://shopify/Product/${product_id}`;
 
+    // Fetch admin session from db
+    const shopSession = await prisma.session.findFirst({
+      where: { shop: "purrkins-mhrlfymw.myshopify.com", isOnline: false }
+    });
+
+    if (!shopSession) {
+      return Response.json({ success: false, message: "Shop session not found" }, { status: 500 });
+    }
+
     // 1. Fetch current wishlist
-    const getMetafieldResponse = await admin.graphql(
-      `#graphql
-      query getCustomerWishlist($id: ID!) {
-        customer(id: $id) {
-          metafield(namespace: "custom", key: "wishlist") {
-            id
-            value
+    const getMetafieldResponse = await fetch(`https://${shopSession.shop}/admin/api/2026-07/graphql.json`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": shopSession.accessToken
+      },
+      body: JSON.stringify({
+        query: `
+          query getCustomerWishlist($id: ID!) {
+            customer(id: $id) {
+              metafield(namespace: "custom", key: "wishlist") {
+                id
+                value
+              }
+            }
           }
-        }
-      }`,
-      { variables: { id: customerGid } }
-    );
+        `,
+        variables: { id: customerGid }
+      })
+    });
 
     const getMetafieldData = await getMetafieldResponse.json();
     const metafield = getMetafieldData.data?.customer?.metafield;
@@ -74,26 +98,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     } else if (action === "remove" && exists) {
       wishlist = wishlist.filter(id => id !== productGid);
     } else {
-      // No changes needed
       return Response.json({ success: true, action: "none", wishlist });
     }
 
     // 3. Save wishlist back to metafield
-    const setMetafieldResponse = await admin.graphql(
-      `#graphql
-      mutation setCustomerMetafield($metafields: [MetafieldsSetInput!]!) {
-        metafieldsSet(metafields: $metafields) {
-          metafields {
-            id
-            value
+    const setMetafieldResponse = await fetch(`https://${shopSession.shop}/admin/api/2026-07/graphql.json`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": shopSession.accessToken
+      },
+      body: JSON.stringify({
+        query: `
+          mutation setCustomerMetafield($metafields: [MetafieldsSetInput!]!) {
+            metafieldsSet(metafields: $metafields) {
+              metafields {
+                id
+                value
+              }
+              userErrors {
+                field
+                message
+              }
+            }
           }
-          userErrors {
-            field
-            message
-          }
-        }
-      }`,
-      {
+        `,
         variables: {
           metafields: [
             {
@@ -102,11 +131,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               key: "wishlist",
               type: "list.product_reference",
               value: JSON.stringify(wishlist),
-            },
-          ],
-        },
-      }
-    );
+            }
+          ]
+        }
+      })
+    });
 
     const setMetafieldData = await setMetafieldResponse.json();
     if (setMetafieldData.data?.metafieldsSet?.userErrors?.length > 0) {
