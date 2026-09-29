@@ -22,12 +22,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       <script>
         var t = localStorage.getItem('pk_session');
         if (t) {
-          window.location.replace(window.location.pathname + "?session=" + t);
+          var dest = new URL(window.location.href);
+          dest.searchParams.set("session", t);
+          window.location.replace(dest.toString());
         } else {
           window.location.href = '/apps/purrkins/login';
         }
       </script>
-    `, { headers: { "Content-Type": "application/liquid" } });
+    `, { headers: { 
+      "Content-Type": "application/liquid",
+      "Cache-Control": "no-store, no-cache, must-revalidate"
+    } });
   }
 
   // Fetch customer + pets metafield from Admin API
@@ -58,9 +63,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                         id
                         name: field(key: "name") { value }
                         age: field(key: "age") { value }
-                        breed: field(key: "breed") { value }
                         gender: field(key: "gender") { value }
+                        neutered: field(key: "neutered") { value }
                         weight: field(key: "weight") { value }
+                        body: field(key: "body") { value }
+                        activity: field(key: "activity") { value }
+                        focus: field(key: "focus") { value }
+                        allergies: field(key: "allergies") { value }
                         profile: field(key: "profile") {
                           reference {
                             ... on MediaImage {
@@ -93,9 +102,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const name = pet.name?.value || "Kitten";
     const imgUrl = pet.profile?.reference?.image?.url;
     const isActive = i === petIndex;
-    const sessionParam = token ? `?pet_index=${i}&session=${token}` : `?pet_index=${i}`;
+    const queryParam = `?pet_index=${i}`;
     return `
-      <a href="/apps/purrkins/kitten${sessionParam}" class="pk-pet-pill ${isActive ? 'active' : ''}">
+      <a href="/apps/purrkins/kitten${queryParam}" class="pk-pet-pill ${isActive ? 'active' : ''}">
         <div class="pk-pet-avatar" ${!isActive ? 'style="background:#e0e0e0;"' : ''}>
           ${imgUrl ? `<img src="${imgUrl}" style="${!isActive ? 'opacity:0.6' : ''}" alt="${name}">` :
           `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="#d1d1d1" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>`}
@@ -110,24 +119,238 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Build current pet content
   const petContentHtml = activePet ? `
+    <!-- PROFILE CARD -->
     <div class="pk-card pk-profile-card">
       <div class="pk-card-header">
         <h2>${activePet.name?.value || 'Kitten'}'s profile</h2>
         <button class="pk-outline-btn" id="edit-details-btn" style="border-radius:30px; cursor:pointer; background:none;">Edit Details</button>
       </div>
-      <div class="pk-profile-details" id="profile-view-mode">
-        <div class="pk-profile-photo">
+      <div class="pk-profile-details" style="display:flex; gap:30px; align-items:flex-start; margin-top:20px;">
+        <div class="pk-profile-photo" style="flex-shrink:0; width:150px; height:150px; overflow:hidden; border-radius:16px; background:#f4f4f5; display:flex; align-items:center; justify-content:center;">
           ${activePet.profile?.reference?.image?.url
-            ? `<img src="${activePet.profile.reference.image.url}" alt="${activePet.name?.value || ''}">`
-            : `<svg width="200" height="200" viewBox="0 0 24 24" fill="#d1d1d1" xmlns="http://www.w3.org/2000/svg" style="background:#f4f4f5; padding:10px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>`}
+            ? `<img src="${activePet.profile.reference.image.url}" alt="${activePet.name?.value || ''}" style="width:100%; height:100%; object-fit:cover;">`
+            : `<svg width="60%" height="60%" viewBox="0 0 24 24" fill="#d1d1d1" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>`}
         </div>
-        <div class="pk-profile-stats">
-          <div class="pk-stat-box"><label>Age</label><span>${activePet.age?.value || '-'}</span></div>
-          <div class="pk-stat-box"><label>Breed</label><span>${activePet.breed?.value || '-'}</span></div>
-          <div class="pk-stat-box"><label>Gender</label><span>${activePet.gender?.value || '-'}</span></div>
-          <div class="pk-stat-box"><label>Weight</label><span>${activePet.weight?.value || '-'}</span></div>
+        <div class="pk-profile-stats-grid" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:x 20px; row-gap:24px; flex-grow:1;">
+           <div class="pk-stat-item">
+             <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:1px; margin-bottom:6px;">Age</label>
+             <span style="font-weight:700; font-size:14px; color:#121217;">${activePet.age?.value || '-'}</span>
+           </div>
+           <div class="pk-stat-item">
+             <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:1px; margin-bottom:6px;">Weight</label>
+             <span style="font-weight:700; font-size:14px; color:#121217;">${activePet.weight?.value ? activePet.weight.value + ' kg' : '-'}</span>
+           </div>
+           <div class="pk-stat-item">
+             <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:1px; margin-bottom:6px;">Breed</label>
+             <span style="font-weight:700; font-size:14px; color:#121217;">Indie</span>
+           </div>
+           <div class="pk-stat-item">
+             <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:1px; margin-bottom:6px;">Sex</label>
+             <span style="font-weight:700; font-size:14px; color:#121217;">${activePet.gender?.value || '-'}, ${activePet.neutered?.value?.toLowerCase() || '-'}</span>
+           </div>
+           <div class="pk-stat-item">
+             <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:1px; margin-bottom:6px;">Activity Level</label>
+             <span style="font-weight:700; font-size:14px; color:#121217;">${activePet.activity?.value || '-'}</span>
+           </div>
+           <div class="pk-stat-item">
+             <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:1px; margin-bottom:6px;">Birthday</label>
+             <span style="font-weight:700; font-size:14px; color:#121217;">14 Mar 2026</span>
+           </div>
+           <div class="pk-stat-item">
+             <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:1px; margin-bottom:6px;">Health flags</label>
+             <span style="font-weight:700; font-size:14px; color:#121217;">${activePet.focus?.value || '-'}</span>
+           </div>
+           <div class="pk-stat-item">
+             <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:1px; margin-bottom:6px;">Eating Style</label>
+             <span style="font-weight:700; font-size:14px; color:#121217;">${activePet.body?.value || '-'}</span>
+           </div>
+           <div class="pk-stat-item">
+             <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:1px; margin-bottom:6px;">Allergies</label>
+             <span style="font-weight:700; font-size:14px; color:#121217;">${activePet.allergies?.value || '-'}</span>
+           </div>
         </div>
       </div>
+      <div style="background:#FFE600; padding:16px 24px; border-radius:12px; margin-top:24px; display:flex; justify-content:space-between; align-items:center;">
+         <div>
+            <h4 style="margin:0 0 4px 0; font-weight:800; font-size:16px;">1.9 kg logged on 2 Aug</h4>
+            <p style="margin:0; font-size:14px;">Portions and pack quantities update automatically when you log a new weight.</p>
+         </div>
+         <button style="background:#121217; color:#fff; border:none; border-radius:30px; padding:12px 24px; font-weight:700; cursor:pointer;">Log New Weight</button>
+      </div>
+    </div>
+
+    <!-- COMBINED QUIZ & RECOMMENDATIONS CARD -->
+    <div class="pk-card" style="margin-top:20px;">
+      <!-- QUIZ ANSWERS -->
+      <div class="pk-card-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div>
+          <h2 style="margin:0;">Your quiz answers</h2>
+          <p style="color:#595961; margin:6px 0 0 0; font-size:14px;">Taken 14 July, updated 2 Aug. Everything below is built from these answers.</p>
+        </div>
+        <button class="pk-outline-btn" style="border-radius:30px; cursor:pointer; background:none;">Retake quiz</button>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:24px;">
+        ${activePet.age?.value ? `<span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">Age - ${activePet.age.value}</span>` : ''}
+        ${activePet.weight?.value ? `<span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">Weight - ${activePet.weight.value} kg</span>` : ''}
+        ${activePet.gender?.value ? `<span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">${activePet.gender.value}</span>` : ''}
+        ${activePet.neutered?.value ? `<span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">${activePet.neutered.value}</span>` : ''}
+        ${activePet.body?.value ? `<span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">${activePet.body.value}</span>` : ''}
+        ${activePet.activity?.value ? `<span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">${activePet.activity.value}</span>` : ''}
+        ${activePet.focus?.value ? `<span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">${activePet.focus.value}</span>` : ''}
+        ${activePet.allergies?.value ? `<span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">${activePet.allergies.value}</span>` : ''}
+      </div>
+
+      <!-- RECOMMENDATIONS -->
+      <div style="margin-top:40px; margin-bottom:12px;">
+        <h2 style="margin:0 0 20px 0; font-size:20px;">Recommend for ${activePet.name?.value || 'Kitten'}</h2>
+        <div style="display:flex; gap:16px;">
+          <div class="pk-recommend-card" style="flex:1; background:#EBF4F6; padding:24px; border-radius:16px; display:flex; flex-direction:column;">
+            <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky-Product-Image.png?v=1789631395" style="width:50px; height:70px; object-fit:contain; margin-bottom:16px;" alt="">
+            <h4 style="margin:0 0 8px 0; font-size:16px; font-weight:800;">Lean Kitty</h4>
+            <p style="font-size:13px; margin:0 0 24px 0; color:#595961; line-height:1.4; flex-grow:1;">All the pounce, none of the extra pounds. Light, tasty nutrition to keep them playful and agile.</p>
+            <button style="background:#121217; color:#fff; border:none; border-radius:30px; padding:12px 20px; font-weight:700; cursor:pointer; width:max-content;">In Your Box</button>
+          </div>
+          <div class="pk-recommend-card" style="flex:1; background:#FFF4E6; padding:24px; border-radius:16px; display:flex; flex-direction:column;">
+            <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066" style="width:50px; height:70px; object-fit:contain; margin-bottom:16px;" alt="">
+            <h4 style="margin:0 0 8px 0; font-size:16px; font-weight:800;">Gutty Kitty</h4>
+            <p style="font-size:13px; margin:0 0 24px 0; color:#595961; line-height:1.4; flex-grow:1;">Happy tummies, happy kitties. Gentle, easy-to-digest goodness to keep bellies comfortable and content.</p>
+            <button style="background:#121217; color:#fff; border:none; border-radius:30px; padding:12px 20px; font-weight:700; cursor:pointer; width:max-content;">In Your Box</button>
+          </div>
+          <div class="pk-recommend-card" style="flex:1; background:#E6F4EA; padding:24px; border-radius:16px; display:flex; flex-direction:column;">
+            <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew-Product-Image.png?v=1789634179" style="width:50px; height:70px; object-fit:contain; margin-bottom:16px;" alt="">
+            <h4 style="margin:0 0 8px 0; font-size:16px; font-weight:800;">Mumma & Kitty</h4>
+            <p style="font-size:13px; margin:0 0 24px 0; color:#595961; line-height:1.4; flex-grow:1;">Nourishing fuel for growing kittens and comforting, energy-rich goodness to help mama cats recover.</p>
+            <button style="background:#121217; color:#fff; border:none; border-radius:30px; padding:12px 20px; font-weight:700; cursor:pointer; width:max-content;">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MONTHLY PLAN CARD -->
+    ${true ? ` <!-- true represents hasSubscription variable for now -->
+    <div class="pk-card" style="margin-top:20px;">
+      <h2 style="margin:0 0 16px 0; font-size:24px;">${activePet.name?.value || 'Kitten'}'s monthly plan</h2>
+      <div style="background:#f4f4f5; border-radius:12px; padding:40px 20px; text-align:center;">
+        <h3 style="margin:0 0 12px 0; font-size:18px;">No active subscription</h3>
+        <p style="color:#595961; margin:0 0 24px 0; font-size:14px;">${activePet.name?.value || 'Kitten'} doesn't have a monthly plan yet. Build a custom box tailored to their quiz results.</p>
+        <a href="/pages/byob" style="display:inline-block; padding:12px 28px; border-radius:30px; background:#121217; color:#fff; text-decoration:none; font-weight:700; font-size:14px;">Build a Box</a>
+      </div>
+    </div>
+    ` : `
+    <div class="pk-card" style="margin-top:20px;">
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:24px;">
+        <h2 style="margin:0;">${activePet.name?.value || 'Kitten'}'s monthly plan</h2>
+        <span style="background:#FFFDE7; color:#FBC02D; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid #FFF59D;">Active</span>
+      </div>
+      
+      <div style="background:#FFE600; padding:16px 24px; border-radius:12px; display:flex; justify-content:space-between; margin-bottom:24px;">
+        <div><div style="font-size:10px; font-weight:700; letter-spacing:1px; margin-bottom:4px; text-transform:uppercase;">Started</div><div style="font-weight:700; font-size:14px;">14 July 2026</div></div>
+        <div><div style="font-size:10px; font-weight:700; letter-spacing:1px; margin-bottom:4px; text-transform:uppercase;">Frequency</div><div style="font-weight:700; font-size:14px;">Every 30 days</div></div>
+        <div><div style="font-size:10px; font-weight:700; letter-spacing:1px; margin-bottom:4px; text-transform:uppercase;">Next Charge</div><div style="font-weight:700; font-size:14px;">18 Aug · ₹1,080</div></div>
+        <div><div style="font-size:10px; font-weight:700; letter-spacing:1px; margin-bottom:4px; text-transform:uppercase;">Deliveries So Far</div><div style="font-weight:700; font-size:14px;">2</div></div>
+        <div><div style="font-size:10px; font-weight:700; letter-spacing:1px; margin-bottom:4px; text-transform:uppercase;">You Save</div><div style="font-weight:700; font-size:14px;">15% vs one-time</div></div>
+      </div>
+      
+      <div style="display:flex; flex-direction:column; gap:20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eaeaea; padding-bottom:20px;">
+          <div style="display:flex; gap:16px; align-items:center;">
+            <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky-Product-Image.png?v=1789631395" style="width:36px; height:50px; object-fit:contain;" alt="">
+            <div>
+              <div style="font-weight:800; font-size:15px; margin-bottom:4px;">Growing Kitty</div>
+              <div style="font-size:13px; color:#595961;">70 g pouch · Chicken with DHA</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:20px;">
+            <span style="font-size:13px; font-weight:700; cursor:pointer;">Swap flavour</span>
+            <div style="display:flex; align-items:center; gap:16px; border:1px solid #eaeaea; border-radius:30px; padding:6px 16px;">
+              <span style="cursor:pointer; font-weight:700;">-</span>
+              <span style="font-weight:700; font-size:14px; width:20px; text-align:center;">15</span>
+              <span style="cursor:pointer; font-weight:700;">+</span>
+            </div>
+            <span style="font-weight:800; font-size:15px; width:50px; text-align:right;">₹450</span>
+          </div>
+        </div>
+        
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eaeaea; padding-bottom:20px;">
+          <div style="display:flex; gap:16px; align-items:center;">
+            <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066" style="width:36px; height:50px; object-fit:contain;" alt="">
+            <div>
+              <div style="font-weight:800; font-size:15px; margin-bottom:4px;">Gutty Kitty</div>
+              <div style="font-size:13px; color:#595961;">70 g pouch · Tuna & salmon broth</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:20px;">
+            <span style="font-size:13px; font-weight:700; cursor:pointer;">Swap flavour</span>
+            <div style="display:flex; align-items:center; gap:16px; border:1px solid #eaeaea; border-radius:30px; padding:6px 16px;">
+              <span style="cursor:pointer; font-weight:700;">-</span>
+              <span style="font-weight:700; font-size:14px; width:20px; text-align:center;">10</span>
+              <span style="cursor:pointer; font-weight:700;">+</span>
+            </div>
+            <span style="font-weight:800; font-size:15px; width:50px; text-align:right;">₹300</span>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eaeaea; padding-bottom:20px;">
+          <div style="display:flex; gap:16px; align-items:center;">
+            <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew-Product-Image.png?v=1789634179" style="width:36px; height:50px; object-fit:contain;" alt="">
+            <div>
+              <div style="font-weight:800; font-size:15px; margin-bottom:4px;">Chicken Broth</div>
+              <div style="font-size:13px; color:#595961;">70 g pouch · Hydration topper</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:20px;">
+            <span style="font-size:13px; font-weight:700; cursor:pointer;">Swap flavour</span>
+            <div style="display:flex; align-items:center; gap:16px; border:1px solid #eaeaea; border-radius:30px; padding:6px 16px;">
+              <span style="cursor:pointer; font-weight:700;">-</span>
+              <span style="font-weight:700; font-size:14px; width:20px; text-align:center;">6</span>
+              <span style="cursor:pointer; font-weight:700;">+</span>
+            </div>
+            <span style="font-weight:800; font-size:15px; width:50px; text-align:right;">₹180</span>
+          </div>
+        </div>
+      </div>
+      
+      <div style="background:#121217; color:#fff; padding:16px 24px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; margin-top:20px;">
+        <span style="font-size:14px; font-weight:700;">+ Add a product to this box — treats, broths and supplement mousses</span>
+        <span style="font-size:14px; font-weight:700; cursor:pointer; padding:6px 16px; border:1px solid rgba(255,255,255,0.3); border-radius:30px;">Browse</span>
+      </div>
+      
+      <div style="display:flex; gap:12px; margin-top:24px; flex-wrap:wrap;">
+        <button class="pk-outline-btn" style="border-radius:30px; font-size:13px; padding:12px 20px; font-weight:700;">Change Frequency</button>
+        <button class="pk-outline-btn" style="border-radius:30px; font-size:13px; padding:12px 20px; font-weight:700;">Change Delivery Date</button>
+        <button class="pk-outline-btn" style="border-radius:30px; font-size:13px; padding:12px 20px; font-weight:700;">Skip Next Delivery</button>
+        <button class="pk-outline-btn" style="border-radius:30px; font-size:13px; padding:12px 20px; font-weight:700;">Pause Plan</button>
+        <span style="font-size:13px; color:#888; cursor:pointer; align-self:center; margin-left:12px;">Cancel Subscription</span>
+      </div>
+      
+      <div style="background:#FFE600; padding:20px 24px; border-radius:12px; display:flex; justify-content:space-between; margin-top:30px;">
+        <div>
+           <div style="font-weight:800; font-size:14px; margin-bottom:6px;">Vet on call</div>
+           <div style="font-size:13px; line-height:1.4;">Unlimited chats with the<br>Purrkins panel</div>
+        </div>
+        <div>
+           <div style="font-weight:800; font-size:14px; margin-bottom:6px;">15% off every order</div>
+           <div style="font-size:13px; line-height:1.4;">Applied automatically at<br>renewal</div>
+        </div>
+        <div>
+           <div style="font-weight:800; font-size:14px; margin-bottom:6px;">Free delivery</div>
+           <div style="font-size:13px; line-height:1.4;">On every subscription box</div>
+        </div>
+        <div>
+           <div style="font-weight:800; font-size:14px; margin-bottom:6px;">Insurance benefit</div>
+           <div style="font-size:13px; line-height:1.4;">Partner cover</div>
+        </div>
+      </div>
+    </div>
+    `}
+
+    <!-- VET CHAT CARD -->
+    <div style="background:#121217; border-radius:16px; padding:30px; display:flex; justify-content:space-between; align-items:center; margin-top:24px; color:#fff;">
+      <div>
+        <h3 style="margin:0 0 10px 0; font-size:24px; font-weight:800;">Something not right with your kitten?</h3>
+        <p style="margin:0; font-size:14px; color:#ccc;">Vet chat is included with your plan. Most questions get an answer in an hour.</p>
+      </div>
+      <button style="background:#FFE600; color:#121217; border:none; border-radius:30px; padding:16px 32px; font-weight:800; font-size:15px; cursor:pointer;">Talk to a Vet</button>
     </div>
   ` : `
     <div class="pk-card" style="text-align:center; padding:60px 30px;">
@@ -136,6 +359,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       <a href="/pages/byob" style="display:inline-block; padding:14px 32px; border-radius:30px; background:#121217; color:#fff; text-decoration:none; font-weight:700;">Take the Quiz</a>
     </div>
   `;
+
 
   const dashUrl = token ? `/apps/purrkins/dashboard?session=${token}` : '/apps/purrkins/dashboard';
 
@@ -998,11 +1222,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       
       <div class="pk-dashboard-header">
         <h1>Welcome back, ${customerFirstName}</h1>
-        <div class="pk-header-actions">
-          <a href="${dashUrl}" class="pk-action-btn">Profile</a>
-          <a href="#" class="pk-action-btn">Wishlist</a>
-          <a href="/account/logout" class="pk-action-btn">Log out</a>
-        </div>
+        
       </div>
 
       <!-- PET SELECTOR HEADER -->
@@ -1256,7 +1476,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     
 
-    <script>
+        <script>
+      // Hide session from URL
+      (function hideSessionUrl() {
+        if (window.history.replaceState) {
+          var url = new URL(window.location.href);
+          if (url.searchParams.has('session')) {
+            url.searchParams.delete('session');
+            window.history.replaceState(null, '', url.toString());
+          }
+        }
+      })();
+
       document.addEventListener("click", async function(e) {
         var link = e.target.closest("a.pk-menu-item, a.pk-pet-pill");
         if (link && link.getAttribute("href").startsWith("/apps/purrkins/")) {
@@ -1272,7 +1503,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           mainContent.style.transition = "opacity 0.2s";
           
           var url = link.getAttribute("href");
-          window.history.pushState({}, "", url);
+          var displayUrl = url;
+          
+          var pk_token = localStorage.getItem('pk_session');
+          if (pk_token && url.indexOf("session=") === -1) {
+            url += (url.indexOf("?") === -1 ? "?" : "&") + "session=" + pk_token;
+          }
+          
+          window.history.pushState({}, "", displayUrl);
           
           try {
             var res = await fetch(url);
@@ -1308,6 +1546,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return new Response(liquidTemplate, {
     headers: {
       "Content-Type": "application/liquid",
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
     },
   });
   } catch (err: any) {

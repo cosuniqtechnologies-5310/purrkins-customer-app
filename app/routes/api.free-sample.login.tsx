@@ -129,9 +129,35 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const liquidTemplate = `
-    {% if customer %}
-      <script>window.location.href = "/apps/purrkins/dashboard";</script>
-    {% endif %}
+    <script>
+      // If already logged in via JWT, redirect to dashboard
+      (function() {
+        var t = localStorage.getItem('pk_session');
+        if (t) {
+          // Verify token is not expired by checking exp claim
+          try {
+            var payload = JSON.parse(atob(t.split('.')[1]));
+            if (payload.exp && payload.exp * 1000 > Date.now()) {
+              window.location.replace('/apps/purrkins/dashboard?session=' + t);
+              return;
+            } else {
+              // Token expired, clear it
+              localStorage.removeItem('pk_session');
+            }
+          } catch(e) {
+            localStorage.removeItem('pk_session');
+          }
+        }
+        // Also fix header account icon
+        document.addEventListener('DOMContentLoaded', function() {
+          setTimeout(function() {
+            document.querySelectorAll('a[href*="/account/login"], a[href="/account"]').forEach(function(el) {
+              el.href = '/apps/purrkins/login';
+            });
+          }, 500);
+        });
+      })();
+    </script>
 
     <style>
       body, html {
@@ -553,6 +579,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return new Response(liquidTemplate, {
     headers: {
       "Content-Type": "application/liquid",
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
     },
   });
 };

@@ -22,13 +22,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       <script>
         var t = localStorage.getItem('pk_session');
         if (t) {
-          window.location.replace(window.location.pathname + "?session=" + t);
+          var dest = new URL(window.location.href);
+          dest.searchParams.set("session", t);
+          window.location.replace(dest.toString());
         } else {
           window.location.href = '/apps/purrkins/login';
         }
       </script>
+      </script>
     `, {
-      headers: { "Content-Type": "application/liquid" }
+      headers: {
+        "Content-Type": "application/liquid",
+        "Cache-Control": "no-store, no-cache, must-revalidate"
+      }
     });
   }
 
@@ -57,6 +63,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           query($id: ID!) {
             customer(id: $id) {
               firstName
+              lastName
               email
               phone
               defaultAddress {
@@ -66,21 +73,50 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 country
                 province
                 zip
+                address1
                 address2
                 city
+                phone
               }
-              addresses(first: 2) {
+              addresses(first: 10) {
                 id
                 name
+                firstName
+                lastName
                 phone
                 address1
                 address2
                 city
                 province
                 zip
+                country
+              }
+              orders(first: 5, sortKey: CREATED_AT, reverse: true) {
+                edges {
+                  node {
+                    name
+                    createdAt
+                    totalPriceSet { shopMoney { amount currencyCode } }
+                    displayFulfillmentStatus
+                    statusPageUrl
+                    lineItems(first: 1) { edges { node { title } } }
+                  }
+                }
               }
               pets: metafield(namespace: "custom", key: "pets") { value }
-              wishlist: metafield(namespace: "custom", key: "wishlist") { value }
+              wishlist: metafield(namespace: "custom", key: "wishlist") {
+                references(first: 10) {
+                  nodes {
+                    ... on Product {
+                      id
+                      title
+                      handle
+                      featuredImage { url altText }
+                      priceRange { minVariantPrice { amount currencyCode } }
+                    }
+                  }
+                }
+              }
             }
           }
         `,
@@ -93,9 +129,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (data.errors) {
     console.error("GraphQL errors:", JSON.stringify(data.errors));
   }
-  console.log("=== DASHBOARD DEBUG ===");
-  console.log("customerId from JWT:", customerId);
-  console.log("customer from GraphQL:", JSON.stringify(data?.data?.customer, null, 2));
   const customer = data?.data?.customer || {};
   const defaultAddress = customer.defaultAddress || {};
   
@@ -104,32 +137,52 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       <div class="pk-tr">
         <div>
           <strong>${e.node.name}</strong><br>
-          <span class="pk-subtext">${e.node.lineItems.edges[0]?.node?.title?.substring(0, 30) || ''}</span>
+          <span class="pk-subtext">${e.node.lineItems.edges[0]?.node?.title?.substring(0, 35) || ''}</span>
         </div>
-        <div>${new Date(e.node.createdAt).toLocaleDateString()}</div>
+        <div>${new Date(e.node.createdAt).toLocaleDateString('en-IN')}</div>
         <div><span class="pk-status ${e.node.displayFulfillmentStatus === 'FULFILLED' ? 'delivered' : 'transit'}">${e.node.displayFulfillmentStatus || 'UNFULFILLED'}</span></div>
-        <div>₹${e.node.totalPriceSet?.shopMoney?.amount}</div>
-        <div class="pk-order-actions" style="display:flex; gap:10px;">
-          ${e.node.displayFulfillmentStatus === 'FULFILLED' ? `<a href="${e.node.statusPageUrl}" class="pk-outline-btn">Reorder</a>` : ''}
-          <a href="${e.node.statusPageUrl}" class="pk-outline-btn">Invoice</a>
+        <div>₹${parseFloat(e.node.totalPriceSet?.shopMoney?.amount || 0).toFixed(2)}</div>
+        <div style="display:flex; gap:8px;">
+          <a href="${e.node.statusPageUrl}" target="_blank" class="pk-outline-btn" style="font-size:12px;padding:6px 14px;">View</a>
         </div>
       </div>
     `).join('')
-    : '<div class="pk-tr"><div style="grid-column: 1/-1; color: #595961;">No orders found.</div></div>';
+    : '<div class="pk-tr"><div style="grid-column: 1/-1; color: #595961; padding:10px 0;">No orders found.</div></div>';
 
   const addressesHtml = customer.addresses?.length > 0
     ? customer.addresses.map((a: any, index: number) => `
-      <div class="pk-address-box">
+      <div class="pk-address-box" data-address-id="${a.id}">
         <div class="pk-addr-top">
-          <h4>${index === 0 ? 'Home' : 'Office'} ${a.id === defaultAddress.id ? '<span class="pk-default-tag">Default</span>' : ''}</h4>
-          <a href="#" class="pk-edit-link">Edit</a>
+          <h4>${a.firstName || ''} ${a.lastName || ''} ${a.id === defaultAddress.id ? '<span class="pk-default-tag">Default</span>' : ''}</h4>
+          <div style="display:flex;gap:10px;align-items:center;">
+            ${a.id !== defaultAddress.id ? `<button onclick="setDefaultAddr('${a.id}')" style="font-size:12px;color:#595961;background:none;border:none;cursor:pointer;text-decoration:underline;">Set Default</button>` : ''}
+            <button onclick="deleteAddr('${a.id}')" style="font-size:12px;color:#e53e3e;background:none;border:none;cursor:pointer;text-decoration:underline;">Delete</button>
+          </div>
         </div>
-        <p>${a.name || ''} - ${a.phone || ''}<br>
-        ${a.address1 || ''}, ${a.address2 || ''}<br>
-        ${a.city || ''}, ${a.province || ''} ${a.zip || ''}</p>
+        <p>${a.address1 || ''}${a.address2 ? ', ' + a.address2 : ''}<br>
+        ${a.city || ''}, ${a.province || ''} ${a.zip || ''}<br>
+        ${a.country || ''} ${a.phone ? '· ' + a.phone : ''}</p>
       </div>
     `).join('')
-    : '<p style="color: #595961;">No addresses found.</p>';
+    : '<p style="color:#595961;margin:0;">No delivery addresses saved yet.</p>';
+
+  const wishlistHtml = customer.wishlist?.references?.nodes?.length > 0
+    ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:20px;">
+        ${customer.wishlist.references.nodes.map((p: any) => `
+          <div style="border:1px solid #eaeaea;border-radius:12px;overflow:hidden;background:#fff;">
+            ${p.featuredImage ? `<img src="${p.featuredImage.url}" alt="${p.featuredImage.altText || p.title}" style="width:100%;height:150px;object-fit:cover;">` : '<div style="height:150px;background:#f4f4f5;"></div>'}
+            <div style="padding:12px;">
+              <p style="margin:0 0 8px 0;font-weight:700;font-size:14px;">${p.title}</p>
+              <p style="margin:0 0 12px 0;color:#595961;font-size:13px;">₹${parseFloat(p.priceRange?.minVariantPrice?.amount || 0).toFixed(0)}</p>
+              <a href="/products/${p.handle}" style="display:block;text-align:center;padding:8px;background:#121217;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:700;">Shop Now</a>
+            </div>
+          </div>
+        `).join('')}
+      </div>`
+    : '<p style="color:#595961;margin:0;">Your wishlist is empty. Browse products and add to wishlist!</p>';
+
+  const sessionParam = token ? `?session=${token}` : '';
+  const apiBase = `/apps/purrkins/customer-api${sessionParam}&intent=`;
 
   const liquidTemplate = `
     \n\n<style>\n
@@ -983,31 +1036,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     <div class="pk-dashboard-wrapper">
       <div class="pk-dashboard-header">
         <h1>Welcome back, ${customer.firstName || "Friend"}</h1>
-        <div class="pk-header-actions">
-          <a href="/apps/purrkins/dashboard" class="pk-action-btn">Profile</a>
-          <a href="#" class="pk-action-btn">Wishlist</a>
-          <a href="/account/logout" class="pk-action-btn">Log out</a>
-        </div>
-      </div>
-
-      <!-- PET SELECTOR HEADER -->
-      <div class="pk-pet-selector-row">
-        {% for pet in pets %}
-          <a href="/apps/purrkins/kitten?pet_index={{ forloop.index0 }}" class="pk-pet-pill {% if forloop.index0 == active_index %}active{% endif %}">
-            <div class="pk-pet-avatar" {% if forloop.index0 != active_index %}style="background:#e0e0e0;"{% endif %}>
-              {% if pet.profile.value %}
-                <img src="{{ pet.profile.value | image_url: width: 100 }}" {% if forloop.index0 != active_index %}style="opacity:0.6"{% endif %} alt="{{ pet.name.value }}">
-              {% else %}
-                <svg width="100%" height="100%" viewBox="0 0 24 24" fill="#d1d1d1" xmlns="http://www.w3.org/2000/svg" {% if forloop.index0 != active_index %}style="opacity:0.6"{% endif %}><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
-              {% endif %}
-            </div>
-            <div class="pk-pet-info">
-              <strong>{{ pet.name.value | default: 'Kitten' }}</strong>
-              <span>{{ pet.age.value | default: 'Unknown' }}</span>
-            </div>
-          </a>
-        {% endfor %}
-        <a href="/pages/byob" class="pk-pet-add-btn">+ Add Kitten</a>
+        
       </div>
 
       <div class="pk-dashboard-layout">
@@ -1100,7 +1129,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <div class="pk-card">
             <div class="pk-address-header">
               <h3 class="pk-section-title">Delivery addresses</h3>
-              <a href="#" class="pk-outline-btn">Add address</a>
+              <button onclick="document.getElementById('addr-modal').style.display='flex'" class="pk-outline-btn" style="cursor:pointer;background:none;">+ Add address</button>
             </div>
             <div class="pk-address-grid">
               ${addressesHtml}
@@ -1114,6 +1143,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     
 
     <script>
+      // Hide session from URL
+      (function hideSessionUrl() {
+        if (window.history.replaceState) {
+          var url = new URL(window.location.href);
+          if (url.searchParams.has('session')) {
+            url.searchParams.delete('session');
+            window.history.replaceState(null, '', url.toString());
+          }
+        }
+      })();
+
       document.addEventListener("click", async function(e) {
         var link = e.target.closest("a.pk-menu-item, a.pk-pet-pill");
         if (link && link.getAttribute("href").startsWith("/apps/purrkins/")) {
@@ -1129,7 +1169,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           mainContent.style.transition = "opacity 0.2s";
           
           var url = link.getAttribute("href");
-          window.history.pushState({}, "", url);
+          var displayUrl = url;
+          
+          var pk_token = localStorage.getItem('pk_session');
+          if (pk_token && url.indexOf("session=") === -1) {
+            url += (url.indexOf("?") === -1 ? "?" : "&") + "session=" + pk_token;
+          }
+          
+          window.history.pushState({}, "", displayUrl);
           
           try {
             var res = await fetch(url);
@@ -1159,12 +1206,116 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           mainContent.style.pointerEvents = "auto";
         }
       });
+
+      // ─── Header account icon fix ───────────────────────────────
+      (function fixHeaderIcon() {
+        function applyFix() {
+          document.querySelectorAll('a[href*="/account/login"], a[href="/account"], [data-customer-account-redirect]').forEach(function(el) {
+            el.removeAttribute('href');
+            el.style.cursor = 'pointer';
+            el.onclick = function(e) {
+              e.preventDefault();
+              var t = localStorage.getItem('pk_session');
+              if (t) {
+                window.location.href = '/apps/purrkins/dashboard?session=' + t;
+              } else {
+                window.location.href = '/apps/purrkins/login';
+              }
+            };
+          });
+        }
+        applyFix();
+        document.addEventListener('DOMContentLoaded', function() { setTimeout(applyFix, 300); setTimeout(applyFix, 1000); });
+      })();
+
+      // ─── Address modal helpers ────────────────────────────────
+      var _pk_session = localStorage.getItem('pk_session') || '';
+      var _apiBase = '/apps/purrkins/customer-api?session=' + _pk_session + '&intent=';
+
+      function submitAddress() {
+        var body = {
+          firstName: document.getElementById('addr-firstName').value.trim(),
+          lastName: document.getElementById('addr-lastName').value.trim(),
+          phone: document.getElementById('addr-phone').value.trim(),
+          address1: document.getElementById('addr-address1').value.trim(),
+          address2: document.getElementById('addr-address2').value.trim(),
+          city: document.getElementById('addr-city').value.trim(),
+          province: document.getElementById('addr-province').value.trim(),
+          zip: document.getElementById('addr-zip').value.trim(),
+          country: document.getElementById('addr-country').value.trim() || 'India'
+        };
+        if (!body.firstName || !body.address1 || !body.city || !body.zip) {
+          var m = document.getElementById('addr-msg');
+          m.style.display = 'block';
+          m.innerText = 'Please fill required fields (First Name, Address, City, Pin Code).';
+          return;
+        }
+        fetch(_apiBase + 'add_address', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        }).then(function(r) { return r.json(); }).then(function(d) {
+          if (d.success) {
+            document.getElementById('addr-modal').style.display = 'none';
+            window.location.reload();
+          } else {
+            var m = document.getElementById('addr-msg');
+            m.style.display = 'block';
+            m.innerText = d.error || 'Failed to save address. Try again.';
+          }
+        });
+      }
+
+      function deleteAddr(id) {
+        if (!confirm('Delete this address?')) return;
+        fetch(_apiBase + 'delete_address', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ addressId: id })
+        }).then(function(r) { return r.json(); }).then(function(d) {
+          if (d.success) window.location.reload();
+          else alert('Failed to delete address.');
+        });
+      }
+
+      function setDefaultAddr(id) {
+        fetch(_apiBase + 'set_default_address', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ addressId: id })
+        }).then(function(r) { return r.json(); }).then(function(d) {
+          if (d.success) window.location.reload();
+          else alert('Failed to set default.');
+        });
+      }
     </script>
+
+    <!-- Add Address Modal -->
+    <div id="addr-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+      <div style="background:#fff;border-radius:20px;padding:36px;max-width:500px;width:90%;max-height:90vh;overflow-y:auto;position:relative;">
+        <button onclick="document.getElementById('addr-modal').style.display='none'" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;">✕</button>
+        <h3 style="margin:0 0 24px 0;font-size:20px;font-weight:800;">Add Delivery Address</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <input id="addr-firstName" placeholder="First Name *" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;">
+          <input id="addr-lastName" placeholder="Last Name" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;">
+          <input id="addr-phone" placeholder="Phone" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;">
+          <input id="addr-zip" placeholder="Pin Code *" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;">
+          <input id="addr-address1" placeholder="Street Address *" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;grid-column:1/-1;">
+          <input id="addr-address2" placeholder="Apartment, suite (optional)" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;grid-column:1/-1;">
+          <input id="addr-city" placeholder="City *" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;">
+          <input id="addr-province" placeholder="State *" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;">
+          <input id="addr-country" placeholder="Country" value="India" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;grid-column:1/-1;">
+        </div>
+        <div id="addr-msg" style="margin-top:12px;color:#e53e3e;font-size:14px;display:none;"></div>
+        <button onclick="submitAddress()" style="margin-top:20px;width:100%;padding:14px;background:#121217;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;">Save Address</button>
+      </div>
+    </div>
   `;
 
   return new Response(liquidTemplate, {
     headers: {
       "Content-Type": "application/liquid",
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
     },
   });
   } catch (err: any) {
