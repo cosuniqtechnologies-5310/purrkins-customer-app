@@ -101,7 +101,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                       title
                       handle
                       featuredImage { url altText }
-                      priceRange { minVariantPrice { amount currencyCode } } variants(first: 1) { edges { node { title price } } }
+                      priceRange { minVariantPrice { amount currencyCode } } variants(first: 1) { edges { node { id title price } } }
                     }
                   }
                 }
@@ -178,7 +178,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 <span style="color:#595961; font-size:13px; font-weight:600;">${weight}${weightUnit.toLowerCase()}</span>
               </div>
               <p style="margin:0 0 20px 0; font-size:12px; color:#595961; line-height:1.4; flex-grow:1;">${desc}</p>
-              <a href="/products/${p.handle}" style="display:inline-block; padding:10px 24px; background:#FFE600; color:#121217; border-radius:30px; text-decoration:none; font-weight:800; font-size:14px; margin:0 auto;">Add to Cart</a>
+              ${p.variants?.edges?.[0]?.node?.id ? 
+                `<button onclick="window.purrkinsAddToCart && window.purrkinsAddToCart([{id: '${p.variants.edges[0].node.id.split('/').pop()}', quantity: 1}], this)" style="display:inline-block; padding:10px 24px; background:#FFE600; border:none; cursor:pointer; color:#121217; border-radius:30px; text-decoration:none; font-weight:800; font-size:14px; margin:0 auto;">Add to Cart</button>` :
+                `<a href="/products/${p.handle}" style="display:inline-block; padding:10px 24px; background:#FFE600; color:#121217; border-radius:30px; text-decoration:none; font-weight:800; font-size:14px; margin:0 auto;">View Product</a>`
+              }
             </div>
           </div>
           `;
