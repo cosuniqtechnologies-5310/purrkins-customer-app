@@ -21,15 +21,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (!customerId) {
     return new Response(`
       <script>
-        var t = localStorage.getItem('pk_session');
-        if (t) {
+        var urlParams = new URLSearchParams(window.location.search);
+        var currentToken = urlParams.get('session');
+        var localToken = localStorage.getItem('pk_session');
+        
+        if (currentToken) {
+          // If a token was provided in the URL but failed server verification, it's invalid.
+          // Clear it and force login to prevent loops.
+          localStorage.removeItem('pk_session');
+          window.location.href = '/apps/purrkins/login';
+        } else if (localToken) {
+          // No token in URL, but we have one locally. Try it.
           var dest = new URL(window.location.href);
-          dest.searchParams.set("session", t);
+          dest.searchParams.set("session", localToken);
           window.location.replace(dest.toString());
         } else {
+          // No token anywhere, go to login.
           window.location.href = '/apps/purrkins/login';
         }
-      </script>
       </script>
     `, {
       headers: {
@@ -92,7 +101,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   }
                 }
               }
-              pets: metafield(namespace: "custom", key: "pets") { value }
+              pets: metafield(namespace: "custom", key: "pets") {
+                references(first: 10) {
+                  nodes {
+                    ... on Metaobject {
+                      id
+                      name: field(key: "name") { value }
+                      age: field(key: "age") { value }
+                      profile: field(key: "profile") { reference { ... on MediaImage { image { url } } } }
+                    }
+                  }
+                }
+              }
               wishlist: metafield(namespace: "custom", key: "wishlist") {
                 references(first: 10) {
                   nodes {
@@ -118,6 +138,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const defaultAddress = customer.defaultAddress || {};
   
+  const petIndex = 0;
+  const pets = customer.pets?.references?.nodes || [];
+  
+  // Build pet pills HTML for Dashboard
+  const petPillsHtml = pets.map((pet: any, i: number) => {
+    const name = pet.name?.value || "Kitten";
+    const imgUrl = pet.profile?.reference?.image?.url;
+    const isActive = false; // Dashboard isn't a specific pet profile
+    const queryParam = `?pet_index=${i}`;
+    return `
+      <a href="/apps/purrkins/kitten${queryParam}" class="pk-pet-pill ${isActive ? 'active' : ''}">
+        <div class="pk-pet-avatar" ${!isActive ? 'style="background:#e0e0e0;"' : ''}>
+          ${imgUrl ? `<img src="${imgUrl}" style="${!isActive ? 'opacity:0.6' : ''}" alt="${name}">` :
+          `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="#d1d1d1" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>`}
+        </div>
+        <div class="pk-pet-info">
+          <strong>${name}</strong>
+          <span>${pet.age?.value || 'Unknown'}</span>
+        </div>
+      </a>
+    `;
+  }).join('');
+
   const ordersHtml = customer.orders?.edges?.length > 0 
     ? customer.orders.edges.map((e: any) => `
       <div class="pk-tr">
@@ -1041,6 +1084,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     
     {% assign active_index = -1 %}
+    {% assign pets = customer.metafields.custom.pets.value %}
+    {% assign active_index = -1 %}
     <div class="pk-dashboard-wrapper">
       <div class="pk-dashboard-header">
         <h1>Welcome back, ${customer.firstName || "Friend"}</h1>
@@ -1337,3 +1382,4 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
 };
+

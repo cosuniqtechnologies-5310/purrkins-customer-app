@@ -8,7 +8,7 @@ const dHeaderMatch = dContent.match(/<div class="pk-dashboard-header">[\s\S]*?<\
 const dHeader = dHeaderMatch ? dHeaderMatch[0] : '';
 
 // Extract the pet selector row
-const kPetSelectorMatch = kContent.match(/<!-- PET SELECTOR HEADER -->[\s\S]*?<div class="pk-pet-selector-row">[\s\S]*?<a href="\/pages\/byob" class="pk-pet-add-btn">\+ Add Kitten<\/a>\s*<\/div>/);
+const kPetSelectorMatch = kContent.match(/<!-- PET SELECTOR HEADER -->[\s\S]*?<div class="pk-pet-selector-row">[\s\S]*?<[^>]*class="pk-pet-add-btn"[^>]*>\+ Add Kitten<\/[a-z]+>\s*<\/div>/i);
 const kPetSelector = kPetSelectorMatch ? kPetSelectorMatch[0] : '';
 
 // Create the unified pet selector with absolute paths

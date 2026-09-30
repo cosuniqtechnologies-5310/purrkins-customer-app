@@ -21,12 +21,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (!customerId) {
     return new Response(`
       <script>
-        var t = localStorage.getItem('pk_session');
-        if (t) {
+        var urlParams = new URLSearchParams(window.location.search);
+        var currentToken = urlParams.get('session');
+        var localToken = localStorage.getItem('pk_session');
+        
+        if (currentToken) {
+          // If a token was provided in the URL but failed server verification, it's invalid.
+          // Clear it and force login to prevent loops.
+          localStorage.removeItem('pk_session');
+          window.location.href = '/apps/purrkins/login';
+        } else if (localToken) {
+          // No token in URL, but we have one locally. Try it.
           var dest = new URL(window.location.href);
-          dest.searchParams.set("session", t);
+          dest.searchParams.set("session", localToken);
           window.location.replace(dest.toString());
         } else {
+          // No token anywhere, go to login.
           window.location.href = '/apps/purrkins/login';
         }
       </script>
@@ -1201,14 +1211,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         .pk-vet-card { flex-direction: column; gap: 20px; text-align: center; }
       }
     \n</style>
-
-    
-    
-    
-    
-    
-    
-
     <div class="pk-dashboard-wrapper">
       
       <div class="pk-dashboard-header">
@@ -1216,10 +1218,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         
       </div>
 
+
       <!-- PET SELECTOR HEADER -->
       <div class="pk-pet-selector-row">
         ${petPillsHtml}
-        <a href="/pages/byob" class="pk-pet-add-btn">+ Add Kitten</a>
+        <button onclick="document.getElementById('global-byob-quiz-popup').style.display='flex'" class="pk-pet-add-btn" style="border:none; cursor:pointer;">+ Add Kitten</button>
       </div>
 
       <div class="pk-dashboard-layout">
@@ -1562,8 +1565,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                     <h3 class="quiz-subtitle">Select your cat's age</h3>
                     <div class="quiz-options grid-3">
                       <label class="quiz-option"><input type="radio" name="quiz_age" value="Lactating cat and babies"><span>Lactating cat and babies</span></label>
-                      <label class="quiz-option"><input type="radio" name="quiz_age" value="3-8 weeks kitten"><span>3–8 weeks kitten</span></label>
-                      <label class="quiz-option"><input type="radio" name="quiz_age" value="2-4-month kitten"><span>2–4-month kitten</span></label>
+                      <label class="quiz-option"><input type="radio" name="quiz_age" value="3-8 weeks kitten"><span>3-8 weeks kitten</span></label>
+                      <label class="quiz-option"><input type="radio" name="quiz_age" value="2-4-month kitten"><span>2-4-month kitten</span></label>
                       <label class="quiz-option"><input type="radio" name="quiz_age" value="4+ month kitten"><span>4+ month kitten</span></label>
                       <label class="quiz-option"><input type="radio" name="quiz_age" value="1+ years (adult)"><span>1+ years (adult)</span></label>
                       <label class="quiz-option"><input type="radio" name="quiz_age" value="7+ years (senior)"><span>7+ years (senior)</span></label>
