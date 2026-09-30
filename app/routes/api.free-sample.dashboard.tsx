@@ -1087,9 +1087,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     {% assign pets = customer.metafields.custom.pets.value %}
     {% assign active_index = -1 %}
     <div class="pk-dashboard-wrapper">
-      <div class="pk-dashboard-header">
+      <div class="pk-dashboard-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
         <h1>Welcome back, ${customer.firstName || "Friend"}</h1>
-        
+        <div class="pk-header-menu" style="background: #fff; border: 1px solid #eaeaea; border-radius: 12px; padding: 10px 0; min-width: 150px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
+          <a href="/apps/purrkins/dashboard" style="display: block; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 13px; font-weight: 700;">Profile</a>
+          <a href="#pk-tab-wishlist" style="display: block; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 13px; font-weight: 700; border-bottom: 1px solid #eaeaea; padding-bottom: 12px; margin-bottom: 4px;">Wishlist</a>
+          <button onclick="localStorage.removeItem('pk_session'); window.location.href='/apps/purrkins/login';" style="display: block; width: 100%; text-align: left; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 13px; font-weight: 700; background: none; border: none; cursor: pointer;">Log out</button>
+        </div>
       </div>
 
       <div class="pk-dashboard-layout">

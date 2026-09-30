@@ -1212,12 +1212,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     \n</style>
     <div class="pk-dashboard-wrapper">
-      
-      <div class="pk-dashboard-header">
-        <h1>Welcome back, ${customerFirstName}</h1>
-        
-      </div>
-
 
       <!-- PET SELECTOR HEADER -->
       <div class="pk-pet-selector-row">
