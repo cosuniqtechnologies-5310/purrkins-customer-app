@@ -1,12 +1,64 @@
-import type { ActionFunctionArgs } from "react-router";
+import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import jwt from "jsonwebtoken";
 import { unauthenticated } from "../shopify.server";
 
-export const loader = async () => {
-  return Response.json(
-    { success: false, message: "This endpoint only accepts POST requests." },
-    { status: 405 }
-  );
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  try {
+    const url = new URL(request.url);
+    const sessionToken = url.searchParams.get("session");
+    let customerIdStr = url.searchParams.get("logged_in_customer_id");
+
+    if (!customerIdStr && sessionToken) {
+      try {
+        const decoded = jwt.verify(sessionToken, process.env.SHOPIFY_API_SECRET || "s3cr3t") as any;
+        customerIdStr = decoded.customerId;
+      } catch (e) {
+        console.error("Wishlist JWT verification failed", e);
+      }
+    }
+
+    if (!customerIdStr) {
+      return Response.json({ success: false, wishlist: [] }, { status: 401 });
+    }
+
+    const customerGid = customerIdStr.includes("gid://shopify/Customer/") 
+      ? customerIdStr 
+      : `gid://shopify/Customer/${customerIdStr}`;
+
+    const { admin } = await unauthenticated.admin("purrkins-mhrlfymw.myshopify.com");
+    if (!admin) {
+      return Response.json({ success: false, wishlist: [] }, { status: 500 });
+    }
+
+    const getMetafieldResponse = await admin.graphql(
+      `#graphql
+      query getCustomerWishlist($id: ID!) {
+        customer(id: $id) {
+          metafield(namespace: "custom", key: "wishlist") {
+            value
+          }
+        }
+      }`,
+      { variables: { id: customerGid } }
+    );
+
+    const getMetafieldData = await getMetafieldResponse.json();
+    const metafield = getMetafieldData?.data?.customer?.metafield;
+    let currentWishlist: string[] = [];
+    
+    if (metafield?.value) {
+      try {
+        currentWishlist = JSON.parse(metafield.value);
+      } catch (e) {
+        // failed to parse
+      }
+    }
+
+    return Response.json({ success: true, wishlist: currentWishlist });
+  } catch (error) {
+    console.error("Error fetching wishlist", error);
+    return Response.json({ success: false, wishlist: [] }, { status: 500 });
+  }
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
