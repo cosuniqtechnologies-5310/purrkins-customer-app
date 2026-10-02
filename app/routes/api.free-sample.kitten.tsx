@@ -98,6 +98,30 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const activePet = pets[petIndex] || null;
 
+  let allProducts: any[] = [];
+  try {
+    const productRes = await admin.graphql(`
+      query {
+        products(first: 50) {
+          edges {
+            node {
+              handle
+              title
+              tags
+              featuredImage { url }
+              variants(first:1) { edges { node { id } } }
+              metafield(namespace: "custom", key: "short_description") { value }
+            }
+          }
+        }
+      }
+    `);
+    const productData = await productRes.json() as any;
+    allProducts = productData?.data?.products?.edges?.map((e:any) => e.node) || [];
+  } catch (e) {
+    console.error("Failed to fetch products for recommendations", e);
+  }
+
   // Build pet pills HTML
   const petPillsHtml = pets.map((pet: any, i: number) => {
     const name = pet.name?.value || "Kitten";
@@ -188,7 +212,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <h2 style="margin:0;">Your quiz answers</h2>
           <p style="color:#595961; margin:6px 0 0 0; font-size:14px;">Taken 14 July, updated 2 Aug. Everything below is built from these answers.</p>
         </div>
-        <button class="pk-outline-btn" style="border-radius:30px; cursor:pointer; background:none;">Retake quiz</button>
+        <button onclick="document.getElementById('global-byob-quiz-popup').style.display='flex'" class="pk-outline-btn" style="border-radius:30px; cursor:pointer; background:none;">Retake quiz</button>
       </div>
       <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:24px;">
         ${activePet.age?.value ? `<span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">Age - ${activePet.age.value}</span>` : ''}
@@ -202,29 +226,60 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       </div>
 
       <!-- RECOMMENDATIONS -->
-      <div style="margin-top:40px; margin-bottom:12px;">
-        <h2 style="margin:0 0 20px 0; font-size:20px;">Recommend for ${activePet.name?.value || 'Kitten'}</h2>
-        <div style="display:flex; gap:16px;">
-          <div class="pk-recommend-card" style="flex:1; background:#EBF4F6; padding:24px; border-radius:16px; display:flex; flex-direction:column;">
-            <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky-Product-Image.png?v=1789631395" style="width:50px; height:70px; object-fit:contain; margin-bottom:16px;" alt="">
-            <h4 style="margin:0 0 8px 0; font-size:16px; font-weight:800;">Lean Kitty</h4>
-            <p style="font-size:13px; margin:0 0 24px 0; color:#595961; line-height:1.4; flex-grow:1;">All the pounce, none of the extra pounds. Light, tasty nutrition to keep them playful and agile.</p>
-            <button style="background:#121217; color:#fff; border:none; border-radius:30px; padding:12px 20px; font-weight:700; cursor:pointer; width:max-content;">In Your Box</button>
+      ${(() => {
+        let foundProducts: any[] = [];
+        if (activePet?.focus?.value) {
+          const focusAreas = activePet.focus.value.split(',').map((f: string) => f.trim().toLowerCase());
+          for (const prod of allProducts) {
+            const prodTagsJoined = prod.tags ? prod.tags.join(',').toLowerCase() : '';
+            const matched = focusAreas.some((area: string) => prodTagsJoined.includes(area));
+            if (matched) {
+              foundProducts.push(prod);
+              if (foundProducts.length >= 3) break;
+            }
+          }
+        }
+        
+        const bgColors = ['#E8F4FE', '#FFF2E8', '#EAF6F0'];
+        let productsHtml = '';
+        
+        if (foundProducts.length > 0) {
+          productsHtml = foundProducts.map((prod, index) => {
+            const bgColor = bgColors[index] || '#E8F4FE';
+            const title = prod.title;
+            const imgUrl = prod.featuredImage?.url || '';
+            const desc = prod.metafield?.value || 'Nourishing fuel for growing kittens.';
+            const variantId = prod.variants?.edges?.[0]?.node?.id?.split('/').pop() || '';
+            return `
+              <div class="pk-recommend-card" style="flex:1; background:${bgColor}; padding:24px; border-radius:16px; display:flex; flex-direction:column;">
+                <img src="${imgUrl}" style="width:50px; height:70px; object-fit:contain; margin-bottom:16px;" alt="">
+                <h4 style="margin:0 0 8px 0; font-size:16px; font-weight:800;">${title}</h4>
+                <p style="font-size:13px; margin:0 0 24px 0; color:#595961; line-height:1.4; flex-grow:1;">${desc}</p>
+                <form method="post" action="/cart/add" class="quiz-rec-form">
+                  <input type="hidden" name="id" value="${variantId}">
+                  <button type="submit" style="background:#121217; color:#fff; border:none; border-radius:30px; padding:12px 20px; font-weight:700; cursor:pointer; width:max-content;">Add to Cart</button>
+                </form>
+              </div>
+            `;
+          }).join('');
+        } else {
+          productsHtml = `
+            <div style="width: 100%; text-align: center; padding: 40px 20px; background: #f9f9f9; border-radius: 16px; border: 1px dashed #d1d1d1; color: #595961;">
+              <h3 style="margin-top: 0; font-size: 18px; color: #121217; margin-bottom: 8px;">No exact matches found</h3>
+              <p style="margin-bottom: 0;">We couldn't find products that exactly match <strong>${activePet.name?.value || 'Kitten'}'s</strong> specific focus areas.</p>
+            </div>
+          `;
+        }
+        
+        return `
+          <div style="margin-top:40px; margin-bottom:12px;">
+            <h2 style="margin:0 0 20px 0; font-size:20px;">Recommend for ${activePet.name?.value || 'Kitten'}</h2>
+            <div style="display:flex; gap:16px;">
+              ${productsHtml}
+            </div>
           </div>
-          <div class="pk-recommend-card" style="flex:1; background:#FFF4E6; padding:24px; border-radius:16px; display:flex; flex-direction:column;">
-            <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066" style="width:50px; height:70px; object-fit:contain; margin-bottom:16px;" alt="">
-            <h4 style="margin:0 0 8px 0; font-size:16px; font-weight:800;">Gutty Kitty</h4>
-            <p style="font-size:13px; margin:0 0 24px 0; color:#595961; line-height:1.4; flex-grow:1;">Happy tummies, happy kitties. Gentle, easy-to-digest goodness to keep bellies comfortable and content.</p>
-            <button style="background:#121217; color:#fff; border:none; border-radius:30px; padding:12px 20px; font-weight:700; cursor:pointer; width:max-content;">In Your Box</button>
-          </div>
-          <div class="pk-recommend-card" style="flex:1; background:#E6F4EA; padding:24px; border-radius:16px; display:flex; flex-direction:column;">
-            <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew-Product-Image.png?v=1789634179" style="width:50px; height:70px; object-fit:contain; margin-bottom:16px;" alt="">
-            <h4 style="margin:0 0 8px 0; font-size:16px; font-weight:800;">Mumma & Kitty</h4>
-            <p style="font-size:13px; margin:0 0 24px 0; color:#595961; line-height:1.4; flex-grow:1;">Nourishing fuel for growing kittens and comforting, energy-rich goodness to help mama cats recover.</p>
-            <button style="background:#121217; color:#fff; border:none; border-radius:30px; padding:12px 20px; font-weight:700; cursor:pointer; width:max-content;">Add to Cart</button>
-          </div>
-        </div>
-      </div>
+        `;
+      })()}
     </div>
 
     <!-- MONTHLY PLAN CARD -->

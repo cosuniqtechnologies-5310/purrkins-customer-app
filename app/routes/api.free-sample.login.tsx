@@ -128,8 +128,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const url = new URL(request.url);
+  const isPopup = url.searchParams.get("popup") === "true";
+
   const liquidTemplate = `
     <script>
+      var isPopup = ${isPopup};
       // If already logged in via JWT, redirect to dashboard
       (function() {
         var t = localStorage.getItem('pk_session');
@@ -138,6 +142,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           try {
             var payload = JSON.parse(atob(t.split('.')[1]));
             if (payload.exp && payload.exp * 1000 > Date.now()) {
+              if (isPopup) {
+                return; // Parent window handles the redirect
+              }
               window.location.replace('/apps/purrkins/dashboard?session=' + t);
               return;
             } else {
@@ -164,27 +171,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         margin: 0;
         padding: 0;
         font-family: var(--font-body--family, 'Inter', sans-serif);
-        background-color: #f4f4f5;
+        background-color: ${isPopup ? 'transparent' : '#f4f4f5'};
       }
       .pk-login-container {
         display: flex;
         justify-content: center;
         align-items: center;
-        min-height: calc(100vh - 120px);
-        padding: 40px 20px;
+        min-height: ${isPopup ? '100vh' : 'calc(100vh - 120px)'};
+        padding: ${isPopup ? '0' : '40px 20px'};
       }
       .pk-login-card {
         display: flex;
         background: linear-gradient(135deg, #FFFAE0 0%, #E8F0FF 100%);
-        border-radius: 24px;
+        border-radius: ${isPopup ? '0' : '24px'};
         overflow: hidden;
-        max-width: 1000px;
+        max-width: ${isPopup ? '100%' : '1000px'};
         width: 100%;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.05);
+        box-shadow: ${isPopup ? 'none' : '0 10px 40px rgba(0,0,0,0.05)'};
+        ${isPopup ? 'min-height: 100vh;' : ''}
       }
       .pk-login-left {
         flex: 1;
-        padding: 60px;
+        padding: ${isPopup ? '40px' : '60px'};
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -501,7 +509,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           .then(function(data) {
             if(data.success && data.token) {
               localStorage.setItem('pk_session', data.token);
-              window.location.href = (data.redirect || "/apps/purrkins/dashboard") + "?session=" + data.token;
+              if (typeof isPopup !== 'undefined' && isPopup) {
+                document.getElementById('otp-verify-form').innerHTML = '<h2 class="pk-otp-title" style="text-align: center; margin-top: 20px;">Login Successful!</h2><p style="text-align: center; color: #595961;">Please wait...</p>';
+              } else {
+                window.location.href = (data.redirect || "/apps/purrkins/dashboard") + "?session=" + data.token;
+              }
             } else {
               resetOtpForm(data.error || 'Invalid code');
             }
@@ -579,7 +591,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return new Response(liquidTemplate, {
     headers: {
       "Content-Type": "application/liquid",
-      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+      "Content-Security-Policy": "frame-ancestors 'self' https://*.myshopify.com;",
+      "X-Frame-Options": "ALLOWALL"
     },
   });
 };
