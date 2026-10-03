@@ -26,7 +26,7 @@ jobs:
       - name: Sync files to VPS via rsync
         run: |
           # Copies everything to a 'purrkins-app' folder on your server
-          rsync -avz --delete --exclude='.git' --exclude='node_modules' ./ ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }}:~/purrkins-app/
+          rsync -avz --delete --exclude='.git' --exclude='node_modules' --exclude='.env' ./ ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }}:~/purrkins-app/
 
       - name: Start Docker containers
         uses: appleboy/ssh-action@v1.0.3
