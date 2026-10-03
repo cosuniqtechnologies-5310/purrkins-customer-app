@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs } from "react-router";
-import { authenticate } from "../shopify.server";
+import { authenticate, unauthenticated } from "../shopify.server";
 import fs from "fs";
 import path from "path";
 
@@ -16,7 +16,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   try {
-    const { admin } = await authenticate.public.appProxy(request);
+    const authResult = await authenticate.public.appProxy(request);
+    let admin = authResult.admin;
+
+    if (!admin) {
+      const url = new URL(request.url);
+      const shop = url.searchParams.get("shop");
+      if (shop) {
+        try {
+          const { admin: unauthAdmin } = await unauthenticated.admin(shop);
+          admin = unauthAdmin;
+        } catch (e) {
+          console.error("Failed to get unauthenticated admin:", e);
+        }
+      }
+    }
 
     if (!admin) {
       return Response.json({ success: false, message: "Unauthorized access" }, { status: 401 });
