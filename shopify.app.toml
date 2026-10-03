@@ -2,7 +2,7 @@
 
 client_id = "c48f3f570d623330d23274556ccc823f"
 name = "purrkins-customer-app"
-application_url = "https://example.com"
+application_url = "https://purrkins.duckdns.org"
 embedded = true
 
 [access_scopes]
@@ -45,12 +45,12 @@ api_version = "2026-10"
   topics = [ "app/uninstalled" ]
 
 [app_proxy]
-url = "https://example.com/api/free-sample"
+url = "https://purrkins.duckdns.org/api/free-sample"
 subpath = "purrkins"
 prefix = "apps"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://purrkins.duckdns.org/api/auth" ]
 
 [build]
 automatically_update_urls_on_dev = true

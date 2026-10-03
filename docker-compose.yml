@@ -1,15 +1,29 @@
-version: '3.8'
-
 services:
   web:
     build: .
     image: purrkins-customer-app:latest
     container_name: purrkins_web
     restart: always
-    ports:
-      - "80:3000"
     env_file:
       - .env
     environment:
       - NODE_ENV=production
       - HOST=0.0.0.0
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
