@@ -1,13 +1,23 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
-import { authenticate } from "../shopify.server";
+import { authenticate, unauthenticated } from "../shopify.server";
 import prisma from "../db.server";
 import nodemailer from "nodemailer";
 import jwt from "jsonwebtoken";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin, session } = await authenticate.public.appProxy(request);
-  if (!admin) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+  console.log("=== APP PROXY ACTION CALLED ===");
+  const url = new URL(request.url);
+  console.log("URL:", url.toString());
+  
+  let admin, session;
+  try {
+    const authResult = await authenticate.public.appProxy(request);
+    admin = authResult.admin;
+    session = authResult.session;
+    console.log("App Proxy Auth result - session:", session?.id, "admin defined:", !!admin);
+  } catch (error) {
+    console.error("App Proxy Auth threw an error:", error);
+    return new Response(JSON.stringify({ error: "Unauthorized - Signature invalid or error thrown" }), { status: 401 });
   }
 
   const formData = await request.formData();
@@ -77,9 +87,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return new Response(JSON.stringify({ success: false, error: "Invalid or expired code" }), { status: 400 });
     }
 
-    const tempPassword = "Temp" + Math.random().toString(36).slice(-8) + "X!";
+    let graphqlClient = admin;
+    if (!graphqlClient) {
+      console.log("Admin from appProxy is undefined. Trying unauthenticated.admin...");
+      const shop = url.searchParams.get("shop");
+      if (shop) {
+        try {
+          const { admin: unauthAdmin } = await unauthenticated.admin(shop);
+          graphqlClient = unauthAdmin;
+        } catch (e) {
+          console.error("Failed to get unauthenticated admin:", e);
+        }
+      }
+    }
+
+    if (!graphqlClient) {
+      return new Response(JSON.stringify({ success: false, error: "App not fully installed. Merchant needs to open the app in Shopify admin." }), { status: 500 });
+    }
     
-    const searchRes = await admin.graphql(`
+    const searchRes = await graphqlClient.graphql(`
       query {
         customers(first: 5, query: "email:${email}") {
           edges { node { id email firstName } }
@@ -96,7 +122,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       console.log("Found existing customer:", customerId, customerEdge.node.firstName, customerEdge.node.email);
     } else {
       // Create customer without password (Shopify New Customer Accounts doesn't support password field)
-      const createRes = await admin.graphql(`
+      const createRes = await graphqlClient.graphql(`
         mutation customerCreate($input: CustomerInput!) {
           customerCreate(input: $input) {
             customer { id email firstName }
