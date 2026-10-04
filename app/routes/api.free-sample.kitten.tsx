@@ -74,6 +74,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 activity: field(key: "activity") { value }
                 focus: field(key: "focus") { value }
                 allergies: field(key: "allergies") { value }
+                subscription: field(key: "subscription_products") {
+                  references(first: 10) {
+                    nodes {
+                      ... on Product {
+                        id
+                        title
+                        handle
+                        featuredImage { url }
+                        variants(first: 1) { edges { node { id title price } } }
+                      }
+                    }
+                  }
+                }
                 profile: field(key: "profile") {
                   reference {
                     ... on MediaImage {
@@ -102,7 +115,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     const productRes = await admin.graphql(`
       query {
-        products(first: 50) {
+        products(first: 100) {
           edges {
             node {
               handle
@@ -121,6 +134,58 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   } catch (e) {
     console.error("Failed to fetch products for recommendations", e);
   }
+
+  // ── Per-pet helpers ──────────────────────────────────────────
+  const esc = (v: any) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const petName = activePet?.name?.value || "Kitten";
+
+  // Subscription: products linked to this pet profile (metaobject field "subscription_products")
+  const subscriptionProducts: any[] = (activePet?.subscription?.references?.nodes || []).filter((p: any) => p?.title);
+  const hasSubscription = subscriptionProducts.length > 0;
+  const subscriptionTotal = subscriptionProducts.reduce(
+    (sum: number, p: any) => sum + (parseFloat(p.variants?.edges?.[0]?.node?.price || "0") || 0), 0);
+  const subscribedHandles = new Set(subscriptionProducts.map((p: any) => p.handle));
+
+  // Recommendations: score every product against THIS pet's quiz answers using product tags
+  const STOP_WORDS = new Set(["and", "the", "for", "with", "cat", "cats", "week", "weeks", "month", "months", "year", "years", "old", "none", "nil", "not", "any"]);
+  const tokenize = (s: any): string[] =>
+    String(s ?? "").toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+  const splitList = (s: any): string[] =>
+    String(s ?? "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+
+  const recommendedProducts: any[] = (() => {
+    if (!activePet) return [];
+    const focusPhrases = splitList(activePet.focus?.value);
+    const generalTokens = new Set<string>([
+      ...tokenize(activePet.age?.value),
+      ...tokenize(activePet.body?.value),
+      ...tokenize(activePet.activity?.value),
+    ]);
+    const allergenTokens = new Set<string>(tokenize(activePet.allergies?.value));
+
+    return allProducts
+      .filter((prod) => !subscribedHandles.has(prod.handle))
+      .map((prod) => {
+        const tags: string[] = (prod.tags || []).map((t: string) => String(t).toLowerCase());
+        const prodTokens = new Set<string>([...tags.flatMap(tokenize), ...tokenize(prod.title)]);
+
+        // Exclude anything matching the pet's allergies
+        for (const a of allergenTokens) if (prodTokens.has(a)) return { prod, score: -1 };
+
+        let score = 0;
+        for (const phrase of focusPhrases) {
+          const phraseHit = tags.some((t) => t.includes(phrase) || (t.length > 2 && phrase.includes(t)));
+          if (phraseHit) score += 3;
+          else if (tokenize(phrase).some((w) => prodTokens.has(w))) score += 2;
+        }
+        for (const w of generalTokens) if (prodTokens.has(w)) score += 1;
+        return { prod, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map((x) => x.prod);
+  })();
 
   // Build pet pills HTML
   const petPillsHtml = pets.map((pet: any, i: number) => {
@@ -225,30 +290,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         ${activePet.allergies?.value ? `<span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">${activePet.allergies.value}</span>` : ''}
       </div>
 
-      <!-- RECOMMENDATIONS -->
+      <!-- RECOMMENDATIONS (matched from this pet's quiz answers) -->
       ${(() => {
-        let foundProducts: any[] = [];
-        if (activePet?.focus?.value) {
-          const focusAreas = activePet.focus.value.split(',').map((f: string) => f.trim().toLowerCase());
-          for (const prod of allProducts) {
-            const prodTagsJoined = prod.tags ? prod.tags.join(',').toLowerCase() : '';
-            const matched = focusAreas.some((area: string) => prodTagsJoined.includes(area));
-            if (matched) {
-              foundProducts.push(prod);
-              if (foundProducts.length >= 3) break;
-            }
-          }
-        }
-        
         const bgColors = ['#E8F4FE', '#FFF2E8', '#EAF6F0'];
         let productsHtml = '';
-        
-        if (foundProducts.length > 0) {
-          productsHtml = foundProducts.map((prod, index) => {
+
+        if (recommendedProducts.length > 0) {
+          productsHtml = recommendedProducts.map((prod: any, index: number) => {
             const bgColor = bgColors[index] || '#E8F4FE';
-            const title = prod.title;
-            const imgUrl = prod.featuredImage?.url || '';
-            const desc = prod.metafield?.value || 'Nourishing fuel for growing kittens.';
+            const title = esc(prod.title);
+            const imgUrl = esc(prod.featuredImage?.url || '');
+            const desc = esc(prod.metafield?.value || 'Nourishing fuel for growing kittens.');
             const variantId = prod.variants?.edges?.[0]?.node?.id?.split('/').pop() || '';
             return `
               <div class="pk-recommend-card" style="flex:1; background:${bgColor}; padding:24px; border-radius:16px; display:flex; flex-direction:column;">
@@ -266,14 +318,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           productsHtml = `
             <div style="width: 100%; text-align: center; padding: 40px 20px; background: #f9f9f9; border-radius: 16px; border: 1px dashed #d1d1d1; color: #595961;">
               <h3 style="margin-top: 0; font-size: 18px; color: #121217; margin-bottom: 8px;">No exact matches found</h3>
-              <p style="margin-bottom: 0;">We couldn't find products that exactly match <strong>${activePet.name?.value || 'Kitten'}'s</strong> specific focus areas.</p>
+              <p style="margin-bottom: 0;">We couldn't find products that exactly match <strong>${esc(petName)}'s</strong> specific quiz answers.</p>
             </div>
           `;
         }
-        
+
         return `
           <div style="margin-top:40px; margin-bottom:12px;">
-            <h2 style="margin:0 0 20px 0; font-size:20px;">Recommend for ${activePet.name?.value || 'Kitten'}</h2>
+            <h2 style="margin:0 0 20px 0; font-size:20px;">Recommend for ${esc(petName)}</h2>
             <div style="display:flex; gap:16px;">
               ${productsHtml}
             </div>
@@ -282,103 +334,43 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       })()}
     </div>
 
-    <!-- MONTHLY PLAN CARD -->
-    ${true ? ` <!-- true represents hasSubscription variable for now -->
-    <div id="subscription" class="pk-card" style="margin-top:20px; scroll-margin-top:100px;">
-      <h2 style="margin:0 0 16px 0; font-size:24px;">${activePet.name?.value || 'Kitten'}'s monthly plan</h2>
-      <div style="background:#f4f4f5; border-radius:12px; padding:40px 20px; text-align:center;">
-        <h3 style="margin:0 0 12px 0; font-size:18px;">No active subscription</h3>
-        <p style="color:#595961; margin:0 0 24px 0; font-size:14px;">${activePet.name?.value || 'Kitten'} doesn't have a monthly plan yet. Build a custom box tailored to their quiz results.</p>
-        <a href="/pages/byob" style="display:inline-block; padding:12px 28px; border-radius:30px; background:#121217; color:#fff; text-decoration:none; font-weight:700; font-size:14px;">Build a Box</a>
-      </div>
-    </div>
-    ` : `
+    <!-- MONTHLY PLAN CARD (shows this pet's subscription products, or an empty state) -->
+    ${hasSubscription ? `
     <div id="subscription" class="pk-card" style="margin-top:20px; scroll-margin-top:100px;">
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:24px;">
-        <h2 style="margin:0;">${activePet.name?.value || 'Kitten'}'s monthly plan</h2>
+        <h2 style="margin:0;">${esc(petName)}'s monthly plan</h2>
         <span style="background:#FFFDE7; color:#FBC02D; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid #FFF59D;">Active</span>
       </div>
-      
-      <div style="background:#FFE600; padding:16px 24px; border-radius:12px; display:flex; justify-content:space-between; margin-bottom:24px;">
-        <div><div style="font-size:10px; font-weight:700; letter-spacing:1px; margin-bottom:4px; text-transform:uppercase;">Started</div><div style="font-weight:700; font-size:14px;">14 July 2026</div></div>
-        <div><div style="font-size:10px; font-weight:700; letter-spacing:1px; margin-bottom:4px; text-transform:uppercase;">Frequency</div><div style="font-weight:700; font-size:14px;">Every 30 days</div></div>
-        <div><div style="font-size:10px; font-weight:700; letter-spacing:1px; margin-bottom:4px; text-transform:uppercase;">Next Charge</div><div style="font-weight:700; font-size:14px;">18 Aug · ₹1,080</div></div>
-        <div><div style="font-size:10px; font-weight:700; letter-spacing:1px; margin-bottom:4px; text-transform:uppercase;">Deliveries So Far</div><div style="font-weight:700; font-size:14px;">2</div></div>
-        <div><div style="font-size:10px; font-weight:700; letter-spacing:1px; margin-bottom:4px; text-transform:uppercase;">You Save</div><div style="font-weight:700; font-size:14px;">15% vs one-time</div></div>
-      </div>
-      
-      <div style="display:flex; flex-direction:column; gap:20px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eaeaea; padding-bottom:20px;">
-          <div style="display:flex; gap:16px; align-items:center;">
-            <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky-Product-Image.png?v=1789631395" style="width:36px; height:50px; object-fit:contain;" alt="">
-            <div>
-              <div style="font-weight:800; font-size:15px; margin-bottom:4px;">Growing Kitty</div>
-              <div style="font-size:13px; color:#595961;">70 g pouch · Chicken with DHA</div>
-            </div>
-          </div>
-          <div style="display:flex; align-items:center; gap:20px;">
-            <span style="font-size:13px; font-weight:700; cursor:pointer;">Swap flavour</span>
-            <div style="display:flex; align-items:center; gap:16px; border:1px solid #eaeaea; border-radius:30px; padding:6px 16px;">
-              <span style="cursor:pointer; font-weight:700;">-</span>
-              <span style="font-weight:700; font-size:14px; width:20px; text-align:center;">15</span>
-              <span style="cursor:pointer; font-weight:700;">+</span>
-            </div>
-            <span style="font-weight:800; font-size:15px; width:50px; text-align:right;">₹450</span>
-          </div>
-        </div>
-        
-        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eaeaea; padding-bottom:20px;">
-          <div style="display:flex; gap:16px; align-items:center;">
-            <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066" style="width:36px; height:50px; object-fit:contain;" alt="">
-            <div>
-              <div style="font-weight:800; font-size:15px; margin-bottom:4px;">Gutty Kitty</div>
-              <div style="font-size:13px; color:#595961;">70 g pouch · Tuna & salmon broth</div>
-            </div>
-          </div>
-          <div style="display:flex; align-items:center; gap:20px;">
-            <span style="font-size:13px; font-weight:700; cursor:pointer;">Swap flavour</span>
-            <div style="display:flex; align-items:center; gap:16px; border:1px solid #eaeaea; border-radius:30px; padding:6px 16px;">
-              <span style="cursor:pointer; font-weight:700;">-</span>
-              <span style="font-weight:700; font-size:14px; width:20px; text-align:center;">10</span>
-              <span style="cursor:pointer; font-weight:700;">+</span>
-            </div>
-            <span style="font-weight:800; font-size:15px; width:50px; text-align:right;">₹300</span>
-          </div>
-        </div>
 
+      <div style="display:flex; flex-direction:column; gap:20px;">
+        ${subscriptionProducts.map((p: any) => {
+          const variant = p.variants?.edges?.[0]?.node;
+          const variantTitle = variant?.title && variant.title !== 'Default Title' ? variant.title : '';
+          const price = parseFloat(variant?.price || '0');
+          return `
         <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eaeaea; padding-bottom:20px;">
           <div style="display:flex; gap:16px; align-items:center;">
-            <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew-Product-Image.png?v=1789634179" style="width:36px; height:50px; object-fit:contain;" alt="">
+            ${p.featuredImage?.url ? `<img src="${esc(p.featuredImage.url)}" style="width:36px; height:50px; object-fit:contain;" alt="">` : ''}
             <div>
-              <div style="font-weight:800; font-size:15px; margin-bottom:4px;">Chicken Broth</div>
-              <div style="font-size:13px; color:#595961;">70 g pouch · Hydration topper</div>
+              <div style="font-weight:800; font-size:15px; margin-bottom:4px;">${esc(p.title)}</div>
+              ${variantTitle ? `<div style="font-size:13px; color:#595961;">${esc(variantTitle)}</div>` : ''}
             </div>
           </div>
-          <div style="display:flex; align-items:center; gap:20px;">
-            <span style="font-size:13px; font-weight:700; cursor:pointer;">Swap flavour</span>
-            <div style="display:flex; align-items:center; gap:16px; border:1px solid #eaeaea; border-radius:30px; padding:6px 16px;">
-              <span style="cursor:pointer; font-weight:700;">-</span>
-              <span style="font-weight:700; font-size:14px; width:20px; text-align:center;">6</span>
-              <span style="cursor:pointer; font-weight:700;">+</span>
-            </div>
-            <span style="font-weight:800; font-size:15px; width:50px; text-align:right;">₹180</span>
-          </div>
-        </div>
+          <span style="font-weight:800; font-size:15px; text-align:right;">${price > 0 ? '₹' + price.toLocaleString('en-IN') : ''}</span>
+        </div>`;
+        }).join('')}
       </div>
-      
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; font-size:15px; font-weight:800;">
+        <span>Total per box</span>
+        <span>₹${subscriptionTotal.toLocaleString('en-IN')}</span>
+      </div>
+
       <div style="background:#121217; color:#fff; padding:16px 24px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; margin-top:20px;">
         <span style="font-size:14px; font-weight:700;">+ Add a product to this box — treats, broths and supplement mousses</span>
-        <span style="font-size:14px; font-weight:700; cursor:pointer; padding:6px 16px; border:1px solid rgba(255,255,255,0.3); border-radius:30px;">Browse</span>
+        <a href="/pages/byob" style="font-size:14px; font-weight:700; color:#fff; text-decoration:none; padding:6px 16px; border:1px solid rgba(255,255,255,0.3); border-radius:30px;">Browse</a>
       </div>
-      
-      <div style="display:flex; gap:12px; margin-top:24px; flex-wrap:wrap;">
-        <button class="pk-outline-btn" style="border-radius:30px; font-size:13px; padding:12px 20px; font-weight:700;">Change Frequency</button>
-        <button class="pk-outline-btn" style="border-radius:30px; font-size:13px; padding:12px 20px; font-weight:700;">Change Delivery Date</button>
-        <button class="pk-outline-btn" style="border-radius:30px; font-size:13px; padding:12px 20px; font-weight:700;">Skip Next Delivery</button>
-        <button class="pk-outline-btn" style="border-radius:30px; font-size:13px; padding:12px 20px; font-weight:700;">Pause Plan</button>
-        <span style="font-size:13px; color:#888; cursor:pointer; align-self:center; margin-left:12px;">Cancel Subscription</span>
-      </div>
-      
+
       <div style="background:#FFE600; padding:20px 24px; border-radius:12px; display:flex; justify-content:space-between; margin-top:30px;">
         <div>
            <div style="font-weight:800; font-size:14px; margin-bottom:6px;">Vet on call</div>
@@ -396,6 +388,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
            <div style="font-weight:800; font-size:14px; margin-bottom:6px;">Insurance benefit</div>
            <div style="font-size:13px; line-height:1.4;">Partner cover</div>
         </div>
+      </div>
+    </div>
+    ` : `
+    <div id="subscription" class="pk-card" style="margin-top:20px; scroll-margin-top:100px;">
+      <h2 style="margin:0 0 16px 0; font-size:24px;">${esc(petName)}'s monthly plan</h2>
+      <div style="background:#f4f4f5; border-radius:12px; padding:40px 20px; text-align:center;">
+        <h3 style="margin:0 0 12px 0; font-size:18px;">No active subscription</h3>
+        <p style="color:#595961; margin:0 0 24px 0; font-size:14px;">${esc(petName)} doesn't have a monthly plan yet. Build a custom box tailored to their quiz results.</p>
+        <a href="/pages/byob" style="display:inline-block; padding:12px 28px; border-radius:30px; background:#121217; color:#fff; text-decoration:none; font-weight:700; font-size:14px;">Build a Box</a>
       </div>
     </div>
     `}
@@ -1265,6 +1266,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         .pk-sub-benefits-banner { grid-template-columns: 1fr 1fr; }
         .pk-vet-card { flex-direction: column; gap: 20px; text-align: center; }
       }
+
+      /* Sticky sidebar: stays fixed while the main content scrolls */
+      .pk-dashboard-layout { align-items: start; }
+      .pk-dashboard-sidebar {
+        position: sticky;
+        top: 24px;
+        align-self: start;
+      }
+      @media (max-width: 900px) {
+        .pk-dashboard-sidebar { position: static; }
+      }
     \n</style>
     <div class="pk-dashboard-wrapper">
 
@@ -1281,7 +1293,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             <a href="${dashUrl}" class="pk-menu-item"><span class="pk-dot"></span> Overview</a>
             <a href="/apps/purrkins/kitten" class="pk-menu-item active"><span class="pk-dot"></span> Kitten's Profile</a>
             <a href="#quiz" class="pk-menu-item"><span class="pk-dot"></span> Your Quiz Answers</a>
-            <a href="#subscription" class="pk-menu-item"><span class="pk-dot"></span> Subscriptions <span class="pk-badge">1</span></a>
+            <a href="#subscription" class="pk-menu-item"><span class="pk-dot"></span> Subscriptions ${hasSubscription ? '<span class="pk-badge">1</span>' : ''}</a>
             <a href="#vet" class="pk-menu-item"><span class="pk-dot"></span> Talk to a Vet</a>
           </div>
 

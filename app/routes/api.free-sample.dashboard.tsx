@@ -1082,6 +1082,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         .pk-sub-benefits-banner { grid-template-columns: 1fr 1fr; }
         .pk-vet-card { flex-direction: column; gap: 20px; text-align: center; }
       }
+
+      /* Sticky sidebar: stays fixed while the main content scrolls */
+      .pk-dashboard-layout { align-items: start; }
+      .pk-dashboard-sidebar {
+        position: sticky;
+        top: 24px;
+        align-self: start;
+      }
+      @media (max-width: 900px) {
+        .pk-dashboard-sidebar { position: static; }
+      }
     \n</style>
 
     
