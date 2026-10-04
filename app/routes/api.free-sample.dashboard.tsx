@@ -137,6 +137,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   console.log("DASHBOARD WISHLIST DATA:", JSON.stringify(customer.wishlist, null, 2));
 
   const defaultAddress = customer.defaultAddress || {};
+  // Escape values placed inside HTML attributes so quotes/angle brackets can't break the form
+  const escAttr = (v: any) => String(v ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   
   const petIndex = 0;
   const pets = customer.pets?.references?.nodes || [];
@@ -1124,15 +1126,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               <div class="pk-form-row">
                 <div class="pk-input-group">
                   <label>Username *</label>
-                  <input type="text" value="${customer.firstName || ""}" readonly>
+                  <input type="text" id="pk-username" value="${escAttr(customer.firstName)}">
                 </div>
                 <div class="pk-input-group">
                   <label>Change Password</label>
-                  <input type="password" placeholder="Enter New Password">
+                  <input type="password" id="pk-password" placeholder="Enter New Password">
                 </div>
                 <div class="pk-input-group">
                   <label>Confirm Password *</label>
-                  <input type="password" placeholder="Confirm Your New Password">
+                  <input type="password" id="pk-password-confirm" placeholder="Confirm Your New Password">
                 </div>
               </div>
             </div>
@@ -1140,20 +1142,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             <!-- Billing Address -->
             <h3 class="pk-section-title">Customer Billing Address</h3>
             <div class="pk-form-grid">
-              <input type="text" placeholder="First Name" value="${defaultAddress.firstName || ""}">
-              <input type="text" placeholder="Last Name" value="${defaultAddress.lastName || ""}">
-              <input type="email" placeholder="Email" value="${customer.email || ""}" readonly>
+              <input type="text" id="pk-bill-firstName" placeholder="First Name" value="${escAttr(defaultAddress.firstName)}">
+              <input type="text" id="pk-bill-lastName" placeholder="Last Name" value="${escAttr(defaultAddress.lastName)}">
+              <input type="email" placeholder="Email" value="${escAttr(customer.email)}" readonly>
               
-              <input type="text" placeholder="Country/Region" value="${defaultAddress.country || "India"}">
-              <input type="text" placeholder="State" value="${defaultAddress.province || ""}">
-              <input type="text" placeholder="Phone (optional)" value="${customer.phone || ""}">
+              <input type="text" id="pk-bill-country" placeholder="Country/Region" value="${escAttr(defaultAddress.country || "India")}">
+              <input type="text" id="pk-bill-province" placeholder="State" value="${escAttr(defaultAddress.province)}">
+              <input type="text" id="pk-bill-phone" placeholder="Phone (optional)" value="${escAttr(customer.phone)}">
               
-              <input type="text" placeholder="Pin Code" value="${defaultAddress.zip || ""}">
-              <input type="text" placeholder="Apartment, suite, etc. (optional)" value="${defaultAddress.address2 || ""}" style="grid-column: span 2;">
-              <input type="text" placeholder="City" value="${defaultAddress.city || ""}">
+              <input type="text" id="pk-bill-zip" placeholder="Pin Code" value="${escAttr(defaultAddress.zip)}">
+              <input type="text" id="pk-bill-address1" placeholder="Street Address" value="${escAttr(defaultAddress.address1)}" style="grid-column: span 2;">
+              <input type="text" id="pk-bill-address2" placeholder="Apartment, suite, etc. (optional)" value="${escAttr(defaultAddress.address2)}" style="grid-column: span 2;">
+              <input type="text" id="pk-bill-city" placeholder="City" value="${escAttr(defaultAddress.city)}">
             </div>
+            <div id="pk-profile-msg" style="display:none;margin-top:16px;font-size:14px;font-weight:600;"></div>
             <div class="pk-form-actions">
-              <a href="#" class="pk-link-btn">Update</a>
+              <a href="#" id="pk-update-btn" class="pk-link-btn" onclick="submitProfile(event)">Update</a>
             </div>
           </div>
 
@@ -1289,6 +1293,66 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       // ─── Address modal helpers ────────────────────────────────
       var _pk_session = localStorage.getItem('pk_session') || '';
       var _apiBase = '/apps/purrkins/customer-api?session=' + _pk_session + '&intent=';
+
+      function submitProfile(e) {
+        if (e) e.preventDefault();
+        var msg = document.getElementById('pk-profile-msg');
+        var btn = document.getElementById('pk-update-btn');
+        function show(text, ok) {
+          msg.style.display = 'block';
+          msg.style.color = ok ? '#2E8E5A' : '#e53e3e';
+          msg.innerText = text;
+        }
+        function val(id) { return document.getElementById(id).value.trim(); }
+
+        var pw = document.getElementById('pk-password').value;
+        var pw2 = document.getElementById('pk-password-confirm').value;
+        if (pw || pw2) {
+          show('Passwords are not used for this account. You sign in with an email code, so there is no password to change.', false);
+          return;
+        }
+
+        var body = {
+          username: val('pk-username'),
+          firstName: val('pk-bill-firstName'),
+          lastName: val('pk-bill-lastName'),
+          country: val('pk-bill-country'),
+          province: val('pk-bill-province'),
+          phone: val('pk-bill-phone'),
+          zip: val('pk-bill-zip'),
+          address1: val('pk-bill-address1'),
+          address2: val('pk-bill-address2'),
+          city: val('pk-bill-city')
+        };
+        if (!body.username) { show('Username is required.', false); return; }
+        var anyAddr = body.firstName || body.address1 || body.city || body.zip;
+        if (anyAddr && (!body.firstName || !body.address1 || !body.city || !body.zip)) {
+          show('Please fill First Name, Street Address, City and Pin Code.', false);
+          return;
+        }
+
+        var token = localStorage.getItem('pk_session') || '';
+        btn.style.pointerEvents = 'none';
+        btn.innerText = 'Updating...';
+        fetch('/apps/purrkins/customer-api?session=' + token + '&intent=update_billing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        }).then(function(r) { return r.json(); }).then(function(d) {
+          if (d.success) {
+            show('Your details were updated.', true);
+            setTimeout(function() { window.location.reload(); }, 800);
+          } else {
+            show(d.error || 'Failed to update. Please try again.', false);
+            btn.style.pointerEvents = 'auto';
+            btn.innerText = 'Update';
+          }
+        }).catch(function() {
+          show('Network error. Please try again.', false);
+          btn.style.pointerEvents = 'auto';
+          btn.innerText = 'Update';
+        });
+      }
 
       function submitAddress() {
         var body = {

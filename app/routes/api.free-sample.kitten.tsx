@@ -205,7 +205,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     </div>
 
     <!-- COMBINED QUIZ & RECOMMENDATIONS CARD -->
-    <div class="pk-card" style="margin-top:20px;">
+    <div id="quiz" class="pk-card" style="margin-top:20px; scroll-margin-top:100px;">
       <!-- QUIZ ANSWERS -->
       <div class="pk-card-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
         <div>
@@ -284,7 +284,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     <!-- MONTHLY PLAN CARD -->
     ${true ? ` <!-- true represents hasSubscription variable for now -->
-    <div class="pk-card" style="margin-top:20px;">
+    <div id="subscription" class="pk-card" style="margin-top:20px; scroll-margin-top:100px;">
       <h2 style="margin:0 0 16px 0; font-size:24px;">${activePet.name?.value || 'Kitten'}'s monthly plan</h2>
       <div style="background:#f4f4f5; border-radius:12px; padding:40px 20px; text-align:center;">
         <h3 style="margin:0 0 12px 0; font-size:18px;">No active subscription</h3>
@@ -293,7 +293,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       </div>
     </div>
     ` : `
-    <div class="pk-card" style="margin-top:20px;">
+    <div id="subscription" class="pk-card" style="margin-top:20px; scroll-margin-top:100px;">
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:24px;">
         <h2 style="margin:0;">${activePet.name?.value || 'Kitten'}'s monthly plan</h2>
         <span style="background:#FFFDE7; color:#FBC02D; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid #FFF59D;">Active</span>
@@ -401,7 +401,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     `}
 
     <!-- VET CHAT CARD -->
-    <div style="background:#121217; border-radius:16px; padding:30px; display:flex; justify-content:space-between; align-items:center; margin-top:24px; color:#fff;">
+    <div id="vet" style="scroll-margin-top:100px; background:#121217; border-radius:16px; padding:30px; display:flex; justify-content:space-between; align-items:center; margin-top:24px; color:#fff;">
       <div>
         <h3 style="margin:0 0 10px 0; font-size:24px; font-weight:800;">Something not right with your kitten?</h3>
         <p style="margin:0; font-size:14px; color:#ccc;">Vet chat is included with your plan. Most questions get an answer in an hour.</p>
@@ -1574,6 +1574,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           mainContent.style.pointerEvents = "auto";
         }
       });
+
+      // Smooth-scroll sidebar anchor links (#quiz, #subscription, #vet) to their sections
+      if (!window.__pkAnchorScroll) {
+        window.__pkAnchorScroll = true;
+        document.addEventListener("click", function(e) {
+          var link = e.target.closest("a.pk-menu-item");
+          if (!link) return;
+          var href = link.getAttribute("href") || "";
+          if (href.charAt(0) !== "#" || href.length < 2) return;
+          var target = document.getElementById(href.slice(1));
+          if (!target) return;
+          e.preventDefault();
+          document.querySelectorAll(".pk-menu-item").forEach(function(el) { el.classList.remove("active"); });
+          link.classList.add("active");
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
     </script>
 
     <!-- NEW QUIZ MODAL -->

@@ -39,6 +39,27 @@ async function shopifyGql(accessToken: string, query: string, variables?: object
   return res.json();
 }
 
+// Helper: extract numeric id from a Shopify gid (strips any "?model_name=..." suffix)
+function parseGid(id?: string | null): string {
+  if (!id) return "";
+  return String(id).split("?")[0].split("/").pop() || "";
+}
+
+// Helper: turn a Shopify REST `errors` payload into a readable message
+function formatErrors(errors: any): string {
+  if (!errors) return "Unknown error";
+  if (typeof errors === "string") return errors;
+  return Object.entries(errors)
+    .map(([key, val]) => `${key} ${Array.isArray(val) ? val.join(", ") : val}`)
+    .join("; ");
+}
+
+function json(body: object, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status, headers: { "Content-Type": "application/json" }
+  });
+}
+
 export const loader = async () => {
   return new Response(JSON.stringify({ error: "POST only" }), { status: 405 });
 };
@@ -80,6 +101,58 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   }
 
+  // UPDATE BILLING (username + phone on the customer, and the default billing address)
+  if (intent === "update_billing") {
+    const body = await request.json();
+    const username = String(body.username || "").trim();
+    const phone = String(body.phone || "").trim();
+    if (!username) return json({ success: false, error: "Username is required." }, 400);
+
+    // 1. Customer: username (first name) + phone
+    const customerRes = await shopifyRest(accessToken, `/customers/${numericId}.json`, "PUT", {
+      customer: { id: numericId, first_name: username, phone: phone || null }
+    });
+    if (!customerRes.customer) {
+      return json({ success: false, error: formatErrors(customerRes.errors) }, 422);
+    }
+
+    // 2. Default billing address
+    const addressFields = {
+      first_name: String(body.firstName || "").trim(),
+      last_name: String(body.lastName || "").trim(),
+      address1: String(body.address1 || "").trim(),
+      address2: String(body.address2 || "").trim(),
+      city: String(body.city || "").trim(),
+      province: String(body.province || "").trim(),
+      zip: String(body.zip || "").trim(),
+      country: String(body.country || "").trim() || "India",
+      phone
+    };
+    const hasAddress = !!(addressFields.first_name || addressFields.address1 || addressFields.city || addressFields.zip);
+    const defaultId = customerRes.customer.default_address?.id;
+
+    if (hasAddress) {
+      if (defaultId) {
+        const addrRes = await shopifyRest(accessToken, `/customers/${numericId}/addresses/${defaultId}.json`, "PUT", {
+          address: addressFields
+        });
+        if (!addrRes.customer_address) {
+          return json({ success: false, error: formatErrors(addrRes.errors) }, 422);
+        }
+      } else {
+        const addrRes = await shopifyRest(accessToken, `/customers/${numericId}/addresses.json`, "POST", {
+          address: addressFields
+        });
+        if (!addrRes.customer_address) {
+          return json({ success: false, error: formatErrors(addrRes.errors) }, 422);
+        }
+        await shopifyRest(accessToken, `/customers/${numericId}/addresses/${addrRes.customer_address.id}/default.json`, "PUT");
+      }
+    }
+
+    return json({ success: true });
+  }
+
   // ADD ADDRESS
   if (intent === "add_address") {
     const body = await request.json();
@@ -109,7 +182,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // DELETE ADDRESS
   if (intent === "delete_address") {
     const body = await request.json();
-    const addressId = body.addressId?.split("/").pop();
+    const addressId = parseGid(body.addressId);
     await shopifyRest(accessToken, `/customers/${numericId}/addresses/${addressId}.json`, "DELETE");
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json" } });
   }
@@ -117,7 +190,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // SET DEFAULT ADDRESS
   if (intent === "set_default_address") {
     const body = await request.json();
-    const addressId = body.addressId?.split("/").pop();
+    const addressId = parseGid(body.addressId);
     await shopifyRest(accessToken, `/customers/${numericId}/addresses/${addressId}/default.json`, "PUT");
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json" } });
   }
