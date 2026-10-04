@@ -7,7 +7,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
   const url = new URL(request.url);
   const petIndex = parseInt(url.searchParams.get("pet_index") || "0", 10);
-  const token = url.searchParams.get("session");
+  const cookieHeader = request.headers.get("Cookie");
+  const cookieMatch = cookieHeader ? cookieHeader.match(/pk_session=([^;]+)/) : null;
+  const cookieToken = cookieMatch ? cookieMatch[1] : null;
+  const token = url.searchParams.get("session") || cookieToken;
   let customerId: string | null = null;
   let customerFirstName = "Friend";
 
@@ -29,12 +32,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           // If a token was provided in the URL but failed server verification, it's invalid.
           // Clear it and force login to prevent loops.
           localStorage.removeItem('pk_session');
+          document.cookie = "pk_session=; path=/apps/purrkins; expires=Thu, 01 Jan 1970 00:00:00 GMT";
           window.location.href = '/apps/purrkins/login';
         } else if (localToken) {
-          // No token in URL, but we have one locally. Try it.
-          var dest = new URL(window.location.href);
-          dest.searchParams.set("session", localToken);
-          window.location.replace(dest.toString());
+          // No token in URL or cookie, but we have one locally. Set cookie and reload.
+          document.cookie = "pk_session=" + localToken + "; path=/apps/purrkins; max-age=" + (7*24*60*60);
+          window.location.reload();
         } else {
           // No token anywhere, go to login.
           window.location.href = '/apps/purrkins/login';
@@ -135,57 +138,139 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     console.error("Failed to fetch products for recommendations", e);
   }
 
+  // ── Subscription orders (Shopify Subscriptions app) ──────────
+  // Contracts owned by Shopify's Subscriptions app can't be read by custom apps, but every
+  // subscription purchase is an order line item with a selling plan, which read_orders allows.
+  type SubItem = {
+    handle: string; title: string; imageUrl: string; variantTitle: string;
+    price: number; quantity: number; planName: string; deliveries: number; lastOrdered: string;
+    tags: string[];
+  };
+  const orderSubItems = new Map<string, SubItem>();
+  try {
+    const ordersRes = await admin.graphql(`
+      query($id: ID!) {
+        customer(id: $id) {
+          orders(first: 50, sortKey: CREATED_AT, reverse: true) {
+            edges {
+              node {
+                processedAt
+                cancelledAt
+                lineItems(first: 20) {
+                  edges {
+                    node {
+                      quantity
+                      sellingPlan { name }
+                      originalUnitPriceSet { shopMoney { amount } }
+                      variant { title }
+                      product { handle title tags featuredImage { url } }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    `, { variables: { id: customerId } });
+    const ordersData = await ordersRes.json() as any;
+    if (ordersData?.errors) console.error("Kitten orders GQL errors:", JSON.stringify(ordersData.errors));
+    const orderEdges = ordersData?.data?.customer?.orders?.edges || [];
+    for (const oe of orderEdges) {
+      if (oe.node.cancelledAt) continue;
+      for (const le of oe.node.lineItems?.edges || []) {
+        const li = le.node;
+        if (!li.sellingPlan || !li.product?.handle) continue; // only subscription purchases
+        const existing = orderSubItems.get(li.product.handle);
+        if (existing) { existing.deliveries += 1; continue; }  // orders are newest-first
+        orderSubItems.set(li.product.handle, {
+          handle: li.product.handle,
+          title: li.product.title,
+          imageUrl: li.product.featuredImage?.url || "",
+          variantTitle: li.variant?.title && li.variant.title !== "Default Title" ? li.variant.title : "",
+          price: parseFloat(li.originalUnitPriceSet?.shopMoney?.amount || "0") || 0,
+          quantity: li.quantity || 1,
+          planName: li.sellingPlan?.name || "",
+          deliveries: 1,
+          lastOrdered: oe.node.processedAt || "",
+          tags: (li.product.tags || []).map((t: string) => String(t).toLowerCase()),
+        });
+      }
+    }
+  } catch (e) {
+    console.error("Failed to fetch subscription orders", e);
+  }
+
   // ── Per-pet helpers ──────────────────────────────────────────
   const esc = (v: any) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const optionsHtml = (current: any, opts: string[]) => opts.map(o => `<option value="${o}" ${current === o ? 'selected' : ''}>${o}</option>`).join('');
   const petName = activePet?.name?.value || "Kitten";
 
-  // Subscription: products linked to this pet profile (metaobject field "subscription_products")
-  const subscriptionProducts: any[] = (activePet?.subscription?.references?.nodes || []).filter((p: any) => p?.title);
-  const hasSubscription = subscriptionProducts.length > 0;
-  const subscriptionTotal = subscriptionProducts.reduce(
-    (sum: number, p: any) => sum + (parseFloat(p.variants?.edges?.[0]?.node?.price || "0") || 0), 0);
-  const subscribedHandles = new Set(subscriptionProducts.map((p: any) => p.handle));
-
-  // Recommendations: score every product against THIS pet's quiz answers using product tags
+  // Match a product (by tags/title) against ONE pet's quiz answers. Returns -1 if it hits an allergy.
   const STOP_WORDS = new Set(["and", "the", "for", "with", "cat", "cats", "week", "weeks", "month", "months", "year", "years", "old", "none", "nil", "not", "any"]);
   const tokenize = (s: any): string[] =>
     String(s ?? "").toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !STOP_WORDS.has(w));
   const splitList = (s: any): string[] =>
     String(s ?? "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
 
-  const recommendedProducts: any[] = (() => {
-    if (!activePet) return [];
-    const focusPhrases = splitList(activePet.focus?.value);
+  const scoreForPet = (pet: any, rawTags: string[], title: string): number => {
+    if (!pet) return 0;
+    const tags = (rawTags || []).map((t) => String(t).toLowerCase());
+    const prodTokens = new Set<string>([...tags.flatMap(tokenize), ...tokenize(title)]);
+
+    for (const a of tokenize(pet.allergies?.value)) if (prodTokens.has(a)) return -1;
+
+    let score = 0;
+    for (const phrase of splitList(pet.focus?.value)) {
+      const phraseHit = tags.some((t) => t.includes(phrase) || (t.length > 2 && phrase.includes(t)));
+      if (phraseHit) score += 3;
+      else if (tokenize(phrase).some((w) => prodTokens.has(w))) score += 2;
+    }
     const generalTokens = new Set<string>([
-      ...tokenize(activePet.age?.value),
-      ...tokenize(activePet.body?.value),
-      ...tokenize(activePet.activity?.value),
+      ...tokenize(pet.age?.value), 
+      ...tokenize(pet.weight?.value), 
+      ...tokenize(pet.gender?.value), 
+      ...tokenize(pet.neutered?.value), 
+      ...tokenize(pet.body?.value), 
+      ...tokenize(pet.activity?.value),
     ]);
-    const allergenTokens = new Set<string>(tokenize(activePet.allergies?.value));
+    for (const w of generalTokens) if (prodTokens.has(w)) score += 1;
+    return score;
+  };
 
-    return allProducts
-      .filter((prod) => !subscribedHandles.has(prod.handle))
-      .map((prod) => {
-        const tags: string[] = (prod.tags || []).map((t: string) => String(t).toLowerCase());
-        const prodTokens = new Set<string>([...tags.flatMap(tokenize), ...tokenize(prod.title)]);
+  // Subscription products for THIS pet:
+  //  1) products set on the pet profile (metaobject field "subscription_products"), plus
+  //  2) the customer's subscription-order products that fit this pet's quiz
+  //     (with a single pet, every subscription product belongs to it)
+  const subscriptionMap = new Map<string, SubItem>();
+  for (const p of (activePet?.subscription?.references?.nodes || []).filter((n: any) => n?.title)) {
+    const v = p.variants?.edges?.[0]?.node;
+    subscriptionMap.set(p.handle, {
+      handle: p.handle, title: p.title, imageUrl: p.featuredImage?.url || "",
+      variantTitle: v?.title && v.title !== "Default Title" ? v.title : "",
+      price: parseFloat(v?.price || "0") || 0, quantity: 1, planName: "", deliveries: 0, lastOrdered: "", tags: [],
+    });
+  }
+  for (const item of orderSubItems.values()) {
+    const belongs = pets.length <= 1 || scoreForPet(activePet, item.tags, item.title) > 0;
+    if (belongs) subscriptionMap.set(item.handle, item);
+  }
+  const subscriptionProducts: SubItem[] = Array.from(subscriptionMap.values());
+  const hasSubscription = !!activePet && subscriptionProducts.length > 0;
+  const subscriptionTotal = subscriptionProducts.reduce((sum, p) => sum + p.price * p.quantity, 0);
+  const subscribedHandles = new Set(subscriptionProducts.map((p) => p.handle));
+  const subscriptionPlanName = subscriptionProducts.find((p) => p.planName)?.planName || "";
+  const subscriptionDeliveries = Math.max(0, ...subscriptionProducts.map((p) => p.deliveries));
+  const subscriptionLastOrdered = subscriptionProducts.map((p) => p.lastOrdered).filter(Boolean).sort().pop() || "";
 
-        // Exclude anything matching the pet's allergies
-        for (const a of allergenTokens) if (prodTokens.has(a)) return { prod, score: -1 };
-
-        let score = 0;
-        for (const phrase of focusPhrases) {
-          const phraseHit = tags.some((t) => t.includes(phrase) || (t.length > 2 && phrase.includes(t)));
-          if (phraseHit) score += 3;
-          else if (tokenize(phrase).some((w) => prodTokens.has(w))) score += 2;
-        }
-        for (const w of generalTokens) if (prodTokens.has(w)) score += 1;
-        return { prod, score };
-      })
-      .filter((x) => x.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 3)
-      .map((x) => x.prod);
-  })();
+  // Recommendations: score every product against THIS pet's quiz answers using product tags
+  const recommendedProducts: any[] = !activePet ? [] : allProducts
+    .filter((prod) => !subscribedHandles.has(prod.handle))
+    .map((prod) => ({ prod, score: scoreForPet(activePet, prod.tags || [], prod.title) }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10)
+    .map((x) => x.prod);
 
   // Build pet pills HTML
   const petPillsHtml = pets.map((pet: any, i: number) => {
@@ -215,7 +300,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <h2>${activePet.name?.value || 'Kitten'}'s profile</h2>
         <button class="pk-outline-btn" id="edit-details-btn" style="border-radius:30px; cursor:pointer; background:none;">Edit Details</button>
       </div>
-      <div class="pk-profile-details" style="display:flex; gap:30px; align-items:flex-start; margin-top:20px;">
+      <div id="profile-view-mode" class="pk-profile-details" style="display:flex; gap:30px; align-items:flex-start; margin-top:20px;">
         <div class="pk-profile-photo" style="flex-shrink:0; width:150px; height:150px; overflow:hidden; border-radius:16px; background:#f4f4f5; display:flex; align-items:center; justify-content:center;">
           ${activePet.profile?.reference?.image?.url
             ? `<img src="${activePet.profile.reference.image.url}" alt="${activePet.name?.value || ''}" style="width:100%; height:100%; object-fit:cover;">`
@@ -260,7 +345,66 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
            </div>
         </div>
       </div>
-      <div style="background:#FFE600; padding:16px 24px; border-radius:12px; margin-top:24px; display:flex; justify-content:space-between; align-items:center;">
+
+      <!-- EDIT FORM (toggled by "Edit Details"; posts to /apps/purrkins/update-pet) -->
+      <form id="profile-edit-mode" style="display:none; margin-top:24px;">
+        <input type="hidden" name="pet_id" value="${esc(activePet.id)}">
+        <input type="hidden" name="profile_image_url" id="profile-image-url-input" value="">
+
+        <div class="pk-edit-img-row">
+          <div class="pk-file-upload">
+            <label for="profile-image-file">Profile photo</label>
+            <input type="file" id="profile-image-file" accept="image/*">
+          </div>
+        </div>
+
+        <div class="pk-edit-grid">
+          <div class="pk-input-group">
+            <label for="edit-name">Name</label>
+            <input type="text" id="edit-name" name="name" value="${esc(activePet.name?.value)}" required>
+          </div>
+          <div class="pk-input-group">
+            <label for="edit-age">Age</label>
+            <input type="text" id="edit-age" name="age" value="${esc(activePet.age?.value)}">
+          </div>
+          <div class="pk-input-group">
+            <label for="edit-weight">Weight (kg)</label>
+            <input type="number" step="0.1" min="0" id="edit-weight" name="weight" value="${esc(activePet.weight?.value)}">
+          </div>
+          <div class="pk-input-group">
+            <label for="edit-gender">Sex</label>
+            <select id="edit-gender" name="gender">${optionsHtml(activePet.gender?.value, ['Male', 'Female'])}</select>
+          </div>
+          <div class="pk-input-group">
+            <label for="edit-neutered">Neutered</label>
+            <select id="edit-neutered" name="neutered">${optionsHtml(activePet.neutered?.value, ['Neutered', 'Not Neutered'])}</select>
+          </div>
+          <div class="pk-input-group">
+            <label for="edit-activity">Activity Level</label>
+            <input type="text" id="edit-activity" name="activity" value="${esc(activePet.activity?.value)}">
+          </div>
+          <div class="pk-input-group">
+            <label for="edit-body">Eating Style</label>
+            <input type="text" id="edit-body" name="body" value="${esc(activePet.body?.value)}">
+          </div>
+          <div class="pk-input-group">
+            <label for="edit-focus">Health Flags (comma separated)</label>
+            <input type="text" id="edit-focus" name="focus" value="${esc(activePet.focus?.value)}">
+          </div>
+          <div class="pk-input-group">
+            <label for="edit-allergies">Allergies</label>
+            <input type="text" id="edit-allergies" name="allergies" value="${esc(activePet.allergies?.value)}">
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:12px; margin-top:24px;">
+          <button type="submit" id="save-changes-btn" class="pk-dark-btn">Save Changes</button>
+          <button type="button" id="cancel-edit-btn" class="pk-outline-btn">Cancel</button>
+          <span id="save-loading-text" style="display:none; font-size:13px; color:#595961;">Saving...</span>
+        </div>
+      </form>
+
+      <div id="weight-banner-ui" style="background:#FFE600; padding:16px 24px; border-radius:12px; margin-top:24px; display:flex; justify-content:space-between; align-items:center;">
          <div>
             <h4 style="margin:0 0 4px 0; font-weight:800; font-size:16px;">1.9 kg logged on 2 Aug</h4>
             <p style="margin:0; font-size:14px;">Portions and pack quantities update automatically when you log a new weight.</p>
@@ -303,7 +447,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             const desc = esc(prod.metafield?.value || 'Nourishing fuel for growing kittens.');
             const variantId = prod.variants?.edges?.[0]?.node?.id?.split('/').pop() || '';
             return `
-              <div class="pk-recommend-card" style="flex:1; background:${bgColor}; padding:24px; border-radius:16px; display:flex; flex-direction:column;">
+              <div class="pk-recommend-card" style="flex: 1 1 250px; min-width: 250px; max-width: calc(33.333% - 11px); background:${bgColor}; padding:24px; border-radius:16px; display:flex; flex-direction:column;">
                 <img src="${imgUrl}" style="width:50px; height:70px; object-fit:contain; margin-bottom:16px;" alt="">
                 <h4 style="margin:0 0 8px 0; font-size:16px; font-weight:800;">${title}</h4>
                 <p style="font-size:13px; margin:0 0 24px 0; color:#595961; line-height:1.4; flex-grow:1;">${desc}</p>
@@ -326,7 +470,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         return `
           <div style="margin-top:40px; margin-bottom:12px;">
             <h2 style="margin:0 0 20px 0; font-size:20px;">Recommend for ${esc(petName)}</h2>
-            <div style="display:flex; gap:16px;">
+            <div style="display:flex; gap:16px; flex-wrap:wrap;">
               ${productsHtml}
             </div>
           </div>
@@ -342,29 +486,35 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <span style="background:#FFFDE7; color:#FBC02D; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid #FFF59D;">Active</span>
       </div>
 
+      ${(subscriptionPlanName || subscriptionLastOrdered || subscriptionDeliveries > 0) ? `
+      <div style="background:#FFE600; padding:16px 24px; border-radius:12px; display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:24px;">
+        ${subscriptionPlanName ? `<div><div style="font-size:10px; font-weight:700; letter-spacing:1px; margin-bottom:4px; text-transform:uppercase;">Plan</div><div style="font-weight:700; font-size:14px;">${esc(subscriptionPlanName)}</div></div>` : ''}
+        ${subscriptionLastOrdered ? `<div><div style="font-size:10px; font-weight:700; letter-spacing:1px; margin-bottom:4px; text-transform:uppercase;">Last Order</div><div style="font-weight:700; font-size:14px;">${esc(new Date(subscriptionLastOrdered).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }))}</div></div>` : ''}
+        ${subscriptionDeliveries > 0 ? `<div><div style="font-size:10px; font-weight:700; letter-spacing:1px; margin-bottom:4px; text-transform:uppercase;">Deliveries So Far</div><div style="font-weight:700; font-size:14px;">${subscriptionDeliveries}</div></div>` : ''}
+      </div>` : ''}
+
       <div style="display:flex; flex-direction:column; gap:20px;">
-        ${subscriptionProducts.map((p: any) => {
-          const variant = p.variants?.edges?.[0]?.node;
-          const variantTitle = variant?.title && variant.title !== 'Default Title' ? variant.title : '';
-          const price = parseFloat(variant?.price || '0');
-          return `
+        ${subscriptionProducts.map((p) => `
         <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #eaeaea; padding-bottom:20px;">
           <div style="display:flex; gap:16px; align-items:center;">
-            ${p.featuredImage?.url ? `<img src="${esc(p.featuredImage.url)}" style="width:36px; height:50px; object-fit:contain;" alt="">` : ''}
+            ${p.imageUrl ? `<img src="${esc(p.imageUrl)}" style="width:36px; height:50px; object-fit:contain;" alt="">` : ''}
             <div>
               <div style="font-weight:800; font-size:15px; margin-bottom:4px;">${esc(p.title)}</div>
-              ${variantTitle ? `<div style="font-size:13px; color:#595961;">${esc(variantTitle)}</div>` : ''}
+              ${p.variantTitle ? `<div style="font-size:13px; color:#595961;">${esc(p.variantTitle)}</div>` : ''}
             </div>
           </div>
-          <span style="font-weight:800; font-size:15px; text-align:right;">${price > 0 ? '₹' + price.toLocaleString('en-IN') : ''}</span>
-        </div>`;
-        }).join('')}
+          <div style="display:flex; align-items:center; gap:20px;">
+            ${p.quantity > 1 ? `<span style="font-size:13px; font-weight:700; color:#595961;">Qty ${p.quantity}</span>` : ''}
+            <span style="font-weight:800; font-size:15px; text-align:right;">${p.price > 0 ? '₹' + (p.price * p.quantity).toLocaleString('en-IN') : ''}</span>
+          </div>
+        </div>`).join('')}
       </div>
 
+      ${subscriptionTotal > 0 ? `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; font-size:15px; font-weight:800;">
         <span>Total per box</span>
         <span>₹${subscriptionTotal.toLocaleString('en-IN')}</span>
-      </div>
+      </div>` : ''}
 
       <div style="background:#121217; color:#fff; padding:16px 24px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; margin-top:20px;">
         <span style="font-size:14px; font-weight:700;">+ Add a product to this box — treats, broths and supplement mousses</span>
@@ -418,7 +568,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   `;
 
 
-  const dashUrl = token ? `/apps/purrkins/dashboard?session=${token}` : '/apps/purrkins/dashboard';
+  const dashUrl = '/apps/purrkins/dashboard';
 
   const liquidTemplate = `
 <style>
@@ -1419,7 +1569,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
                       // Update text fields in view mode
                       var updateStat = function(labelName, newValue) {
-                         var boxes = document.querySelectorAll('.pk-stat-box');
+                         var boxes = document.querySelectorAll('.pk-stat-item');
                          boxes.forEach(function(box) {
                             var label = box.querySelector('label');
                             if(label && label.innerText.trim() === labelName) {
@@ -1430,16 +1580,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                       };
                       
                       updateStat('Age', finalFormData.get('age'));
-                      updateStat('Weight', finalFormData.get('weight'));
-                      updateStat('Body Type', finalFormData.get('body'));
+                      var newWeight = finalFormData.get('weight');
+                      updateStat('Weight', newWeight ? newWeight + ' kg' : '-');
+                      updateStat('Eating Style', finalFormData.get('body'));
                       updateStat('Sex', finalFormData.get('gender') + ', ' + finalFormData.get('neutered'));
                       updateStat('Activity Level', finalFormData.get('activity'));
-                      updateStat('Focus Area', finalFormData.get('focus'));
+                      updateStat('Health flags', finalFormData.get('focus'));
                       updateStat('Allergies', finalFormData.get('allergies'));
                       
-                      var h2 = document.querySelector('.pk-profile-header h2');
+                      var h2 = document.querySelector('.pk-card-header h2');
                       if (h2) h2.innerText = (finalFormData.get('name') || 'Kitten') + "'s profile";
-                      var sidebarName = document.querySelector('.pk-pet-card.active strong');
+                      var sidebarName = document.querySelector('.pk-pet-pill.active strong');
                       if (sidebarName) sidebarName.innerText = finalFormData.get('name') || 'Kitten';
 
                       // Switch back to view mode
@@ -1552,9 +1703,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           var displayUrl = url;
           
           var pk_token = localStorage.getItem('pk_session');
-          if (pk_token && url.indexOf("session=") === -1) {
-            url += (url.indexOf("?") === -1 ? "?" : "&") + "session=" + pk_token;
-          }
           
           window.history.pushState({}, "", displayUrl);
           

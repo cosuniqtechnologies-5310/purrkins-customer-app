@@ -6,7 +6,10 @@ import { unauthenticated } from "../shopify.server";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
   const url = new URL(request.url);
-  const token = url.searchParams.get("session");
+  const cookieHeader = request.headers.get("Cookie");
+  const cookieMatch = cookieHeader ? cookieHeader.match(/pk_session=([^;]+)/) : null;
+  const cookieToken = cookieMatch ? cookieMatch[1] : null;
+  const token = url.searchParams.get("session") || cookieToken;
   let customerId: string | null = null;
 
   if (token) {
@@ -29,12 +32,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           // If a token was provided in the URL but failed server verification, it's invalid.
           // Clear it and force login to prevent loops.
           localStorage.removeItem('pk_session');
+          document.cookie = "pk_session=; path=/apps/purrkins; expires=Thu, 01 Jan 1970 00:00:00 GMT";
           window.location.href = '/apps/purrkins/login';
         } else if (localToken) {
-          // No token in URL, but we have one locally. Try it.
-          var dest = new URL(window.location.href);
-          dest.searchParams.set("session", localToken);
-          window.location.replace(dest.toString());
+          // No token in URL or cookie, but we have one locally. Set cookie and reload.
+          document.cookie = "pk_session=" + localToken + "; path=/apps/purrkins; max-age=" + (7*24*60*60);
+          window.location.reload();
         } else {
           // No token anywhere, go to login.
           window.location.href = '/apps/purrkins/login';
@@ -234,7 +237,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       </div>`
     : '<p style="color:#595961;margin:0;">Your wishlist is empty. (Wishlist products are managed in Shopify admin)</p>';
 
-  const sessionParam = token ? `?session=${token}` : '';
+  const sessionParam = '';
   const apiBase = `/apps/purrkins/customer-api${sessionParam}&intent=`;
 
   const liquidTemplate = `
@@ -1245,9 +1248,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           var displayUrl = url;
           
           var pk_token = localStorage.getItem('pk_session');
-          if (pk_token && url.indexOf("session=") === -1) {
-            url += (url.indexOf("?") === -1 ? "?" : "&") + "session=" + pk_token;
-          }
           
           window.history.pushState({}, "", displayUrl);
           
@@ -1290,7 +1290,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               e.preventDefault();
               var t = localStorage.getItem('pk_session');
               if (t) {
-                window.location.href = '/apps/purrkins/dashboard?session=' + t;
+                window.location.href = '/apps/purrkins/dashboard';
               } else {
                 window.location.href = '/apps/purrkins/login';
               }
@@ -1303,7 +1303,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
       // ─── Address modal helpers ────────────────────────────────
       var _pk_session = localStorage.getItem('pk_session') || '';
-      var _apiBase = '/apps/purrkins/customer-api?session=' + _pk_session + '&intent=';
+      var _apiBase = '/apps/purrkins/customer-api?intent=';
 
       function submitProfile(e) {
         if (e) e.preventDefault();
@@ -1345,7 +1345,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         var token = localStorage.getItem('pk_session') || '';
         btn.style.pointerEvents = 'none';
         btn.innerText = 'Updating...';
-        fetch('/apps/purrkins/customer-api?session=' + token + '&intent=update_billing', {
+        fetch('/apps/purrkins/customer-api?intent=update_billing', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)

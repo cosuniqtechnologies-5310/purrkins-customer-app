@@ -146,7 +146,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const token = jwt.sign({ customerId, email }, process.env.SHOPIFY_API_SECRET || "s3cr3t", { expiresIn: "7d" });
 
     return new Response(JSON.stringify({ success: true, token, redirect: "/apps/purrkins/dashboard" }), {
-      headers: { "Content-Type": "application/json" }
+      headers: {
+        "Content-Type": "application/json",
+        "Set-Cookie": `pk_session=${token}; Path=/apps/purrkins; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 60 * 60}`
+      }
     });
   }
 
@@ -171,7 +174,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               if (isPopup) {
                 return; // Parent window handles the redirect
               }
-              window.location.replace('/apps/purrkins/dashboard?session=' + t);
+              // Set the cookie on the client side just in case, then redirect without token in URL
+              document.cookie = "pk_session=" + t + "; path=/apps/purrkins; max-age=" + (7*24*60*60);
+              window.location.replace('/apps/purrkins/dashboard');
               return;
             } else {
               // Token expired, clear it
@@ -538,7 +543,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               if (typeof isPopup !== 'undefined' && isPopup) {
                 document.getElementById('otp-verify-form').innerHTML = '<h2 class="pk-otp-title" style="text-align: center; margin-top: 20px;">Login Successful!</h2><p style="text-align: center; color: #595961;">Please wait...</p>';
               } else {
-                window.location.href = (data.redirect || "/apps/purrkins/dashboard") + "?session=" + data.token;
+                // The backend already sets the HttpOnly cookie, but we can set JS cookie as fallback
+                document.cookie = "pk_session=" + data.token + "; path=/apps/purrkins; max-age=" + (7*24*60*60);
+                window.location.href = data.redirect || "/apps/purrkins/dashboard";
               }
             } else {
               resetOtpForm(data.error || 'Invalid code');

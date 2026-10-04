@@ -67,7 +67,11 @@ export const loader = async () => {
 export const action = async ({ request }: ActionFunctionArgs) => {
   const url = new URL(request.url);
   const intent = url.searchParams.get("intent");
-  const token = url.searchParams.get("session");
+  
+  const cookieHeader = request.headers.get("Cookie");
+  const cookieMatch = cookieHeader ? cookieHeader.match(/pk_session=([^;]+)/) : null;
+  const cookieToken = cookieMatch ? cookieMatch[1] : null;
+  const token = url.searchParams.get("session") || cookieToken;
   
   const customerId = verifyToken(token);
   if (!customerId) {
