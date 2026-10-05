@@ -13,15 +13,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
     const reviews = await prisma.review.findMany({
       where: {
         shop,
-        ...(productId ? { productId } : {}),
         status: "published"
       },
       orderBy: { createdAt: "desc" }
     });
 
-    // Calculate average rating for the whole shop or specific product
+    // Calculate average rating for the whole shop
     const stats = await prisma.review.aggregate({
-      where: { shop, ...(productId ? { productId } : {}), status: "published" },
+      where: { shop, status: "published" },
       _avg: { rating: true },
       _count: { id: true }
     });
