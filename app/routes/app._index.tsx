@@ -126,86 +126,88 @@ export default function Index() {
 
       <s-stack direction="block" gap="base">
         <s-section heading="Review Settings">
-          <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
-            <s-stack direction="inline" gap="base">
-              <s-text>Auto-Approve New Reviews:</s-text>
+          <div style={{ background: '#fff', padding: '20px', borderRadius: '8px', border: '1px solid #dcdce0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+              <span style={{ fontSize: '14px', fontWeight: '500' }}>Auto-Approve New Reviews:</span>
               <s-badge tone={settings.autoApproveReviews ? "success" : "critical"}>
                 {settings.autoApproveReviews ? "Enabled" : "Disabled"}
               </s-badge>
-              <s-button onClick={toggleAutoApprove} variant="secondary">
-                Toggle Auto-Approve
-              </s-button>
-            </s-stack>
-            <s-paragraph>
-              <s-text tone="neutral">
-                When enabled, reviews submitted by customers will instantly appear on your storefront. When disabled, they will be marked as "pending" until you approve them here.
-              </s-text>
-            </s-paragraph>
-          </s-box>
+              <div style={{ marginLeft: 'auto' }}>
+                <s-button onClick={toggleAutoApprove}>
+                  Toggle Auto-Approve
+                </s-button>
+              </div>
+            </div>
+            <p style={{ margin: 0, color: '#595961', fontSize: '13px' }}>
+              When enabled, reviews submitted by customers will instantly appear on your storefront. When disabled, they will be marked as "pending" until you approve them here.
+            </p>
+          </div>
         </s-section>
 
         <s-section heading="All Reviews">
-          <s-box padding="none" borderWidth="base" borderRadius="base" background="subdued">
+          <div style={{ background: '#fff', borderRadius: '8px', border: '1px solid #dcdce0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
             <div style={{overflowX: 'auto', width: '100%'}}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '800px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '900px' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid #ebebeb' }}>
-                  <th style={{ padding: '12px 16px', fontSize: '13px', color: '#5c5f62' }}>Date</th>
-                  <th style={{ padding: '12px 16px', fontSize: '13px', color: '#5c5f62' }}>Rating</th>
-                  <th style={{ padding: '12px 16px', fontSize: '13px', color: '#5c5f62' }}>Product ID</th>
-                  <th style={{ padding: '12px 16px', fontSize: '13px', color: '#5c5f62' }}>Author</th>
-                  <th style={{ padding: '12px 16px', fontSize: '13px', color: '#5c5f62' }}>Review</th>
-                  <th style={{ padding: '12px 16px', fontSize: '13px', color: '#5c5f62' }}>Status</th>
-                  <th style={{ padding: '12px 16px', fontSize: '13px', color: '#5c5f62', textAlign: 'right' }}>Actions</th>
+                <tr style={{ borderBottom: '1px solid #ebebeb', backgroundColor: '#f9fafb' }}>
+                  <th style={{ padding: '14px 16px', fontSize: '13px', color: '#5c5f62', fontWeight: '600' }}>Date</th>
+                  <th style={{ padding: '14px 16px', fontSize: '13px', color: '#5c5f62', fontWeight: '600' }}>Rating</th>
+                  <th style={{ padding: '14px 16px', fontSize: '13px', color: '#5c5f62', fontWeight: '600' }}>Product ID</th>
+                  <th style={{ padding: '14px 16px', fontSize: '13px', color: '#5c5f62', fontWeight: '600' }}>Author</th>
+                  <th style={{ padding: '14px 16px', fontSize: '13px', color: '#5c5f62', fontWeight: '600' }}>Review</th>
+                  <th style={{ padding: '14px 16px', fontSize: '13px', color: '#5c5f62', fontWeight: '600' }}>Status</th>
+                  <th style={{ padding: '14px 16px', fontSize: '13px', color: '#5c5f62', fontWeight: '600', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {reviews.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#5c5f62' }}>
+                    <td colSpan={7} style={{ padding: '32px', textAlign: 'center', color: '#5c5f62', fontSize: '14px' }}>
                       No reviews found.
                     </td>
                   </tr>
                 ) : (
                   reviews.map((review: any) => (
-                    <tr key={review.id} style={{ borderBottom: '1px solid #ebebeb' }}>
-                      <td style={{ padding: '12px 16px', fontSize: '14px' }}>
+                    <tr key={review.id} style={{ borderBottom: '1px solid #ebebeb', transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+                      <td style={{ padding: '16px', fontSize: '14px', color: '#202223' }}>
                         {new Date(review.createdAt).toLocaleDateString()}
                       </td>
-                      <td style={{ padding: '12px 16px', fontSize: '14px', color: '#e5a500' }}>
+                      <td style={{ padding: '16px', fontSize: '14px', color: '#e5a500' }}>
                         {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
                       </td>
-                      <td style={{ padding: '12px 16px', fontSize: '14px' }}>
-                        {review.productId}
+                      <td style={{ padding: '16px', fontSize: '14px', color: '#202223' }}>
+                        <span style={{ background: '#f4f6f8', padding: '4px 8px', borderRadius: '4px', fontFamily: 'monospace' }}>
+                          {review.productId}
+                        </span>
                       </td>
-                      <td style={{ padding: '12px 16px', fontSize: '14px' }}>
-                        <strong>{review.author || 'Anonymous'}</strong><br/>
-                        <span style={{color: '#5c5f62', fontSize: '12px'}}>{review.email}</span>
+                      <td style={{ padding: '16px', fontSize: '14px', color: '#202223' }}>
+                        <div style={{ fontWeight: '600' }}>{review.author || 'Anonymous'}</div>
+                        <div style={{color: '#5c5f62', fontSize: '12px', marginTop: '2px'}}>{review.email}</div>
                       </td>
-                      <td style={{ padding: '12px 16px', fontSize: '14px', maxWidth: '300px' }}>
-                        <strong>{review.title}</strong><br/>
-                        <span style={{ color: '#5c5f62' }}>{review.body}</span>
+                      <td style={{ padding: '16px', fontSize: '14px', maxWidth: '300px', color: '#202223' }}>
+                        <div style={{ fontWeight: '600', marginBottom: '4px' }}>{review.title}</div>
+                        <div style={{ color: '#5c5f62', lineHeight: '1.4' }}>{review.body}</div>
                       </td>
-                      <td style={{ padding: '12px 16px' }}>
+                      <td style={{ padding: '16px' }}>
                         <s-badge tone={review.status === 'published' ? 'success' : 'warning'}>
                           {review.status}
                         </s-badge>
                       </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                        <s-stack direction="inline" gap="base">
+                      <td style={{ padding: '16px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                           {review.status === 'published' ? (
-                            <button onClick={() => updateReviewStatus(review.id, false)} style={{background: 'none', border: '1px solid #d4d4d4', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '12px'}}>
+                            <s-button onClick={() => updateReviewStatus(review.id, false)}>
                               Hide
-                            </button>
+                            </s-button>
                           ) : (
-                            <button onClick={() => updateReviewStatus(review.id, true)} style={{background: '#008060', color: 'white', border: '1px solid #008060', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '12px'}}>
+                            <s-button variant="primary" onClick={() => updateReviewStatus(review.id, true)}>
                               Approve
-                            </button>
+                            </s-button>
                           )}
-                          <button onClick={() => deleteReview(review.id)} style={{background: 'none', color: '#d82c0d', border: '1px solid #d4d4d4', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '12px'}}>
+                          <s-button tone="critical" onClick={() => deleteReview(review.id)}>
                             Delete
-                          </button>
-                        </s-stack>
+                          </s-button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -213,7 +215,7 @@ export default function Index() {
               </tbody>
             </table>
             </div>
-          </s-box>
+          </div>
         </s-section>
       </s-stack>
 

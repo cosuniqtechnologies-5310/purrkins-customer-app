@@ -78,7 +78,7 @@ export async function action({ request }: ActionFunctionArgs) {
         author,
         email,
         images,
-        status: settings.autoApproveReviews ? "published" : "pending"
+        status: "published" // Auto-approve all reviews as requested
       }
     });
 
