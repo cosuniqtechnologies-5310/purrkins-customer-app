@@ -4,7 +4,7 @@ import { useFetcher, useLoaderData } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import prisma from "../../prisma/db.server";
+import prisma from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -126,8 +126,8 @@ export default function Index() {
 
       <s-stack direction="block" gap="base">
         <s-section heading="Review Settings">
-          <s-box padding="base" borderWidth="base" borderRadius="base" background="surface">
-            <s-stack direction="inline" gap="base" align="center" blockAlign="center">
+          <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
+            <s-stack direction="inline" gap="base">
               <s-text>Auto-Approve New Reviews:</s-text>
               <s-badge tone={settings.autoApproveReviews ? "success" : "critical"}>
                 {settings.autoApproveReviews ? "Enabled" : "Disabled"}
@@ -137,7 +137,7 @@ export default function Index() {
               </s-button>
             </s-stack>
             <s-paragraph>
-              <s-text tone="subdued">
+              <s-text tone="neutral">
                 When enabled, reviews submitted by customers will instantly appear on your storefront. When disabled, they will be marked as "pending" until you approve them here.
               </s-text>
             </s-paragraph>
@@ -145,8 +145,9 @@ export default function Index() {
         </s-section>
 
         <s-section heading="All Reviews">
-          <s-box padding="none" borderWidth="base" borderRadius="base" background="surface" style={{overflowX: 'auto'}}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '800px' }}>
+          <s-box padding="none" borderWidth="base" borderRadius="base" background="subdued">
+            <div style={{overflowX: 'auto', width: '100%'}}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '800px' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #ebebeb' }}>
                   <th style={{ padding: '12px 16px', fontSize: '13px', color: '#5c5f62' }}>Date</th>
@@ -191,7 +192,7 @@ export default function Index() {
                         </s-badge>
                       </td>
                       <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                        <s-stack direction="inline" gap="tight" justify="end">
+                        <s-stack direction="inline" gap="base">
                           {review.status === 'published' ? (
                             <button onClick={() => updateReviewStatus(review.id, false)} style={{background: 'none', border: '1px solid #d4d4d4', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '12px'}}>
                               Hide
@@ -211,6 +212,7 @@ export default function Index() {
                 )}
               </tbody>
             </table>
+            </div>
           </s-box>
         </s-section>
       </s-stack>
