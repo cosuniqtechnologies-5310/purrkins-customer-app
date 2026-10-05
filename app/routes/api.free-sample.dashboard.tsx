@@ -1099,9 +1099,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     \n</style>
 
     
-    {% assign active_index = -1 %}
-    {% assign pets = customer.metafields.custom.pets.value %}
-    {% assign active_index = -1 %}
+
     <div class="pk-dashboard-wrapper">
       <div class="pk-dashboard-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
         <h1>Welcome back, ${customer.firstName || "Friend"}</h1>
