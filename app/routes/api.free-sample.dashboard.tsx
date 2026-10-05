@@ -11,30 +11,41 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const cookieToken = cookieMatch ? cookieMatch[1] : null;
   const token = url.searchParams.get("session") || cookieToken;
   let customerId: string | null = null;
+  let isTokenPresentAndInvalid = false;
 
   if (token) {
     try {
       const decoded = jwt.verify(token, process.env.SHOPIFY_API_SECRET || "s3cr3t") as any;
-      customerId = decoded.customerId;
+      if (decoded && decoded.customerId) {
+        customerId = decoded.customerId;
+      } else {
+        isTokenPresentAndInvalid = true;
+      }
     } catch (e) {
-      // invalid token
+      isTokenPresentAndInvalid = true;
     }
   }
   
   if (!customerId) {
-    return new Response(`
-      <script>
-        var urlParams = new URLSearchParams(window.location.search);
-        var currentToken = urlParams.get('session');
-        var localToken = localStorage.getItem('pk_session');
-        
-        if (currentToken) {
-          // If a token was provided in the URL but failed server verification, it's invalid.
-          // Clear it and force login to prevent loops.
+    if (isTokenPresentAndInvalid) {
+      return new Response(`
+        <script>
           localStorage.removeItem('pk_session');
           document.cookie = "pk_session=; path=/apps/purrkins; expires=Thu, 01 Jan 1970 00:00:00 GMT";
           window.location.href = '/apps/purrkins/login';
-        } else if (localToken) {
+        </script>
+      `, {
+        headers: {
+          "Content-Type": "application/liquid",
+          "Cache-Control": "no-store, no-cache, must-revalidate"
+        }
+      });
+    }
+
+    return new Response(`
+      <script>
+        var localToken = localStorage.getItem('pk_session');
+        if (localToken) {
           // No token in URL or cookie, but we have one locally. Set cookie and reload.
           document.cookie = "pk_session=" + localToken + "; path=/apps/purrkins; max-age=" + (7*24*60*60);
           window.location.reload();
