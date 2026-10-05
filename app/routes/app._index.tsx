@@ -1,348 +1,286 @@
-import { useEffect } from "react";
-import type {
-  ActionFunctionArgs,
-  HeadersFunction,
-  LoaderFunctionArgs,
-} from "react-router";
-import { useFetcher } from "react-router";
+import { useEffect, useState } from "react";
+import type { ActionFunctionArgs, LoaderFunctionArgs, HeadersFunction } from "react-router";
+import { useFetcher, useLoaderData } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+import prisma from "../../prisma/db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
 
-  return null;
+  const reviews = await prisma.review.findMany({
+    where: { shop },
+    orderBy: { createdAt: "desc" },
+  });
+
+  let settings = await prisma.storeSetting.findUnique({
+    where: { shop },
+  });
+
+  if (!settings) {
+    settings = await prisma.storeSetting.create({
+      data: { shop, autoApproveReviews: true },
+    });
+  }
+
+  return { reviews, settings };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
-  const color = ["Red", "Orange", "Yellow", "Green"][
-    Math.floor(Math.random() * 4)
-  ];
-  const response = await admin.graphql(
-    `#graphql
-      mutation populateProduct($product: ProductCreateInput!) {
-        productCreate(product: $product) {
-          product {
-            id
-            title
-            handle
-            status
-            variants(first: 10) {
-              edges {
-                node {
-                  id
-                  price
-                  barcode
-                  createdAt
-                }
-              }
-            }
-            demoInfo: metafield(namespace: "$app", key: "demo_info") {
-              jsonValue
-            }
-          }
-        }
-      }`,
-    {
-      variables: {
-        product: {
-          title: `${color} Snowboard`,
-          metafields: [
-            {
-              namespace: "$app",
-              key: "demo_info",
-              value: "Created by React Router Template",
-            },
-          ],
-        },
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
+  const formData = await request.formData();
+  const actionType = formData.get("actionType");
+
+  if (actionType === "toggle_auto_approve") {
+    const current = formData.get("current") === "true";
+    await prisma.storeSetting.update({
+      where: { shop },
+      data: { autoApproveReviews: !current },
+    });
+    return { success: true, message: "Settings updated" };
+  }
+
+  if (actionType === "approve_review" || actionType === "unapprove_review") {
+    const id = formData.get("id") as string;
+    const status = actionType === "approve_review" ? "published" : "pending";
+    await prisma.review.update({
+      where: { id, shop },
+      data: { status },
+    });
+    return { success: true, message: `Review ${status}` };
+  }
+
+  if (actionType === "delete_review") {
+    const id = formData.get("id") as string;
+    await prisma.review.delete({
+      where: { id, shop },
+    });
+    return { success: true, message: "Review deleted" };
+  }
+
+  if (actionType === "add_review") {
+    const title = formData.get("title") as string;
+    const author = formData.get("author") as string;
+    const rating = Number(formData.get("rating"));
+    const body = formData.get("body") as string;
+    const productId = formData.get("productId") as string;
+    const status = formData.get("status") as string || "published";
+
+    await prisma.review.create({
+      data: {
+        shop,
+        productId,
+        title,
+        author,
+        rating,
+        body,
+        status,
       },
-    },
-  );
-  const responseJson = await response.json();
+    });
+    return { success: true, message: "Review added" };
+  }
 
-  const product = responseJson.data!.productCreate!.product!;
-  const variantId = product.variants.edges[0]!.node!.id!;
-
-  const variantResponse = await admin.graphql(
-    `#graphql
-    mutation shopifyReactRouterTemplateUpdateVariant($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-      productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-        productVariants {
-          id
-          price
-          barcode
-          createdAt
-        }
-      }
-    }`,
-    {
-      variables: {
-        productId: product.id,
-        variants: [{ id: variantId, price: "100.00" }],
-      },
-    },
-  );
-
-  const variantResponseJson = await variantResponse.json();
-
-  const metaobjectResponse = await admin.graphql(
-    `#graphql
-    mutation shopifyReactRouterTemplateUpsertMetaobject($handle: MetaobjectHandleInput!, $values: JSON!) {
-      metaobjectUpsert(handle: $handle, values: $values) {
-        metaobject {
-          id
-          handle
-          values
-        }
-        userErrors {
-          field
-          message
-        }
-      }
-    }`,
-    {
-      variables: {
-        handle: {
-          type: "$app:example",
-          handle: "demo-entry",
-        },
-        values: {
-          title: "Demo Entry",
-          description:
-            "This metaobject was created by the Shopify app template to demonstrate the metaobject API.",
-        },
-      },
-    },
-  );
-
-  const metaobjectResponseJson = await metaobjectResponse.json();
-
-  return {
-    product: responseJson!.data!.productCreate!.product,
-    variant:
-      variantResponseJson!.data!.productVariantsBulkUpdate!.productVariants,
-    metaobject: metaobjectResponseJson!.data!.metaobjectUpsert!.metaobject,
-  };
+  return { error: "Unknown action" };
 };
 
 export default function Index() {
+  const { reviews, settings } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
-
   const shopify = useAppBridge();
-  const isLoading =
-    ["loading", "submitting"].includes(fetcher.state) &&
-    fetcher.formMethod === "POST";
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   useEffect(() => {
-    if (fetcher.data?.product?.id) {
-      shopify.toast.show("Product created");
+    if (fetcher.data?.message) {
+      shopify.toast.show(fetcher.data.message);
     }
-  }, [fetcher.data?.product?.id, shopify]);
+  }, [fetcher.data, shopify]);
 
-  const generateProduct = () => fetcher.submit({}, { method: "POST" });
+  const toggleAutoApprove = () => {
+    fetcher.submit(
+      { actionType: "toggle_auto_approve", current: settings.autoApproveReviews.toString() },
+      { method: "POST" }
+    );
+  };
+
+  const updateReviewStatus = (id: string, approve: boolean) => {
+    fetcher.submit(
+      { actionType: approve ? "approve_review" : "unapprove_review", id },
+      { method: "POST" }
+    );
+  };
+
+  const deleteReview = (id: string) => {
+    if (confirm("Are you sure you want to delete this review?")) {
+      fetcher.submit({ actionType: "delete_review", id }, { method: "POST" });
+    }
+  };
 
   return (
-    <s-page heading="Shopify app template">
-      <s-button slot="primary-action" onClick={generateProduct}>
-        Generate a product
+    <s-page heading="Product Reviews">
+      <s-button slot="primary-action" onClick={() => setIsAddModalOpen(true)}>
+        Add New Review
       </s-button>
 
-      <s-section heading="Congrats on creating a new Shopify app 🎉">
-        <s-paragraph>
-          This embedded app template uses{" "}
-          <s-link
-            href="https://shopify.dev/docs/apps/tools/app-bridge"
-            target="_blank"
-          >
-            App Bridge
-          </s-link>{" "}
-          interface examples like an{" "}
-          <s-link href="/app/additional">additional page in the app nav</s-link>
-          , as well as an{" "}
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql"
-            target="_blank"
-          >
-            Admin GraphQL
-          </s-link>{" "}
-          mutation demo, to provide a starting point for app development.
-        </s-paragraph>
-      </s-section>
-      <s-section heading="Get started with products">
-        <s-paragraph>
-          Generate a product with GraphQL and get the JSON output for that
-          product. Learn more about the{" "}
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql/latest/mutations/productCreate"
-            target="_blank"
-          >
-            productCreate
-          </s-link>{" "}
-          mutation in our API references. Includes a product{" "}
-          <s-link
-            href="https://shopify.dev/docs/apps/build/custom-data/metafields"
-            target="_blank"
-          >
-            metafield
-          </s-link>{" "}
-          and{" "}
-          <s-link
-            href="https://shopify.dev/docs/apps/build/custom-data/metaobjects"
-            target="_blank"
-          >
-            metaobject
-          </s-link>
-          .
-        </s-paragraph>
-        <s-stack direction="inline" gap="base">
-          <s-button
-            onClick={generateProduct}
-            {...(isLoading ? { loading: true } : {})}
-          >
-            Generate a product
-          </s-button>
-          {fetcher.data?.product && (
-            <s-button
-              onClick={() => {
-                shopify.intents.invoke?.("edit:shopify/Product", {
-                  value: fetcher.data?.product?.id,
-                });
-              }}
-              target="_blank"
-              variant="tertiary"
-            >
-              Edit product
-            </s-button>
-          )}
-        </s-stack>
-        {fetcher.data?.product && (
-          <s-section heading="productCreate mutation">
-            <s-stack direction="block" gap="base">
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre
-                  style={{
-                    margin: 0,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                  }}
-                >
-                  <code>{JSON.stringify(fetcher.data.product, null, 2)}</code>
-                </pre>
-              </s-box>
-
-              <s-heading>productVariantsBulkUpdate mutation</s-heading>
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre
-                  style={{
-                    margin: 0,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                  }}
-                >
-                  <code>{JSON.stringify(fetcher.data.variant, null, 2)}</code>
-                </pre>
-              </s-box>
-
-              <s-heading>metaobjectUpsert mutation</s-heading>
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre
-                  style={{
-                    margin: 0,
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                  }}
-                >
-                  <code>
-                    {JSON.stringify(fetcher.data.metaobject, null, 2)}
-                  </code>
-                </pre>
-              </s-box>
+      <s-stack direction="block" gap="base">
+        <s-section heading="Review Settings">
+          <s-box padding="base" borderWidth="base" borderRadius="base" background="surface">
+            <s-stack direction="inline" gap="base" align="center" blockAlign="center">
+              <s-text>Auto-Approve New Reviews:</s-text>
+              <s-badge tone={settings.autoApproveReviews ? "success" : "critical"}>
+                {settings.autoApproveReviews ? "Enabled" : "Disabled"}
+              </s-badge>
+              <s-button onClick={toggleAutoApprove} variant="secondary">
+                Toggle Auto-Approve
+              </s-button>
             </s-stack>
-          </s-section>
-        )}
-      </s-section>
+            <s-paragraph>
+              <s-text tone="subdued">
+                When enabled, reviews submitted by customers will instantly appear on your storefront. When disabled, they will be marked as "pending" until you approve them here.
+              </s-text>
+            </s-paragraph>
+          </s-box>
+        </s-section>
 
-      <s-section slot="aside" heading="App template specs">
-        <s-paragraph>
-          <s-text>Framework: </s-text>
-          <s-link href="https://reactrouter.com/" target="_blank">
-            React Router
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>Interface: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/api/app-home/using-polaris-components"
-            target="_blank"
-          >
-            Polaris web components
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>API: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql"
-            target="_blank"
-          >
-            GraphQL
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>Custom data: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/apps/build/custom-data"
-            target="_blank"
-          >
-            Metafields &amp; metaobjects
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>Database: </s-text>
-          <s-link href="https://www.prisma.io/" target="_blank">
-            Prisma
-          </s-link>
-        </s-paragraph>
-      </s-section>
+        <s-section heading="All Reviews">
+          <s-box padding="none" borderWidth="base" borderRadius="base" background="surface" style={{overflowX: 'auto'}}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '800px' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #ebebeb' }}>
+                  <th style={{ padding: '12px 16px', fontSize: '13px', color: '#5c5f62' }}>Date</th>
+                  <th style={{ padding: '12px 16px', fontSize: '13px', color: '#5c5f62' }}>Rating</th>
+                  <th style={{ padding: '12px 16px', fontSize: '13px', color: '#5c5f62' }}>Product ID</th>
+                  <th style={{ padding: '12px 16px', fontSize: '13px', color: '#5c5f62' }}>Author</th>
+                  <th style={{ padding: '12px 16px', fontSize: '13px', color: '#5c5f62' }}>Review</th>
+                  <th style={{ padding: '12px 16px', fontSize: '13px', color: '#5c5f62' }}>Status</th>
+                  <th style={{ padding: '12px 16px', fontSize: '13px', color: '#5c5f62', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reviews.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#5c5f62' }}>
+                      No reviews found.
+                    </td>
+                  </tr>
+                ) : (
+                  reviews.map((review: any) => (
+                    <tr key={review.id} style={{ borderBottom: '1px solid #ebebeb' }}>
+                      <td style={{ padding: '12px 16px', fontSize: '14px' }}>
+                        {new Date(review.createdAt).toLocaleDateString()}
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: '14px', color: '#e5a500' }}>
+                        {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: '14px' }}>
+                        {review.productId}
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: '14px' }}>
+                        <strong>{review.author || 'Anonymous'}</strong><br/>
+                        <span style={{color: '#5c5f62', fontSize: '12px'}}>{review.email}</span>
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: '14px', maxWidth: '300px' }}>
+                        <strong>{review.title}</strong><br/>
+                        <span style={{ color: '#5c5f62' }}>{review.body}</span>
+                      </td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <s-badge tone={review.status === 'published' ? 'success' : 'warning'}>
+                          {review.status}
+                        </s-badge>
+                      </td>
+                      <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                        <s-stack direction="inline" gap="tight" justify="end">
+                          {review.status === 'published' ? (
+                            <button onClick={() => updateReviewStatus(review.id, false)} style={{background: 'none', border: '1px solid #d4d4d4', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '12px'}}>
+                              Hide
+                            </button>
+                          ) : (
+                            <button onClick={() => updateReviewStatus(review.id, true)} style={{background: '#008060', color: 'white', border: '1px solid #008060', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '12px'}}>
+                              Approve
+                            </button>
+                          )}
+                          <button onClick={() => deleteReview(review.id)} style={{background: 'none', color: '#d82c0d', border: '1px solid #d4d4d4', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '12px'}}>
+                            Delete
+                          </button>
+                        </s-stack>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </s-box>
+        </s-section>
+      </s-stack>
 
-      <s-section slot="aside" heading="Next steps">
-        <s-unordered-list>
-          <s-list-item>
-            Build an{" "}
-            <s-link
-              href="https://shopify.dev/docs/apps/getting-started/build-app-example"
-              target="_blank"
-            >
-              example app
-            </s-link>
-          </s-list-item>
-          <s-list-item>
-            Explore Shopify&apos;s API with{" "}
-            <s-link
-              href="https://shopify.dev/docs/apps/tools/graphiql-admin-api"
-              target="_blank"
-            >
-              GraphiQL
-            </s-link>
-          </s-list-item>
-        </s-unordered-list>
-      </s-section>
+      {/* Basic Add Review Modal using custom CSS/HTML over Shopify App Bridge for full control */}
+      {isAddModalOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', 
+          backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', 
+          justifyContent: 'center', alignItems: 'center'
+        }}>
+          <div style={{
+            background: 'white', padding: '24px', borderRadius: '8px', 
+            width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>Add New Review</h2>
+              <button onClick={() => setIsAddModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>&times;</button>
+            </div>
+            
+            <fetcher.Form method="post" onSubmit={() => setIsAddModalOpen(false)}>
+              <input type="hidden" name="actionType" value="add_review" />
+              
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>Product ID *</label>
+                <input type="text" name="productId" required style={{ width: '100%', padding: '8px', border: '1px solid #c9cccf', borderRadius: '4px' }} placeholder="gid://shopify/Product/123456789" />
+              </div>
+
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>Author Name *</label>
+                <input type="text" name="author" required style={{ width: '100%', padding: '8px', border: '1px solid #c9cccf', borderRadius: '4px' }} />
+              </div>
+
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>Rating *</label>
+                <select name="rating" required style={{ width: '100%', padding: '8px', border: '1px solid #c9cccf', borderRadius: '4px' }}>
+                  <option value="5">5 Stars</option>
+                  <option value="4">4 Stars</option>
+                  <option value="3">3 Stars</option>
+                  <option value="2">2 Stars</option>
+                  <option value="1">1 Star</option>
+                </select>
+              </div>
+
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>Review Title *</label>
+                <input type="text" name="title" required style={{ width: '100%', padding: '8px', border: '1px solid #c9cccf', borderRadius: '4px' }} />
+              </div>
+
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>Review Body *</label>
+                <textarea name="body" required rows={4} style={{ width: '100%', padding: '8px', border: '1px solid #c9cccf', borderRadius: '4px' }}></textarea>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px' }}>Status</label>
+                <select name="status" style={{ width: '100%', padding: '8px', border: '1px solid #c9cccf', borderRadius: '4px' }}>
+                  <option value="published">Published (Approved)</option>
+                  <option value="pending">Pending</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button type="button" onClick={() => setIsAddModalOpen(false)} style={{ padding: '8px 16px', background: 'white', border: '1px solid #c9cccf', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>
+                <button type="submit" style={{ padding: '8px 16px', background: '#008060', color: 'white', border: '1px solid #008060', borderRadius: '4px', cursor: 'pointer' }}>Add Review</button>
+              </div>
+            </fetcher.Form>
+          </div>
+        </div>
+      )}
     </s-page>
   );
 }

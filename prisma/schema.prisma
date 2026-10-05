@@ -41,3 +41,24 @@ model OTP {
   expiresAt DateTime
   createdAt DateTime @default(now())
 }
+
+model Review {
+  id        String   @id @default(cuid())
+  shop      String
+  productId String
+  rating    Int
+  title     String?
+  body      String?
+  author    String?
+  email     String?
+  images    String[] @default([])
+  status    String   @default("published")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model StoreSetting {
+  id String @id @default(cuid())
+  shop String @unique
+  autoApproveReviews Boolean @default(true)
+}
