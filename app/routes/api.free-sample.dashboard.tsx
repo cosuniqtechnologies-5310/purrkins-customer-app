@@ -1257,11 +1257,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           var displayUrl = url;
           
           var pk_token = localStorage.getItem('pk_session');
+          var fetchUrl = url;
+          if (pk_token) {
+            fetchUrl = url + (url.indexOf('?') === -1 ? '?' : '&') + 'session=' + pk_token;
+          }
           
           window.history.pushState({}, "", displayUrl);
           
           try {
-            var res = await fetch(url);
+            var res = await fetch(fetchUrl);
             var text = await res.text();
             
             var parser = new DOMParser();
@@ -1278,6 +1282,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 newScript.appendChild(document.createTextNode(oldScript.innerHTML));
                 oldScript.parentNode.replaceChild(newScript, oldScript);
               });
+            } else {
+              // If we didn't get the wrapper, it might be a redirect or error. Fall back to full navigation.
+              window.location.href = url;
             }
           } catch (err) {
              console.error("PJAX Error:", err);
