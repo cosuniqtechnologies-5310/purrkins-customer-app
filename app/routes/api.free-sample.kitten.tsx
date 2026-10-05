@@ -48,9 +48,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       <script>
         var localToken = localStorage.getItem('pk_session');
         if (localToken) {
-          // No token in URL or cookie, but we have one locally. Set cookie and reload.
-          document.cookie = "pk_session=" + localToken + "; path=/apps/purrkins; max-age=" + (7*24*60*60);
-          window.location.reload();
+          var currentUrl = new URL(window.location.href);
+          currentUrl.searchParams.set('session', localToken);
+          window.location.href = currentUrl.toString();
         } else {
           // No token anywhere, go to login.
           window.location.href = '/apps/purrkins/login';
