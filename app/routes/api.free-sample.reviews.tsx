@@ -66,6 +66,10 @@ export async function action({ request }: ActionFunctionArgs) {
     settings = await prisma.storeSetting.create({ data: { shop, autoApproveReviews: true } });
   }
 
+  // Determine if the customer is logged in
+  const loggedInCustomerId = url.searchParams.get("logged_in_customer_id");
+  const isVerified = !!loggedInCustomerId;
+
   try {
     const review = await prisma.review.create({
       data: {
@@ -77,6 +81,7 @@ export async function action({ request }: ActionFunctionArgs) {
         author,
         email,
         images,
+        isVerified: isVerified as any,
         status: "published" // Auto-approve all reviews as requested
       }
     });
