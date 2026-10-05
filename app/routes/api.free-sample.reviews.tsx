@@ -86,6 +86,62 @@ export async function action({ request }: ActionFunctionArgs) {
       }
     });
 
+    try {
+      const { admin } = await authenticate.public.appProxy(request);
+      if (admin) {
+        // Calculate new average rating for the whole shop
+        const stats = await prisma.review.aggregate({
+          where: { shop, status: "published" },
+          _avg: { rating: true },
+          _count: { id: true }
+        });
+
+        const shopResponse = await admin.graphql(
+          `#graphql
+          query {
+            shop {
+              id
+            }
+          }`
+        );
+        const shopData = await shopResponse.json();
+        const shopId = shopData.data.shop.id;
+
+        await admin.graphql(
+          `#graphql
+          mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+            metafieldsSet(metafields: $metafields) {
+              userErrors {
+                message
+              }
+            }
+          }`,
+          {
+            variables: {
+              metafields: [
+                {
+                  key: "global_reviews_count",
+                  namespace: "purrkins",
+                  ownerId: shopId,
+                  type: "number_integer",
+                  value: String(stats._count.id || 0),
+                },
+                {
+                  key: "global_reviews_rating",
+                  namespace: "purrkins",
+                  ownerId: shopId,
+                  type: "number_decimal",
+                  value: String(stats._avg.rating || 5.0),
+                }
+              ]
+            }
+          }
+        );
+      }
+    } catch (metafieldErr) {
+      console.error("Failed to sync shop metafields", metafieldErr);
+    }
+
     return { success: true, review };
   } catch (err) {
     console.error("Failed to create review", err);
