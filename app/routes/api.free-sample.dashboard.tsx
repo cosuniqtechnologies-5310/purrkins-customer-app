@@ -1239,62 +1239,65 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
       })();
 
-      document.addEventListener("click", async function(e) {
-        var link = e.target.closest("a.pk-menu-item, a.pk-pet-pill");
-        if (link && link.getAttribute("href").startsWith("/apps/purrkins/")) {
-          e.preventDefault();
-          
-          document.querySelectorAll(".pk-menu-item").forEach(function(el) { el.classList.remove("active") });
-          link.classList.add("active");
-          
-          var mainContent = document.querySelector(".pk-dashboard-wrapper");
-          if (!mainContent) return;
-          mainContent.style.opacity = "0.5";
-          mainContent.style.pointerEvents = "none";
-          mainContent.style.transition = "opacity 0.2s";
-          
-          var url = link.getAttribute("href");
-          var displayUrl = url;
-          
-          var pk_token = localStorage.getItem('pk_session');
-          var fetchUrl = url;
-          if (pk_token) {
-            fetchUrl = url + (url.indexOf('?') === -1 ? '?' : '&') + 'session=' + pk_token;
-          }
-          
-          window.history.pushState({}, "", displayUrl);
-          
-          try {
-            var res = await fetch(fetchUrl);
-            var text = await res.text();
+      if (!window.__pkPjaxInited) {
+        window.__pkPjaxInited = true;
+        document.addEventListener("click", async function(e) {
+          var link = e.target.closest("a.pk-menu-item, a.pk-pet-pill");
+          if (link && link.getAttribute("href").startsWith("/apps/purrkins/")) {
+            e.preventDefault();
             
-            var parser = new DOMParser();
-            var doc = parser.parseFromString(text, "text/html");
+            document.querySelectorAll(".pk-menu-item").forEach(function(el) { el.classList.remove("active") });
+            link.classList.add("active");
             
-            var newContent = doc.querySelector(".pk-dashboard-wrapper");
-            if (newContent) {
-              mainContent.innerHTML = newContent.innerHTML;
-              
-              var scripts = mainContent.querySelectorAll("script");
-              scripts.forEach(function(oldScript) {
-                var newScript = document.createElement("script");
-                Array.from(oldScript.attributes).forEach(function(attr) { newScript.setAttribute(attr.name, attr.value); });
-                newScript.appendChild(document.createTextNode(oldScript.innerHTML));
-                oldScript.parentNode.replaceChild(newScript, oldScript);
-              });
-            } else {
-              // If we didn't get the wrapper, it might be a redirect or error. Fall back to full navigation.
-              window.location.href = url;
+            var mainContent = document.querySelector(".pk-dashboard-wrapper");
+            if (!mainContent) return;
+            mainContent.style.opacity = "0.5";
+            mainContent.style.pointerEvents = "none";
+            mainContent.style.transition = "opacity 0.2s";
+            
+            var url = link.getAttribute("href");
+            var displayUrl = url;
+            
+            var pk_token = localStorage.getItem('pk_session');
+            var fetchUrl = url;
+            if (pk_token) {
+              fetchUrl = url + (url.indexOf('?') === -1 ? '?' : '&') + 'session=' + pk_token;
             }
-          } catch (err) {
-             console.error("PJAX Error:", err);
-             window.location.href = url;
+            
+            window.history.pushState({}, "", displayUrl);
+            
+            try {
+              var res = await fetch(fetchUrl);
+              var text = await res.text();
+              
+              var parser = new DOMParser();
+              var doc = parser.parseFromString(text, "text/html");
+              
+              var newContent = doc.querySelector(".pk-dashboard-wrapper");
+              if (newContent) {
+                mainContent.innerHTML = newContent.innerHTML;
+                
+                var scripts = mainContent.querySelectorAll("script");
+                scripts.forEach(function(oldScript) {
+                  var newScript = document.createElement("script");
+                  Array.from(oldScript.attributes).forEach(function(attr) { newScript.setAttribute(attr.name, attr.value); });
+                  newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+                  oldScript.parentNode.replaceChild(newScript, oldScript);
+                });
+              } else {
+                // If we didn't get the wrapper, it might be a redirect or error. Fall back to full navigation.
+                window.location.href = url;
+              }
+            } catch (err) {
+               console.error("PJAX Error:", err);
+               window.location.href = url;
+            }
+            
+            mainContent.style.opacity = "1";
+            mainContent.style.pointerEvents = "auto";
           }
-          
-          mainContent.style.opacity = "1";
-          mainContent.style.pointerEvents = "auto";
-        }
-      });
+        });
+      }
 
       // ─── Header account icon fix ───────────────────────────────
       (function fixHeaderIcon() {
