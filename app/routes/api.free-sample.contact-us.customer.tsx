@@ -46,7 +46,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return Response.json({ success: false, message: "A valid email is required" }, { status: 400 });
     }
 
-    const customerTag = tag || "contact-us";
+    const customerTag = tag || "Contact Form";
     const nameParts = name ? name.trim().split(" ") : ["Customer"];
     const firstName = nameParts[0];
     const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : ".";
@@ -60,17 +60,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     console.log(`[ContactUs] Processing: name=${name}, phone=${phone}, email=${email}, topic=${topic}`);
 
-    // CONFIRMED_OPT_IN → bypasses double opt-in → green "Subscribed" immediately
     const emailMarketingConsent = {
       marketingState: "SUBSCRIBED",
       marketingOptInLevel: "CONFIRMED_OPT_IN",
       consentUpdatedAt: new Date().toISOString(),
     };
 
-    // Search existing customer by phone or email
-    const searchResponse = await admin.graphql(
+    console.log("[ContactUs] Searching customer by email");
+    let searchResponse = await admin.graphql(
       `#graphql
-      query findCustomer($query: String!) {
+      query findCustomerByEmail($query: String!) {
         customers(first: 1, query: $query) {
           edges {
             node {
@@ -86,12 +85,44 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           }
         }
       }`,
-      { variables: { query: `phone:${phone} OR email:${email}` } }
+      { variables: { query: `email:${email}` } }
     );
 
-    const searchData = await searchResponse.json();
-    console.log("[ContactUs] Search result:", JSON.stringify(searchData?.data?.customers?.edges));
-    const existingCustomer = searchData.data?.customers?.edges?.[0]?.node;
+    let searchData = (await searchResponse.json()) as any;
+    if (searchData.errors?.length) {
+      throw new Error("Search Error: " + JSON.stringify(searchData.errors));
+    }
+    let existingCustomer = searchData.data?.customers?.edges?.[0]?.node;
+
+    if (!existingCustomer) {
+      console.log("[ContactUs] Customer not found by email, searching by phone");
+      searchResponse = await admin.graphql(
+        `#graphql
+        query findCustomerByPhone($query: String!) {
+          customers(first: 1, query: $query) {
+            edges {
+              node {
+                id
+                phone
+                email
+                tags
+                note
+                emailMarketingConsent {
+                  marketingState
+                }
+              }
+            }
+          }
+        }`,
+        { variables: { query: `phone:${phone}` } }
+      );
+
+      searchData = (await searchResponse.json()) as any;
+      if (searchData.errors?.length) {
+        throw new Error("Search Error: " + JSON.stringify(searchData.errors));
+      }
+      existingCustomer = searchData.data?.customers?.edges?.[0]?.node;
+    }
 
     let customerId: string;
 
@@ -103,7 +134,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         ? existingTags
         : [...existingTags, customerTag];
 
-      // Upgrade noemail → real email; append new message to existing note
       const resolvedEmail = existingCustomer.email?.includes("noemail")
         ? email
         : existingCustomer.email;
@@ -136,17 +166,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
       );
 
-      const updateData = await updateResponse.json();
-      console.log("[ContactUs] Update result:", JSON.stringify(updateData?.data?.customerUpdate));
+      const updateData = (await updateResponse.json()) as any;
+      if (updateData.errors?.length) {
+        throw new Error("Update Error: " + JSON.stringify(updateData.errors));
+      }
+      
+      console.log("[ContactUs] Customer update result:", JSON.stringify(updateData?.data?.customerUpdate));
 
       if (updateData.data?.customerUpdate?.userErrors?.length > 0) {
-        throw new Error(updateData.data.customerUpdate.userErrors[0].message);
+        throw new Error(
+          updateData.data.customerUpdate.userErrors
+            .map((e: any) => e.message)
+            .join(", ")
+        );
+      }
+      
+      if (!updateData.data?.customerUpdate?.customer?.id) {
+        throw new Error("Shopify customerUpdate did not return a customer ID");
       }
 
-      customerId = existingCustomer.id;
+      customerId = updateData.data.customerUpdate.customer.id;
 
     } else {
-      console.log("[ContactUs] No existing customer — creating new");
+      console.log("[ContactUs] Creating customer");
 
       const createResponse = await admin.graphql(
         `#graphql
@@ -174,17 +216,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
       );
 
-      const createData = await createResponse.json();
-      console.log("[ContactUs] Create result:", JSON.stringify(createData?.data?.customerCreate));
-
-      if (createData.data?.customerCreate?.userErrors?.length > 0) {
-        throw new Error(createData.data.customerCreate.userErrors[0].message);
+      const createData = (await createResponse.json()) as any;
+      if (createData.errors?.length) {
+        throw new Error("Create Error: " + JSON.stringify(createData.errors));
       }
 
-      customerId = createData.data?.customerCreate?.customer?.id;
+      console.log("[ContactUs] Customer create result:", JSON.stringify(createData?.data?.customerCreate));
+
+      if (createData.data?.customerCreate?.userErrors?.length > 0) {
+        throw new Error(
+          createData.data.customerCreate.userErrors
+            .map((e: any) => e.message)
+            .join(", ")
+        );
+      }
+      
+      if (!createData.data?.customerCreate?.customer?.id) {
+        throw new Error("Shopify customerCreate did not return a customer ID");
+      }
+
+      customerId = createData.data.customerCreate.customer.id;
     }
 
-    // Always force subscription to Subscribed (green badge)
+    console.log("[ContactUs] Final customer ID:", customerId);
+
     if (customerId && accepts_marketing) {
       const consentResponse = await admin.graphql(
         `#graphql
@@ -204,8 +259,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
       );
 
-      const consentData = await consentResponse.json();
-      console.log("[ContactUs] Consent result:", JSON.stringify(consentData?.data?.customerEmailMarketingConsentUpdate));
+      const consentData = (await consentResponse.json()) as any;
+      if (consentData.errors?.length) {
+        throw new Error("Consent Error: " + JSON.stringify(consentData.errors));
+      }
+      
+      console.log("[ContactUs] Marketing consent result:", JSON.stringify(consentData?.data?.customerEmailMarketingConsentUpdate));
+      
+      if (consentData.data?.customerEmailMarketingConsentUpdate?.userErrors?.length > 0) {
+        throw new Error(
+          consentData.data.customerEmailMarketingConsentUpdate.userErrors
+            .map((e: any) => e.message)
+            .join(", ")
+        );
+      }
     }
 
     return Response.json({ success: true, message: "Contact message received. We'll be in touch soon!" });
@@ -213,6 +280,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } catch (error: any) {
     if (error instanceof Response) return error;
     console.error("[ContactUs] API Error:", error);
-    return Response.json({ success: false, message: String(error) }, { status: 200 });
+    return Response.json({ success: false, message: String(error) }, { status: 500 });
   }
 };
