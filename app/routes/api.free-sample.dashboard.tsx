@@ -1137,7 +1137,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <a href="/apps/purrkins/dashboard" style="display: block; padding: 10px 20px; color: #1a1a1a; text-decoration: none; font-size: 14px; font-weight: 800;">Profile</a>
           <div style="border-bottom: 1px solid #eaeaea; margin: 0 16px 8px 16px;"></div>
           <a href="#pk-tab-wishlist" style="display: block; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 14px; font-weight: 800; margin-bottom: 4px;">Wishlist</a>
-          <button onclick="localStorage.removeItem('pk_session'); window.location.href='/apps/purrkins/login';" style="display: block; width: 100%; text-align: left; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 14px; font-weight: 800; background: none; border: none; cursor: pointer;">Log out</button>
+          <button onclick="localStorage.removeItem('pk_session'); localStorage.removeItem('pk_checkout_info'); window.location.href='/apps/purrkins/login';" style="display: block; width: 100%; text-align: left; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 14px; font-weight: 800; background: none; border: none; cursor: pointer;">Log out</button>
         </div>
       </div>
 
@@ -1468,6 +1468,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           else alert('Failed to set default.');
         });
       }
+      
+      localStorage.setItem('pk_checkout_info', JSON.stringify({
+        email: "${escAttr(customer.email)}",
+        firstName: "${escAttr(defaultAddress.firstName)}",
+        lastName: "${escAttr(defaultAddress.lastName)}",
+        phone: "${escAttr(customer.phone)}",
+        address1: "${escAttr(defaultAddress.address1)}",
+        address2: "${escAttr(defaultAddress.address2)}",
+        city: "${escAttr(defaultAddress.city)}",
+        province: "${escAttr(defaultAddress.province)}",
+        zip: "${escAttr(defaultAddress.zip)}",
+        country: "${escAttr(defaultAddress.country || 'India')}"
+      }));
     </script>
 
     <!-- Add Address Modal -->
