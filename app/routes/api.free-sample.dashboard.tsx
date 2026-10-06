@@ -178,21 +178,32 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }).join('');
 
   const ordersHtml = customer.orders?.edges?.length > 0 
-    ? customer.orders.edges.map((e: any) => `
+    ? customer.orders.edges.map((e: any) => {
+        const orderDate = new Date(e.node.createdAt);
+        const day = orderDate.getDate();
+        const month = orderDate.toLocaleString('default', { month: 'short' });
+        const year = orderDate.getFullYear();
+        const dateStr = `${day} ${month} ${year}`;
+        const isFulfilled = e.node.displayFulfillmentStatus === 'FULFILLED';
+        const statusClass = isFulfilled ? 'delivered' : 'transit';
+        const statusText = isFulfilled ? `Delivered ${day} ${month}` : 'In transit';
+        
+        return `
       <div class="pk-tr">
         <div>
           <strong>${e.node.name}</strong><br>
           <span class="pk-subtext">${e.node.lineItems.edges[0]?.node?.title?.substring(0, 35) || ''}</span>
         </div>
-        <div>${new Date(e.node.createdAt).toLocaleDateString('en-IN')}</div>
-        <div><span class="pk-status ${e.node.displayFulfillmentStatus === 'FULFILLED' ? 'delivered' : 'transit'}">${e.node.displayFulfillmentStatus || 'UNFULFILLED'}</span></div>
-        <div>₹${parseFloat(e.node.totalPriceSet?.shopMoney?.amount || 0).toFixed(2)}</div>
-        <div style="display:flex; gap:8px;">
-          <a href="${e.node.statusPageUrl}" target="_blank" class="pk-outline-btn" style="font-size:12px;padding:6px 14px;">View</a>
+        <div>${dateStr}</div>
+        <div><span class="pk-status ${statusClass}">${statusText}</span></div>
+        <div style="font-weight:800; color:#121217;">₹${parseFloat(e.node.totalPriceSet?.shopMoney?.amount || 0).toLocaleString('en-IN')}</div>
+        <div style="display:flex; gap:8px; justify-content: flex-end;">
+          <a href="#" class="pk-outline-btn" style="font-size:12px;padding:6px 14px;">Reorder</a>
+          <a href="${e.node.statusPageUrl}" target="_blank" class="pk-outline-btn" style="font-size:12px;padding:6px 14px;">Invoice</a>
         </div>
       </div>
-    `).join('')
-    : '<div class="pk-tr"><div style="grid-column: 1/-1; color: #595961; padding:10px 0;">No orders found.</div></div>';
+    `}).join('')
+    : '<div class="pk-tr" style="grid-template-columns:1fr;"><div style="color: #595961; padding:10px 0;">No orders found.</div></div>';
 
   const addressesHtml = customer.addresses?.length > 0
     ? customer.addresses.map((a: any, index: number) => `
@@ -415,17 +426,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         flex: 1;
       }
       .pk-input-group label {
-        font-size: 13px;
+        font-size: 11px;
         color: #595961;
-        font-weight: 600;
+        font-weight: 700;
+        margin-left: 4px;
       }
-      .pk-input-group input, .pk-form-grid input {
+      .pk-input-group input, .pk-form-grid input, .pk-form-grid select {
         border: 1px solid #eaeaea;
         border-radius: 20px;
-        padding: 12px 16px;
-        font-size: 14px;
+        padding: 14px 20px;
+        font-size: 13px;
         outline: none;
         color: #121217;
+        font-weight: 600;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .pk-input-group input::placeholder, .pk-form-grid input::placeholder {
+        color: #8c8c9a;
+        font-weight: 500;
       }
       .pk-form-grid {
         display: grid;
@@ -528,19 +547,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
       .pk-tr {
         display: grid;
-        grid-template-columns: 2fr 1.5fr 1.5fr 1fr 1.5fr;
+        grid-template-columns: 2fr 1fr 1.5fr 1fr 1.5fr;
         padding: 20px;
         border-bottom: 1px solid #eaeaea;
         align-items: center;
         font-size: 14px;
       }
       .pk-th {
-        background: #595961;
+        background: #6C6F76;
         color: #fff;
-        font-weight: 700;
-        font-size: 12px;
-        letter-spacing: 0.5px;
-        padding: 12px 20px;
+        font-weight: 800;
+        font-size: 11px;
+        letter-spacing: 0.8px;
+        padding: 16px 20px;
       }
       .pk-tr:last-child {
         border-bottom: none;
@@ -1114,10 +1133,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     <div class="pk-dashboard-wrapper">
       <div class="pk-dashboard-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
         <h1>Welcome back, ${customer.firstName || "Friend"}</h1>
-        <div class="pk-header-menu" style="background: #fff; border: 1px solid #eaeaea; border-radius: 12px; padding: 10px 0; min-width: 150px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
-          <a href="/apps/purrkins/dashboard" style="display: block; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 13px; font-weight: 700;">Profile</a>
-          <a href="#pk-tab-wishlist" style="display: block; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 13px; font-weight: 700; border-bottom: 1px solid #eaeaea; padding-bottom: 12px; margin-bottom: 4px;">Wishlist</a>
-          <button onclick="localStorage.removeItem('pk_session'); window.location.href='/apps/purrkins/login';" style="display: block; width: 100%; text-align: left; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 13px; font-weight: 700; background: none; border: none; cursor: pointer;">Log out</button>
+        <div class="pk-header-menu" style="background: #fff; border: 2px solid #595961; border-radius: 16px; padding: 12px 0; min-width: 160px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
+          <a href="/apps/purrkins/dashboard" style="display: block; padding: 10px 20px; color: #1a1a1a; text-decoration: none; font-size: 14px; font-weight: 800;">Profile</a>
+          <div style="border-bottom: 1px solid #eaeaea; margin: 0 16px 8px 16px;"></div>
+          <a href="#pk-tab-wishlist" style="display: block; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 14px; font-weight: 800; margin-bottom: 4px;">Wishlist</a>
+          <button onclick="localStorage.removeItem('pk_session'); window.location.href='/apps/purrkins/login';" style="display: block; width: 100%; text-align: left; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 14px; font-weight: 800; background: none; border: none; cursor: pointer;">Log out</button>
         </div>
       </div>
 
@@ -1133,7 +1153,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <div class="pk-whatsapp-card">
             <h3>Stuck on something?</h3>
             <p>Our kitten team replies on WhatsApp, usually within an hour.</p>
-            <a href="#" class="pk-whatsapp-btn">Reach Out <span class="wa-icon">💬</span></a>
+            <a href="#" class="pk-whatsapp-btn">Reach Out <span class="wa-icon" style="display:inline-flex;align-items:center;margin-left:4px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="12" fill="white"/><path fill-rule="evenodd" clip-rule="evenodd" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.888-.788-1.489-1.761-1.663-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.575-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884" fill="#25D366"/></svg></span></a>
           </div>
         </div>
 
@@ -1170,12 +1190,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               <input type="email" placeholder="Email" value="${escAttr(customer.email)}" readonly>
               
               <input type="text" id="pk-bill-country" placeholder="Country/Region" value="${escAttr(defaultAddress.country || "India")}">
-              <input type="text" id="pk-bill-province" placeholder="State" value="${escAttr(defaultAddress.province)}">
+              <select id="pk-bill-province" style="appearance: none; background: url('data:image/svg+xml;utf8,<svg width=\\'12\\' height=\\'12\\' fill=\\'none\\' stroke=\\'%238c8c9a\\' stroke-width=\\'2\\' stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' viewBox=\\'0 0 24 24\\' xmlns=\\'http://www.w3.org/2000/svg\\'><path d=\\'m6 9 6 6 6-6\\'/></svg>') no-repeat right 16px center; background-color: #fff;">
+                <option value="" disabled ${!defaultAddress.province ? 'selected' : ''}>State</option>
+                <option value="Tamil Nadu" ${defaultAddress.province === 'Tamil Nadu' ? 'selected' : ''}>Tamil Nadu</option>
+                <option value="Karnataka" ${defaultAddress.province === 'Karnataka' ? 'selected' : ''}>Karnataka</option>
+                <option value="Maharashtra" ${defaultAddress.province === 'Maharashtra' ? 'selected' : ''}>Maharashtra</option>
+                <option value="Delhi" ${defaultAddress.province === 'Delhi' ? 'selected' : ''}>Delhi</option>
+                <option value="${escAttr(defaultAddress.province)}" ${defaultAddress.province && !['Tamil Nadu','Karnataka','Maharashtra','Delhi'].includes(defaultAddress.province) ? 'selected' : ''}>${escAttr(defaultAddress.province)}</option>
+              </select>
               <input type="text" id="pk-bill-phone" placeholder="Phone (optional)" value="${escAttr(customer.phone)}">
               
               <input type="text" id="pk-bill-zip" placeholder="Pin Code" value="${escAttr(defaultAddress.zip)}">
-              <input type="text" id="pk-bill-address1" placeholder="Street Address" value="${escAttr(defaultAddress.address1)}" style="grid-column: span 2;">
-              <input type="text" id="pk-bill-address2" placeholder="Apartment, suite, etc. (optional)" value="${escAttr(defaultAddress.address2)}" style="grid-column: span 2;">
+              <input type="text" id="pk-bill-address1" placeholder="Apartment, suite, etc. (optional)" value="${escAttr(defaultAddress.address1)}" style="grid-column: span 2;">
+              <input type="hidden" id="pk-bill-address2" value="">
+              
               <input type="text" id="pk-bill-city" placeholder="City" value="${escAttr(defaultAddress.city)}">
             </div>
             <div id="pk-profile-msg" style="display:none;margin-top:16px;font-size:14px;font-weight:600;"></div>
@@ -1322,7 +1350,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
       // ─── Address modal helpers ────────────────────────────────
       var _pk_session = localStorage.getItem('pk_session') || '';
-      var _apiBase = '/apps/purrkins/customer-api?intent=';
+      var _apiBase = '/apps/purrkins/customer-api?session=' + _pk_session + '&intent=';
 
       function submitProfile(e) {
         if (e) e.preventDefault();
@@ -1364,7 +1392,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         var token = localStorage.getItem('pk_session') || '';
         btn.style.pointerEvents = 'none';
         btn.innerText = 'Updating...';
-        fetch('/apps/purrkins/customer-api?intent=update_billing', {
+        fetch('/apps/purrkins/customer-api?session=' + token + '&intent=update_billing', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
