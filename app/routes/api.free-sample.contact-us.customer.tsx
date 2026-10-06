@@ -67,10 +67,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       consentUpdatedAt: new Date().toISOString(),
     };
 
-    // Search existing customer by phone
+    // Search existing customer by phone or email
     const searchResponse = await admin.graphql(
       `#graphql
-      query findCustomerByPhone($query: String!) {
+      query findCustomer($query: String!) {
         customers(first: 1, query: $query) {
           edges {
             node {
@@ -86,7 +86,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           }
         }
       }`,
-      { variables: { query: `phone:${phone}` } }
+      { variables: { query: `phone:${phone} OR email:${email}` } }
     );
 
     const searchData = await searchResponse.json();
