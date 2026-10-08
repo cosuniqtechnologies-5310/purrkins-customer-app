@@ -3,6 +3,7 @@ import { authenticate, unauthenticated } from "../shopify.server";
 import prisma from "../db.server";
 import nodemailer from "nodemailer";
 import jwt from "jsonwebtoken";
+import { getLoaderHtml } from "../loader-snippet";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   console.log("=== APP PROXY ACTION CALLED ===");
@@ -161,6 +162,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const isPopup = url.searchParams.get("popup") === "true";
 
   const liquidTemplate = `
+    ${getLoaderHtml(false)}
     <script>
       var isPopup = ${isPopup};
       // If already logged in via JWT, redirect to dashboard
@@ -174,6 +176,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               if (isPopup) {
                 return; // Parent window handles the redirect
               }
+              if (typeof pkShowLoader === 'function') pkShowLoader();
               // Set the cookie on the client side just in case, then redirect without token in URL
               document.cookie = "pk_session=" + t + "; path=/apps/purrkins; max-age=" + (7*24*60*60);
               window.location.replace('/apps/purrkins/dashboard');
@@ -545,6 +548,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               } else {
                 // The backend already sets the HttpOnly cookie, but we can set JS cookie as fallback
                 document.cookie = "pk_session=" + data.token + "; path=/apps/purrkins; max-age=" + (7*24*60*60);
+                if (typeof pkShowLoader === 'function') pkShowLoader();
                 window.location.href = data.redirect || "/apps/purrkins/dashboard";
               }
             } else {

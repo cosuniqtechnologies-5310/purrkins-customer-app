@@ -2,6 +2,7 @@ import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import jwt from "jsonwebtoken";
 import { unauthenticated } from "../shopify.server";
+import { getLoaderHtml } from "../loader-snippet";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -29,6 +30,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (!customerId) {
     if (isTokenPresentAndInvalid) {
       return new Response(`
+        ${getLoaderHtml(true)}
         <script>
           localStorage.removeItem('pk_session');
           document.cookie = "pk_session=; path=/apps/purrkins; expires=Thu, 01 Jan 1970 00:00:00 GMT";
@@ -43,6 +45,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     return new Response(`
+      ${getLoaderHtml(true)}
       <script>
         var localToken = localStorage.getItem('pk_session');
         if (localToken) {
@@ -263,6 +266,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const apiBase = `/apps/purrkins/customer-api${sessionParam}&intent=`;
 
   const liquidTemplate = `
+    ${getLoaderHtml(true)}
     \n\n<style>\n
       .pk-dashboard-wrapper {
         max-width: 1200px;
@@ -1399,7 +1403,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }).then(function(r) { return r.json(); }).then(function(d) {
           if (d.success) {
             show('Your details were updated.', true);
-            setTimeout(function() { window.location.reload(); }, 800);
+            setTimeout(function() { 
+              if (typeof pkShowLoader === 'function') pkShowLoader();
+              window.location.reload(); 
+            }, 600);
           } else {
             show(d.error || 'Failed to update. Please try again.', false);
             btn.style.pointerEvents = 'auto';
@@ -1430,6 +1437,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           m.innerText = 'Please fill required fields (First Name, Address, City, Pin Code).';
           return;
         }
+        if (typeof pkShowLoader === 'function') pkShowLoader();
         fetch(_apiBase + 'add_address', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1439,35 +1447,59 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             document.getElementById('addr-modal').style.display = 'none';
             window.location.reload();
           } else {
+            if (typeof pkHideLoader === 'function') pkHideLoader();
             var m = document.getElementById('addr-msg');
             m.style.display = 'block';
             m.innerText = d.error || 'Failed to save address. Try again.';
           }
+        }).catch(function() {
+          if (typeof pkHideLoader === 'function') pkHideLoader();
         });
       }
 
       function deleteAddr(id) {
         if (!confirm('Delete this address?')) return;
+        if (typeof pkShowLoader === 'function') pkShowLoader();
         fetch(_apiBase + 'delete_address', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ addressId: id })
         }).then(function(r) { return r.json(); }).then(function(d) {
           if (d.success) window.location.reload();
-          else alert('Failed to delete address.');
+          else {
+            if (typeof pkHideLoader === 'function') pkHideLoader();
+            alert('Failed to delete address.');
+          }
+        }).catch(function() {
+          if (typeof pkHideLoader === 'function') pkHideLoader();
         });
       }
 
       function setDefaultAddr(id) {
+        if (typeof pkShowLoader === 'function') pkShowLoader();
         fetch(_apiBase + 'set_default_address', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ addressId: id })
         }).then(function(r) { return r.json(); }).then(function(d) {
           if (d.success) window.location.reload();
-          else alert('Failed to set default.');
+          else {
+            if (typeof pkHideLoader === 'function') pkHideLoader();
+            alert('Failed to set default.');
+          }
+        }).catch(function() {
+          if (typeof pkHideLoader === 'function') pkHideLoader();
         });
       }
+
+      document.addEventListener('click', function(e) {
+        var a = e.target && e.target.closest ? e.target.closest('a') : null;
+        if (a && a.href && (a.href.indexOf('/apps/purrkins') !== -1 || a.href.indexOf('/account') !== -1)) {
+          if (!a.target || a.target === '_self') {
+            if (typeof pkShowLoader === 'function') pkShowLoader();
+          }
+        }
+      }, true);
       
       localStorage.setItem('pk_checkout_info', JSON.stringify({
         email: "${escAttr(customer.email)}",

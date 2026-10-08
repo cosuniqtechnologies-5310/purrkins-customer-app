@@ -2,6 +2,7 @@ import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import jwt from "jsonwebtoken";
 import { unauthenticated } from "../shopify.server";
+import { getLoaderHtml } from "../loader-snippet";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -31,6 +32,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (!customerId) {
     if (isTokenPresentAndInvalid) {
       return new Response(`
+        ${getLoaderHtml(true)}
         <script>
           localStorage.removeItem('pk_session');
           document.cookie = "pk_session=; path=/apps/purrkins; expires=Thu, 01 Jan 1970 00:00:00 GMT";
@@ -45,6 +47,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     return new Response(`
+      ${getLoaderHtml(true)}
       <script>
         var localToken = localStorage.getItem('pk_session');
         if (localToken) {
@@ -584,7 +587,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const dashUrl = '/apps/purrkins/dashboard';
 
   const liquidTemplate = `
-<style>
+    ${getLoaderHtml(true)}
+    <style>
 \n
       .pk-dashboard-wrapper {
         max-width: 1200px;
@@ -1496,6 +1500,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   e.preventDefault();
                   saveBtn.disabled = true;
                   loadingText.style.display = "inline";
+                  if (typeof pkShowLoader === 'function') pkShowLoader();
 
                   var file = fileInput.files[0];
                   try {
@@ -1639,18 +1644,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                       toast.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
                       document.body.appendChild(toast);
 
+                      if (typeof pkHideLoader === 'function') pkHideLoader();
                       setTimeout(function() {
                         toast.style.opacity = '0';
                         toast.style.transition = 'opacity 0.5s ease';
                         setTimeout(function() { toast.remove(); }, 500);
                       }, 2000);
                     } else {
+                      if (typeof pkHideLoader === 'function') pkHideLoader();
                       alert("Failed to update: " + (finalData.message || "Unknown error"));
                       saveBtn.disabled = false;
                       loadingText.style.display = "none";
                     }
 
                   } catch (err) {
+                    if (typeof pkHideLoader === 'function') pkHideLoader();
                     console.error(err);
                     alert("An error occurred during update.");
                     saveBtn.disabled = false;
@@ -1710,14 +1718,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         window.__pkPjaxInited = true;
         document.addEventListener("click", async function(e) {
           var link = e.target.closest("a.pk-menu-item, a.pk-pet-pill");
-          if (link && link.getAttribute("href").startsWith("/apps/purrkins/")) {
+          if (link && link.getAttribute("href") && link.getAttribute("href").startsWith("/apps/purrkins/")) {
             e.preventDefault();
             
             document.querySelectorAll(".pk-menu-item").forEach(function(el) { el.classList.remove("active") });
             link.classList.add("active");
             
+            if (typeof pkShowLoader === 'function') pkShowLoader();
+            
             var mainContent = document.querySelector(".pk-dashboard-wrapper");
-            if (!mainContent) return;
+            if (!mainContent) {
+              window.location.href = link.getAttribute("href");
+              return;
+            }
             mainContent.style.opacity = "0.5";
             mainContent.style.pointerEvents = "none";
             mainContent.style.transition = "opacity 0.2s";
@@ -1751,6 +1764,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   newScript.appendChild(document.createTextNode(oldScript.innerHTML));
                   oldScript.parentNode.replaceChild(newScript, oldScript);
                 });
+                if (typeof pkHideLoader === 'function') setTimeout(pkHideLoader, 150);
               } else {
                 window.location.href = url;
               }
@@ -2138,6 +2152,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           .then(res => res.json())
           .then(data => {
             if (data && data.success) {
+              if (typeof pkShowLoader === 'function') pkShowLoader();
               window.location.reload();
             } else {
               alert('Failed to save quiz: ' + (data.message || 'Unknown error'));
