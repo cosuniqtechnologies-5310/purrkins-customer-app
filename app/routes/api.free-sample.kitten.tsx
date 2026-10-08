@@ -1451,7 +1451,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <div class="pk-header-menu" style="background: #fff; border: 1px solid #eaeaea; border-radius: 12px; padding: 10px 0; min-width: 150px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
           <a href="/apps/purrkins/dashboard" style="display: block; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 13px; font-weight: 700;">Profile</a>
           <a href="/apps/purrkins/dashboard#pk-tab-wishlist" style="display: block; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 13px; font-weight: 700; border-bottom: 1px solid #eaeaea; padding-bottom: 12px; margin-bottom: 4px;">Wishlist</a>
-          <button onclick="localStorage.removeItem('pk_session'); window.location.href='/apps/purrkins/login';" style="display: block; width: 100%; text-align: left; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 13px; font-weight: 700; background: none; border: none; cursor: pointer;">Log out</button>
+          <button onclick="localStorage.removeItem('pk_session'); localStorage.removeItem('pk_user_name'); localStorage.removeItem('pk_user_email'); localStorage.removeItem('pk_checkout_info'); document.cookie='pk_session=; path=/apps/purrkins; expires=Thu, 01 Jan 1970 00:00:00 GMT'; window.location.href='/apps/purrkins/login';" style="display: block; width: 100%; text-align: left; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 13px; font-weight: 700; background: none; border: none; cursor: pointer;">Log out</button>
         </div>
       </div>
 

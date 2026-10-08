@@ -109,7 +109,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const searchRes = await graphqlClient.graphql(`
       query {
         customers(first: 5, query: "email:${email}") {
-          edges { node { id email firstName } }
+          edges { node { id email firstName lastName } }
         }
       }
     `);
@@ -118,15 +118,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const customerEdge = searchData.data.customers.edges[0];
     
     let customerId;
+    let customerFirstName = "";
+    let customerLastName = "";
+
     if (customerEdge) {
       customerId = customerEdge.node.id;
-      console.log("Found existing customer:", customerId, customerEdge.node.firstName, customerEdge.node.email);
+      customerFirstName = customerEdge.node.firstName || "";
+      customerLastName = customerEdge.node.lastName || "";
+      console.log("Found existing customer:", customerId, customerFirstName, customerEdge.node.email);
     } else {
       // Create customer without password (Shopify New Customer Accounts doesn't support password field)
       const createRes = await graphqlClient.graphql(`
         mutation customerCreate($input: CustomerInput!) {
           customerCreate(input: $input) {
-            customer { id email firstName }
+            customer { id email firstName lastName }
             userErrors { field message }
           }
         }
@@ -136,6 +141,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const createData = await createRes.json();
       console.log("Create customer result:", JSON.stringify(createData?.data?.customerCreate, null, 2));
       customerId = createData.data?.customerCreate?.customer?.id;
+      customerFirstName = createData.data?.customerCreate?.customer?.firstName || "";
+      customerLastName = createData.data?.customerCreate?.customer?.lastName || "";
     }
 
     console.log("Final customerId for JWT:", customerId);
@@ -145,8 +152,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     // Generate JWT token for session
     const token = jwt.sign({ customerId, email }, process.env.SHOPIFY_API_SECRET || "s3cr3t", { expiresIn: "7d" });
+    const customerFullName = [customerFirstName, customerLastName].filter(Boolean).join(" ").trim();
 
-    return new Response(JSON.stringify({ success: true, token, redirect: "/apps/purrkins/dashboard" }), {
+    return new Response(JSON.stringify({ 
+      success: true, 
+      token, 
+      redirect: "/apps/purrkins/dashboard",
+      customer: {
+        id: customerId,
+        email,
+        name: customerFullName,
+        firstName: customerFirstName,
+        lastName: customerLastName
+      }
+    }), {
       headers: {
         "Content-Type": "application/json",
         "Set-Cookie": `pk_session=${token}; Path=/apps/purrkins; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 60 * 60}`
@@ -543,6 +562,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           .then(function(data) {
             if(data.success && data.token) {
               localStorage.setItem('pk_session', data.token);
+              if (data.customer) {
+                var cName = data.customer.name || [data.customer.firstName, data.customer.lastName].filter(Boolean).join(' ').trim() || '';
+                if (cName) localStorage.setItem('pk_user_name', cName);
+                if (data.customer.email) localStorage.setItem('pk_user_email', data.customer.email);
+                localStorage.setItem('pk_checkout_info', JSON.stringify({
+                  email: data.customer.email,
+                  firstName: data.customer.firstName || '',
+                  lastName: data.customer.lastName || ''
+                }));
+              }
               if (typeof isPopup !== 'undefined' && isPopup) {
                 document.getElementById('otp-verify-form').innerHTML = '<h2 class="pk-otp-title" style="text-align: center; margin-top: 20px;">Login Successful!</h2><p style="text-align: center; color: #595961;">Please wait...</p>';
               } else {

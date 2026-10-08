@@ -1,4 +1,4 @@
-import type { ActionFunctionArgs } from "react-router";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import jwt from "jsonwebtoken";
 
@@ -60,11 +60,7 @@ function json(body: object, status = 200) {
   });
 }
 
-export const loader = async () => {
-  return new Response(JSON.stringify({ error: "POST only" }), { status: 405 });
-};
-
-export const action = async ({ request }: ActionFunctionArgs) => {
+async function handleRequest(request: Request) {
   const url = new URL(request.url);
   const intent = url.searchParams.get("intent");
   
@@ -88,6 +84,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
   const accessToken = shopSession.accessToken;
   const numericId = customerId.split("/").pop();
+
+  // GET PROFILE
+  if (intent === "get_profile") {
+    const custRes = await shopifyRest(accessToken, `/customers/${numericId}.json`, "GET");
+    if (custRes?.customer) {
+      const c = custRes.customer;
+      return json({
+        success: true,
+        customer: {
+          id: customerId,
+          email: c.email,
+          firstName: c.first_name || "",
+          lastName: c.last_name || "",
+          name: [c.first_name, c.last_name].filter(Boolean).join(" ").trim(),
+          phone: c.phone || ""
+        }
+      });
+    }
+    return json({ success: false, error: "Customer not found" }, 404);
+  }
 
   // UPDATE PROFILE
   if (intent === "update_profile") {
@@ -227,4 +243,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return new Response(JSON.stringify({ error: "Unknown intent" }), {
     status: 400, headers: { "Content-Type": "application/json" }
   });
+}
+
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  return handleRequest(request);
+};
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  return handleRequest(request);
 };
