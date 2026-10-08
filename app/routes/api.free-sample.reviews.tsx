@@ -28,7 +28,7 @@ async function getCustomerPurchasedProductIds(
                 edges {
                   node {
                     cancelledAt
-                    financialStatus
+                    displayFinancialStatus
                     lineItems(first: 50) {
                       edges {
                         node {
@@ -63,7 +63,7 @@ async function getCustomerPurchasedProductIds(
               edges {
                 node {
                   cancelledAt
-                  financialStatus
+                  displayFinancialStatus
                   lineItems(first: 50) {
                     edges {
                       node {
@@ -89,7 +89,7 @@ async function getCustomerPurchasedProductIds(
 
     // Extract product IDs from all valid (non-cancelled, non-voided) orders
     for (const order of orders) {
-      if (order.cancelledAt || order.financialStatus === "VOIDED") continue;
+      if (order.cancelledAt || order.displayFinancialStatus === "VOIDED") continue;
       for (const itemEdge of order.lineItems?.edges || []) {
         const prodId = itemEdge.node?.product?.id;
         if (prodId) {
@@ -110,33 +110,30 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const productId = url.searchParams.get("productId");
 
-  // Note: the shop is automatically appended to proxy requests by Shopify.
-  const shop = url.searchParams.get("shop") || "purrkins.myshopify.com";
+  // Determine shop domain
+  let shop = url.searchParams.get("shop");
+  if (!shop) {
+    const session = await prisma.session.findFirst({ where: { isOnline: false } });
+    shop = session?.shop || "purrkins-mhrlfymw.myshopify.com";
+  }
 
   try {
-    const whereClause: any = {
-      shop,
-      status: "published",
-    };
-
-    if (productId) {
-      const cleanProductId = productId.replace(/^gid:\/\/shopify\/Product\//, "");
-      whereClause.OR = [
-        { productId: cleanProductId },
-        { productId: `gid://shopify/Product/${cleanProductId}` },
-      ];
-    }
-
+    // Show all published reviews for the shop
     let reviews = await prisma.review.findMany({
-      where: whereClause,
+      where: {
+        shop,
+        status: "published",
+      },
       orderBy: { createdAt: "desc" },
     });
 
-    // If no reviews found for this specific productId, fallback to all published reviews for shop
-    if (reviews.length === 0 && productId) {
-      reviews = await prisma.review.findMany({
-        where: { shop, status: "published" },
-        orderBy: { createdAt: "desc" },
+    // If specific product ID is given, sort reviews for this product first
+    if (productId && reviews.length > 0) {
+      const cleanProductId = productId.replace(/^gid:\/\/shopify\/Product\//, "");
+      reviews.sort((a, b) => {
+        const aMatches = a.productId.includes(cleanProductId) ? 1 : 0;
+        const bMatches = b.productId.includes(cleanProductId) ? 1 : 0;
+        return bMatches - aMatches;
       });
     }
 
@@ -202,9 +199,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
       }
     }
 
-    // Calculate average rating
+    // Calculate aggregate rating for all published reviews
     const stats = await prisma.review.aggregate({
-      where: whereClause,
+      where: {
+        shop,
+        status: "published",
+      },
       _avg: { rating: true },
       _count: { id: true },
     });
@@ -241,7 +241,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
   // App proxy adds shop query parameter automatically
   const url = new URL(request.url);
-  const shop = url.searchParams.get("shop") || "purrkins.myshopify.com";
+  const shop = url.searchParams.get("shop") || "purrkins-mhrlfymw.myshopify.com";
 
   if (!rawProductId || !rating) {
     return Response.json({ error: "Product ID and rating are required" }, { status: 400 });
