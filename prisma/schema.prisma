@@ -53,7 +53,7 @@ model Review {
   email     String?
   images    String[] @default([])
   status    String   @default("published")
-  isVerified Boolean @default(true)
+  isVerified Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
