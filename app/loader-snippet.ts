@@ -11,14 +11,24 @@ export const getLoaderHtml = (visibleByDefault = true) => `
   </div>
 
   <style>
+    #header-group,
+    .shopify-section-group-header-group,
+    .site-header {
+      position: sticky !important;
+      top: 0 !important;
+      z-index: 999999 !important;
+    }
+
     .pk-loader-overlay {
       position: fixed;
-      top: 0;
+      top: var(--header-group-height, 105px);
       left: 0;
+      right: 0;
+      bottom: 0;
       width: 100vw;
-      height: 100vh;
+      height: calc(100vh - var(--header-group-height, 105px));
       background-color: #ffffff;
-      z-index: 99999999;
+      z-index: 9999;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -46,17 +56,21 @@ export const getLoaderHtml = (visibleByDefault = true) => `
     .pk-loader-desktop {
       width: 420px;
       max-width: 90vw;
-      max-height: 80vh;
+      max-height: 70vh;
       height: auto;
     }
     .pk-loader-mobile {
       display: none;
       width: 260px;
       max-width: 85vw;
-      max-height: 80vh;
+      max-height: 70vh;
       height: auto;
     }
     @media (max-width: 768px) {
+      .pk-loader-overlay {
+        top: var(--header-group-height, 95px);
+        height: calc(100vh - var(--header-group-height, 95px));
+      }
       .pk-loader-desktop {
         display: none !important;
       }
@@ -68,7 +82,26 @@ export const getLoaderHtml = (visibleByDefault = true) => `
 
   <script>
     (function() {
+      function pkAdjustLoaderPosition() {
+        var hg = document.getElementById('header-group') || document.querySelector('.site-header') || document.querySelector('header');
+        if (hg) {
+          var h = hg.offsetHeight || hg.getBoundingClientRect().height || 0;
+          if (h > 0) {
+            document.documentElement.style.setProperty('--header-group-height', h + 'px');
+            if (document.body) {
+              document.body.style.setProperty('--header-group-height', h + 'px');
+            }
+            var overlays = document.querySelectorAll('.pk-loader-overlay');
+            for (var i = 0; i < overlays.length; i++) {
+              overlays[i].style.top = h + 'px';
+              overlays[i].style.height = 'calc(100vh - ' + h + 'px)';
+            }
+          }
+        }
+      }
+
       function pkShowLoader() {
+        pkAdjustLoaderPosition();
         var overlays = document.querySelectorAll('.pk-loader-overlay');
         for (var i = 0; i < overlays.length; i++) {
           overlays[i].classList.remove('pk-loader-hidden');
@@ -92,6 +125,17 @@ export const getLoaderHtml = (visibleByDefault = true) => `
       window.pkHideLoader = pkHideLoader;
       window.purrkinsShowLoader = pkShowLoader;
       window.purrkinsHideLoader = pkHideLoader;
+      window.pkAdjustLoaderPosition = pkAdjustLoaderPosition;
+
+      // Adjust right away and on events
+      pkAdjustLoaderPosition();
+      window.addEventListener('resize', pkAdjustLoaderPosition);
+      if (window.ResizeObserver) {
+        var hg = document.getElementById('header-group');
+        if (hg) {
+          new ResizeObserver(pkAdjustLoaderPosition).observe(hg);
+        }
+      }
 
       if (document.readyState === 'complete') {
         setTimeout(pkHideLoader, 150);
