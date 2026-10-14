@@ -1139,7 +1139,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .pk-dashboard-layout { align-items: start; }
       .pk-dashboard-sidebar {
         position: sticky;
-        top: 24px;
+        top: 145px;
         align-self: start;
       }
       @media (max-width: 900px) {
