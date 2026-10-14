@@ -190,18 +190,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const [gqlData, productData, ordersData] = await Promise.all([
       needsKitten
-        ? admin.graphql(customerPetsQuery, { variables: { id: customerId } }).then(r => r.json()).catch(() => null)
+        ? admin.graphql(customerPetsQuery, { variables: { id: customerId } }).then(r => r.json() as Promise<any>).catch(() => null)
         : Promise.resolve(null),
       needsProducts
-        ? admin.graphql(catalogQuery).then(r => r.json()).catch(() => null)
+        ? admin.graphql(catalogQuery).then(r => r.json() as Promise<any>).catch(() => null)
         : Promise.resolve(null),
       needsOrders
-        ? admin.graphql(ordersQuery, { variables: { id: customerId } }).then(r => r.json()).catch(() => null)
+        ? admin.graphql(ordersQuery, { variables: { id: customerId } }).then(r => r.json() as Promise<any>).catch(() => null)
         : Promise.resolve(null),
     ]);
 
     if (gqlData) {
-      console.log("[Kitten] GQL errors:", JSON.stringify(gqlData?.errors));
+      console.log("[Kitten] GQL errors:", JSON.stringify((gqlData as any)?.errors));
       customerFirstName = (gqlData as any)?.data?.customer?.firstName || "Friend";
       pets = (gqlData as any)?.data?.customer?.pets?.references?.nodes || [];
       appCache.set(kittenCacheKey, { customerFirstName, pets }, 180); // 3 min
