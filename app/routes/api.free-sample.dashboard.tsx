@@ -354,6 +354,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .pk-menu-item.active .pk-dot {
         background: #121217;
       }
+      .pk-badge {
+        margin-left: auto;
+        background: #ffd831;
+        color: #121217;
+        font-size: 11px;
+        font-weight: 800;
+        min-width: 20px;
+        height: 20px;
+        border-radius: 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 6px;
+        flex-shrink: 0;
+      }
       .pk-whatsapp-card {
         background: #21252A;
         color: #fff;
