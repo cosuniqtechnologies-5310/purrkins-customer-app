@@ -39,19 +39,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const { name, phone, email, tag, accepts_marketing } = body;
 
+    if (!name || name.trim().length < 2) {
+      return Response.json({ success: false, message: "Your full name is required" }, { status: 400 });
+    }
+
     if (!phone) {
       return Response.json({ success: false, message: "Phone number is required" }, { status: 400 });
     }
-    if (!email || !email.includes("@")) {
-      return Response.json({ success: false, message: "A valid email is required" }, { status: 400 });
+
+    const cleanPhoneDigits = phone.replace(/\D/g, "");
+    const last10Digits = cleanPhoneDigits.slice(-10);
+    if (cleanPhoneDigits.length < 10 || last10Digits.length !== 10) {
+      return Response.json({ success: false, message: "A valid 10-digit mobile number is required" }, { status: 400 });
     }
+
+    const formattedPhone = `+91${last10Digits}`;
 
     const customerTag = tag || "unlock-benefit";
     const nameParts = name ? name.trim().split(" ") : ["Customer"];
     const firstName = nameParts[0];
     const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : ".";
 
-    console.log(`[UnlockBenefit] Processing: name=${name}, phone=${phone}, email=${email}`);
+    console.log(`[UnlockBenefit] Processing: name=${name}, phone=${formattedPhone}, email=${email}`);
 
     // CONFIRMED_OPT_IN bypasses double opt-in → immediately green "Subscribed"
     const emailMarketingConsent = {
@@ -78,7 +87,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           }
         }
       }`,
-      { variables: { query: `phone:${phone}` } }
+      { variables: { query: `phone:${formattedPhone}` } }
     );
 
     const searchData = await searchResponse.json();
@@ -112,7 +121,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           variables: {
             input: {
               id: existingCustomer.id,
-              phone,
+              phone: formattedPhone,
               email: resolvedEmail,
               firstName,
               lastName,
@@ -150,7 +159,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             input: {
               firstName,
               lastName,
-              phone,
+              phone: formattedPhone,
               email,
               tags: [customerTag],
               emailMarketingConsent,
