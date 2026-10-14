@@ -1475,7 +1475,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <div class="pk-whatsapp-card">
             <h3>Stuck on something?</h3>
             <p>Our kitten team replies on WhatsApp, usually within an hour.</p>
-            <a href="#" class="pk-whatsapp-btn">Reach Out <span class="wa-icon">💬</span></a>
+            <a href="https://wa.me/918130578935" target="_blank" rel="noopener noreferrer" class="pk-whatsapp-btn">Reach Out <span class="wa-icon">💬</span></a>
           </div>
         </div>
 
