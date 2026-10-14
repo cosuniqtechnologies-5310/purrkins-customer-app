@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import jwt from "jsonwebtoken";
+import { appCache } from "../cache.server";
 
 // Helper: get shop session
 async function getShopSession() {
@@ -170,6 +171,7 @@ async function handleRequest(request: Request) {
       }
     }
 
+    appCache.delPrefix("customer:");
     return json({ success: true });
   }
 
@@ -190,6 +192,7 @@ async function handleRequest(request: Request) {
       }
     });
     if (data.customer_address) {
+      appCache.delPrefix("customer:");
       return new Response(JSON.stringify({ success: true, address: data.customer_address }), {
         headers: { "Content-Type": "application/json" }
       });
@@ -204,6 +207,7 @@ async function handleRequest(request: Request) {
     const body = await request.json();
     const addressId = parseGid(body.addressId);
     await shopifyRest(accessToken, `/customers/${numericId}/addresses/${addressId}.json`, "DELETE");
+    appCache.delPrefix("customer:");
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json" } });
   }
 
@@ -212,6 +216,7 @@ async function handleRequest(request: Request) {
     const body = await request.json();
     const addressId = parseGid(body.addressId);
     await shopifyRest(accessToken, `/customers/${numericId}/addresses/${addressId}/default.json`, "PUT");
+    appCache.delPrefix("customer:");
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json" } });
   }
 
@@ -235,6 +240,7 @@ async function handleRequest(request: Request) {
         value: JSON.stringify(productIds)
       }]
     });
+    appCache.delPrefix("customer:");
     return new Response(JSON.stringify({ success: true, data: data?.data?.metafieldsSet }), {
       headers: { "Content-Type": "application/json" }
     });

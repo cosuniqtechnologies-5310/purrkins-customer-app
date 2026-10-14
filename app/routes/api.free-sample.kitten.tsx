@@ -3,6 +3,7 @@ import prisma from "../db.server";
 import jwt from "jsonwebtoken";
 import { unauthenticated } from "../shopify.server";
 import { getLoaderHtml } from "../loader-snippet";
+import { appCache } from "../cache.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -27,6 +28,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     } catch (e) {
       isTokenPresentAndInvalid = true;
     }
+  }
+
+  const loggedInCust = url.searchParams.get("logged_in_customer_id");
+  if (!customerId && loggedInCust) {
+    customerId = loggedInCust.startsWith("gid://shopify/Customer/")
+      ? loggedInCust
+      : `gid://shopify/Customer/${loggedInCust}`;
   }
 
   if (!customerId) {
@@ -65,7 +73,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     } });
   }
 
-  // Use unauthenticated.admin to ensure token refresh is handled
+  // ── Admin client ──────────────────────────────────────────────
   const { admin } = await unauthenticated.admin("purrkins-mhrlfymw.myshopify.com");
   if (!admin) {
     console.error("Admin access denied");
@@ -74,43 +82,63 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
 
-  let pets: any[] = [];
-  const gqlRes = await admin.graphql(`
-    query($id: ID!) {
-      customer(id: $id) {
-        firstName
-        pets: metafield(namespace: "custom", key: "pets") {
-          references(first: 10) {
-            nodes {
-              ... on Metaobject {
-                id
-                name: field(key: "name") { value }
-                age: field(key: "age") { value }
-                gender: field(key: "gender") { value }
-                neutered: field(key: "neutered") { value }
-                weight: field(key: "weight") { value }
-                body: field(key: "body") { value }
-                activity: field(key: "activity") { value }
-                focus: field(key: "focus") { value }
-                allergies: field(key: "allergies") { value }
-                subscription: field(key: "subscription_products") {
-                  references(first: 10) {
-                    nodes {
-                      ... on Product {
-                        id
-                        title
-                        handle
-                        featuredImage { url }
-                        variants(first: 1) { edges { node { id title price } } }
+  // ── Cache keys ───────────────────────────────────────────────
+  const kittenCacheKey = `customer:kitten:${customerId}`;
+  const productsCacheKey = `catalog:products:100`;
+  const ordersCacheKey = `customer:orders:${customerId}`;
+
+  type SubItem = {
+    handle: string; title: string; imageUrl: string; variantTitle: string;
+    price: number; quantity: number; planName: string; deliveries: number; lastOrdered: string;
+    tags: string[];
+  };
+
+  const cachedKitten = appCache.get<{ customerFirstName: string; pets: any[] }>(kittenCacheKey);
+  const cachedProducts = appCache.get<any[]>(productsCacheKey);
+  const cachedOrders = appCache.get<[string, SubItem][]>(ordersCacheKey);
+
+  let pets: any[] = cachedKitten?.pets || [];
+  if (cachedKitten?.customerFirstName) customerFirstName = cachedKitten.customerFirstName;
+  let allProducts: any[] = cachedProducts || [];
+  const orderSubItems = new Map<string, SubItem>(cachedOrders || []);
+
+  // ── Parallel fetches on cache miss ───────────────────────────
+  const needsKitten = !cachedKitten;
+  const needsProducts = !cachedProducts;
+  const needsOrders = !cachedOrders;
+
+  if (needsKitten || needsProducts || needsOrders) {
+    const customerPetsQuery = `
+      query($id: ID!) {
+        customer(id: $id) {
+          firstName
+          pets: metafield(namespace: "custom", key: "pets") {
+            references(first: 10) {
+              nodes {
+                ... on Metaobject {
+                  id
+                  name: field(key: "name") { value }
+                  age: field(key: "age") { value }
+                  gender: field(key: "gender") { value }
+                  neutered: field(key: "neutered") { value }
+                  weight: field(key: "weight") { value }
+                  body: field(key: "body") { value }
+                  activity: field(key: "activity") { value }
+                  focus: field(key: "focus") { value }
+                  allergies: field(key: "allergies") { value }
+                  subscription: field(key: "subscription_products") {
+                    references(first: 10) {
+                      nodes {
+                        ... on Product {
+                          id title handle
+                          featuredImage { url }
+                          variants(first: 1) { edges { node { id title price } } }
+                        }
                       }
                     }
                   }
-                }
-                profile: field(key: "profile") {
-                  reference {
-                    ... on MediaImage {
-                      image { url }
-                    }
+                  profile: field(key: "profile") {
+                    reference { ... on MediaImage { image { url } } }
                   }
                 }
               }
@@ -118,28 +146,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           }
         }
       }
-    }
-  `, { variables: { id: customerId } });
+    `;
 
-  const gqlData = await gqlRes.json() as any;
-    console.log("Kitten GQL errors:", JSON.stringify(gqlData?.errors));
-    console.log("Kitten customer:", JSON.stringify(gqlData?.data?.customer?.firstName));
-    customerFirstName = gqlData?.data?.customer?.firstName || "Friend";
-    pets = gqlData?.data?.customer?.pets?.references?.nodes || [];
-
-
-  const activePet = pets[petIndex] || null;
-
-  let allProducts: any[] = [];
-  try {
-    const productRes = await admin.graphql(`
+    const catalogQuery = `
       query {
         products(first: 100) {
           edges {
             node {
-              handle
-              title
-              tags
+              handle title tags
               featuredImage { url }
               variants(first:1) { edges { node { id } } }
               metafield(namespace: "custom", key: "short_description") { value }
@@ -147,31 +161,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           }
         }
       }
-    `);
-    const productData = await productRes.json() as any;
-    allProducts = productData?.data?.products?.edges?.map((e:any) => e.node) || [];
-  } catch (e) {
-    console.error("Failed to fetch products for recommendations", e);
-  }
+    `;
 
-  // ── Subscription orders (Shopify Subscriptions app) ──────────
-  // Contracts owned by Shopify's Subscriptions app can't be read by custom apps, but every
-  // subscription purchase is an order line item with a selling plan, which read_orders allows.
-  type SubItem = {
-    handle: string; title: string; imageUrl: string; variantTitle: string;
-    price: number; quantity: number; planName: string; deliveries: number; lastOrdered: string;
-    tags: string[];
-  };
-  const orderSubItems = new Map<string, SubItem>();
-  try {
-    const ordersRes = await admin.graphql(`
+    const ordersQuery = `
       query($id: ID!) {
         customer(id: $id) {
           orders(first: 50, sortKey: CREATED_AT, reverse: true) {
             edges {
               node {
-                processedAt
-                cancelledAt
+                processedAt cancelledAt
                 lineItems(first: 20) {
                   edges {
                     node {
@@ -188,34 +186,61 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           }
         }
       }
-    `, { variables: { id: customerId } });
-    const ordersData = await ordersRes.json() as any;
-    if (ordersData?.errors) console.error("Kitten orders GQL errors:", JSON.stringify(ordersData.errors));
-    const orderEdges = ordersData?.data?.customer?.orders?.edges || [];
-    for (const oe of orderEdges) {
-      if (oe.node.cancelledAt) continue;
-      for (const le of oe.node.lineItems?.edges || []) {
-        const li = le.node;
-        if (!li.sellingPlan || !li.product?.handle) continue; // only subscription purchases
-        const existing = orderSubItems.get(li.product.handle);
-        if (existing) { existing.deliveries += 1; continue; }  // orders are newest-first
-        orderSubItems.set(li.product.handle, {
-          handle: li.product.handle,
-          title: li.product.title,
-          imageUrl: li.product.featuredImage?.url || "",
-          variantTitle: li.variant?.title && li.variant.title !== "Default Title" ? li.variant.title : "",
-          price: parseFloat(li.originalUnitPriceSet?.shopMoney?.amount || "0") || 0,
-          quantity: li.quantity || 1,
-          planName: li.sellingPlan?.name || "",
-          deliveries: 1,
-          lastOrdered: oe.node.processedAt || "",
-          tags: (li.product.tags || []).map((t: string) => String(t).toLowerCase()),
-        });
-      }
+    `;
+
+    const [gqlData, productData, ordersData] = await Promise.all([
+      needsKitten
+        ? admin.graphql(customerPetsQuery, { variables: { id: customerId } }).then(r => r.json()).catch(() => null)
+        : Promise.resolve(null),
+      needsProducts
+        ? admin.graphql(catalogQuery).then(r => r.json()).catch(() => null)
+        : Promise.resolve(null),
+      needsOrders
+        ? admin.graphql(ordersQuery, { variables: { id: customerId } }).then(r => r.json()).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+
+    if (gqlData) {
+      console.log("[Kitten] GQL errors:", JSON.stringify(gqlData?.errors));
+      customerFirstName = (gqlData as any)?.data?.customer?.firstName || "Friend";
+      pets = (gqlData as any)?.data?.customer?.pets?.references?.nodes || [];
+      appCache.set(kittenCacheKey, { customerFirstName, pets }, 180); // 3 min
     }
-  } catch (e) {
-    console.error("Failed to fetch subscription orders", e);
+
+    if (productData) {
+      allProducts = (productData as any)?.data?.products?.edges?.map((e: any) => e.node) || [];
+      appCache.set(productsCacheKey, allProducts, 1800); // 30 min
+    }
+
+    if (ordersData) {
+      if ((ordersData as any)?.errors) console.error("[Kitten] Orders GQL errors:", JSON.stringify((ordersData as any).errors));
+      const orderEdges = (ordersData as any)?.data?.customer?.orders?.edges || [];
+      for (const oe of orderEdges) {
+        if (oe.node.cancelledAt) continue;
+        for (const le of oe.node.lineItems?.edges || []) {
+          const li = le.node;
+          if (!li.sellingPlan || !li.product?.handle) continue;
+          const existing = orderSubItems.get(li.product.handle);
+          if (existing) { existing.deliveries += 1; continue; }
+          orderSubItems.set(li.product.handle, {
+            handle: li.product.handle,
+            title: li.product.title,
+            imageUrl: li.product.featuredImage?.url || "",
+            variantTitle: li.variant?.title && li.variant.title !== "Default Title" ? li.variant.title : "",
+            price: parseFloat(li.originalUnitPriceSet?.shopMoney?.amount || "0") || 0,
+            quantity: li.quantity || 1,
+            planName: li.sellingPlan?.name || "",
+            deliveries: 1,
+            lastOrdered: oe.node.processedAt || "",
+            tags: (li.product.tags || []).map((t: string) => String(t).toLowerCase()),
+          });
+        }
+      }
+      appCache.set(ordersCacheKey, Array.from(orderSubItems.entries()), 300); // 5 min
+    }
   }
+
+  const activePet = pets[petIndex] || pets[0] || null;
 
   // ── Per-pet helpers ──────────────────────────────────────────
   const esc = (v: any) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -2168,6 +2193,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           });
         });
       }
+      if (typeof pkHideLoader === 'function') pkHideLoader();
 </script>
 
   `;

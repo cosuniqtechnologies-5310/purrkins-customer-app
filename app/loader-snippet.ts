@@ -37,9 +37,9 @@ export const getLoaderHtml = (visibleByDefault = true) => `
       transition: opacity 0.35s ease, visibility 0.35s ease;
     }
     .pk-loader-overlay.pk-loader-hidden {
-      opacity: 0;
-      visibility: hidden;
-      pointer-events: none;
+      opacity: 0 !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
     }
     .pk-loader-inner {
       display: flex;
@@ -104,6 +104,7 @@ export const getLoaderHtml = (visibleByDefault = true) => `
         pkAdjustLoaderPosition();
         var overlays = document.querySelectorAll('.pk-loader-overlay');
         for (var i = 0; i < overlays.length; i++) {
+          overlays[i].style.display = 'flex';
           overlays[i].classList.remove('pk-loader-hidden');
           var vids = overlays[i].querySelectorAll('video');
           for (var j = 0; j < vids.length; j++) {
@@ -118,6 +119,13 @@ export const getLoaderHtml = (visibleByDefault = true) => `
         var overlays = document.querySelectorAll('.pk-loader-overlay');
         for (var i = 0; i < overlays.length; i++) {
           overlays[i].classList.add('pk-loader-hidden');
+          (function(el) {
+            setTimeout(function() {
+              if (el && el.classList.contains('pk-loader-hidden')) {
+                el.style.display = 'none';
+              }
+            }, 250);
+          })(overlays[i]);
         }
       }
 
@@ -137,14 +145,13 @@ export const getLoaderHtml = (visibleByDefault = true) => `
         }
       }
 
-      if (document.readyState === 'complete') {
-        setTimeout(pkHideLoader, 150);
+      if (document.readyState === 'interactive' || document.readyState === 'complete') {
+        pkHideLoader();
       } else {
-        window.addEventListener('load', function() {
-          setTimeout(pkHideLoader, 150);
-        });
+        document.addEventListener('DOMContentLoaded', pkHideLoader);
+        window.addEventListener('load', pkHideLoader);
       }
-      setTimeout(pkHideLoader, 3500);
+      setTimeout(pkHideLoader, 400);
     })();
   </script>
 `;

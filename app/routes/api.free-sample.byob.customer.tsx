@@ -1,5 +1,6 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate, unauthenticated } from "../shopify.server";
+import { appCache } from "../cache.server";
 import fs from "fs";
 import path from "path";
 
@@ -159,6 +160,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
+    appCache.delPrefix("customer:");
     return Response.json({ success: true, message: "Quiz saved successfully" });
   } catch (error: any) {
     console.error("[BYOB] API Error:", error);

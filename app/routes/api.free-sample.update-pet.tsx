@@ -1,5 +1,6 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate, unauthenticated } from "../shopify.server";
+import { appCache } from "../cache.server";
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
     return Response.json({ success: false, message: "Method not allowed" }, { status: 405 });
@@ -128,6 +129,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
              return Response.json({ success: false, message: "Metaobject Image Update failed", errors: moUpErrors }, { status: 400 });
           }
           
+          appCache.delPrefix("customer:");
           return Response.json({ success: true, message: "Image updated successfully! New File ID: " + newFileId + ". Please go back and hard refresh to clear Shopify's cache." });
         }
       } catch (err: any) {
@@ -136,6 +138,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
+    appCache.delPrefix("customer:");
     return Response.json({ success: true, message: "Profile updated successfully!" });
 
   } catch (error: any) {

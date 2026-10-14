@@ -3,6 +3,7 @@ import prisma from "../db.server";
 import jwt from "jsonwebtoken";
 import { unauthenticated } from "../shopify.server";
 import { getLoaderHtml } from "../loader-snippet";
+import { appCache } from "../cache.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -26,7 +27,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       isTokenPresentAndInvalid = true;
     }
   }
-  
+
+  const loggedInCust = url.searchParams.get("logged_in_customer_id");
+  if (!customerId && loggedInCust) {
+    customerId = loggedInCust.startsWith("gid://shopify/Customer/")
+      ? loggedInCust
+      : `gid://shopify/Customer/${loggedInCust}`;
+  }
+
   if (!customerId) {
     if (isTokenPresentAndInvalid) {
       return new Response(`
@@ -65,93 +73,99 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
 
-  // Use unauthenticated.admin to ensure token refresh is handled
-  const { admin } = await unauthenticated.admin("purrkins-mhrlfymw.myshopify.com");
-  if (!admin) {
-    console.error("Admin access denied");
-    return new Response("<script>window.location.href='/apps/purrkins/login';</script>", {
-      headers: { "Content-Type": "application/liquid" }
-    });
-  }
+  const dashboardCacheKey = `customer:dashboard:${customerId}`;
+  let customer = appCache.get<any>(dashboardCacheKey);
 
-  const graphqlRes = await admin.graphql(`
-          query($id: ID!) {
-            customer(id: $id) {
-              firstName
-              lastName
-              email
-              phone
-              defaultAddress {
-                id
+  if (!customer) {
+    const { admin } = await unauthenticated.admin("purrkins-mhrlfymw.myshopify.com");
+    if (!admin) {
+      console.error("Admin access denied");
+      return new Response("<script>window.location.href='/apps/purrkins/login';</script>", {
+        headers: { "Content-Type": "application/liquid" }
+      });
+    }
+
+    const graphqlRes = await admin.graphql(`
+            query($id: ID!) {
+              customer(id: $id) {
                 firstName
                 lastName
-                country
-                province
-                zip
-                address1
-                address2
-                city
+                email
                 phone
-              }
-              addresses(first: 10) {
-                id
-                name
-                firstName
-                lastName
-                phone
-                address1
-                address2
-                city
-                province
-                zip
-                country
-              }
-              orders(first: 5, sortKey: CREATED_AT, reverse: true) {
-                edges {
-                  node {
-                    name
-                    createdAt
-                    totalPriceSet { shopMoney { amount currencyCode } }
-                    displayFulfillmentStatus
-                    statusPageUrl
-                    lineItems(first: 1) { edges { node { title } } }
-                  }
+                defaultAddress {
+                  id
+                  firstName
+                  lastName
+                  country
+                  province
+                  zip
+                  address1
+                  address2
+                  city
+                  phone
                 }
-              }
-              pets: metafield(namespace: "custom", key: "pets") {
-                references(first: 10) {
-                  nodes {
-                    ... on Metaobject {
-                      id
-                      name: field(key: "name") { value }
-                      age: field(key: "age") { value }
-                      profile: field(key: "profile") { reference { ... on MediaImage { image { url } } } }
+                addresses(first: 10) {
+                  id
+                  name
+                  firstName
+                  lastName
+                  phone
+                  address1
+                  address2
+                  city
+                  province
+                  zip
+                  country
+                }
+                orders(first: 5, sortKey: CREATED_AT, reverse: true) {
+                  edges {
+                    node {
+                      name
+                      createdAt
+                      totalPriceSet { shopMoney { amount currencyCode } }
+                      displayFulfillmentStatus
+                      statusPageUrl
+                      lineItems(first: 1) { edges { node { title } } }
                     }
                   }
                 }
-              }
-              wishlist: metafield(namespace: "custom", key: "wishlist") {
-                references(first: 10) {
-                  nodes {
-                    ... on Product {
-                      id
-                      title
-                      handle
-                      featuredImage { url altText }
-                      priceRange { minVariantPrice { amount currencyCode } } variants(first: 1) { edges { node { id title price } } }
+                pets: metafield(namespace: "custom", key: "pets") {
+                  references(first: 10) {
+                    nodes {
+                      ... on Metaobject {
+                        id
+                        name: field(key: "name") { value }
+                        age: field(key: "age") { value }
+                        profile: field(key: "profile") { reference { ... on MediaImage { image { url } } } }
+                      }
+                    }
+                  }
+                }
+                wishlist: metafield(namespace: "custom", key: "wishlist") {
+                  references(first: 10) {
+                    nodes {
+                      ... on Product {
+                        id
+                        title
+                        handle
+                        featuredImage { url altText }
+                        priceRange { minVariantPrice { amount currencyCode } } variants(first: 1) { edges { node { id title price } } }
+                      }
                     }
                   }
                 }
               }
             }
-          }
-        `, { variables: { id: customerId } });
-  const data = await graphqlRes.json() as any;
-  if (data.errors) {
-    console.error("GraphQL errors:", JSON.stringify(data.errors));
+          `, { variables: { id: customerId } });
+    const data = await graphqlRes.json() as any;
+    if (data.errors) {
+      console.error("GraphQL errors:", JSON.stringify(data.errors));
+    }
+    customer = data?.data?.customer || {};
+    if (data?.data?.customer) {
+      appCache.set(dashboardCacheKey, customer, 180); // 3 minutes cache
+    }
   }
-  const customer = data?.data?.customer || {};
-  console.log("DASHBOARD WISHLIST DATA:", JSON.stringify(customer.wishlist, null, 2));
 
   const defaultAddress = customer.defaultAddress || {};
   // Escape values placed inside HTML attributes so quotes/angle brackets can't break the form
@@ -1532,6 +1546,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         zip: "${escAttr(defaultAddress.zip)}",
         country: "${escAttr(defaultAddress.country || 'India')}"
       }));
+      if (typeof pkHideLoader === 'function') pkHideLoader();
     </script>
 
     <!-- Add Address Modal -->
