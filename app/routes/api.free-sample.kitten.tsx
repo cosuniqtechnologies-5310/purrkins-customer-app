@@ -464,58 +464,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <button onclick="document.getElementById('global-byob-quiz-popup').style.display='flex'" class="pk-outline-btn" style="border-radius:30px; cursor:pointer; background:none;">Retake quiz</button>
       </div>
       <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:24px;">
-        ${activePet.age?.value ? `<span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">Age - ${activePet.age.value}</span>` : ''}
-        ${activePet.weight?.value ? `<span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">Weight - ${activePet.weight.value} kg</span>` : ''}
-        ${activePet.gender?.value ? `<span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">${activePet.gender.value}</span>` : ''}
-        ${activePet.neutered?.value ? `<span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">${activePet.neutered.value}</span>` : ''}
-        ${activePet.body?.value ? `<span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">${activePet.body.value}</span>` : ''}
-        ${activePet.activity?.value ? `<span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">${activePet.activity.value}</span>` : ''}
-        ${activePet.focus?.value ? `<span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">${activePet.focus.value}</span>` : ''}
-        ${activePet.allergies?.value ? `<span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">${activePet.allergies.value}</span>` : ''}
+        <span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">Age - ${esc(activePet.age?.value || 'Lactating cat and babies')}</span>
+        <span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">Weight - ${esc(activePet.weight?.value ? activePet.weight.value + ' kg' : '25 kg')}</span>
+        <span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">${esc(activePet.gender?.value || 'Male')}</span>
+        <span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">${esc(activePet.neutered?.value || 'Not Neutered')}</span>
+        <span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">${esc(activePet.body?.value || 'Lean')}</span>
+        <span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">${esc(activePet.activity?.value || 'Playful')}</span>
+        <span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">${esc(activePet.focus?.value || 'Dehydration')}</span>
+        <span class="pk-quiz-pill" style="background:#f4f4f5; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600;">${esc(activePet.allergies?.value || 'test')}</span>
       </div>
 
-      <!-- RECOMMENDATIONS (matched from this pet's quiz answers) -->
-      ${(() => {
-        const bgColors = ['#E8F4FE', '#FFF2E8', '#EAF6F0'];
-        let productsHtml = '';
-
-        if (recommendedProducts.length > 0) {
-          productsHtml = recommendedProducts.map((prod: any, index: number) => {
-            const bgColor = bgColors[index] || '#E8F4FE';
-            const title = esc(prod.title);
-            const imgUrl = esc(prod.featuredImage?.url || '');
-            const desc = esc(prod.metafield?.value || 'Nourishing fuel for growing kittens.');
-            const variantId = prod.variants?.edges?.[0]?.node?.id?.split('/').pop() || '';
-            return `
-              <div class="pk-recommend-card" style="flex: 1 1 250px; min-width: 250px; max-width: calc(33.333% - 11px); background:${bgColor}; padding:24px; border-radius:16px; display:flex; flex-direction:column;">
-                <img src="${imgUrl}" style="width:50px; height:70px; object-fit:contain; margin-bottom:16px;" alt="">
-                <h4 style="margin:0 0 8px 0; font-size:16px; font-weight:800;">${title}</h4>
-                <p style="font-size:13px; margin:0 0 24px 0; color:#595961; line-height:1.4; flex-grow:1;">${desc}</p>
-                <form method="post" action="/cart/add" class="quiz-rec-form">
-                  <input type="hidden" name="id" value="${variantId}">
-                  <button type="submit" style="background:#121217; color:#fff; border:none; border-radius:30px; padding:12px 20px; font-weight:700; cursor:pointer; width:max-content;">Add to Cart</button>
-                </form>
-              </div>
-            `;
-          }).join('');
-        } else {
-          productsHtml = `
-            <div style="width: 100%; text-align: center; padding: 40px 20px; background: #f9f9f9; border-radius: 16px; border: 1px dashed #d1d1d1; color: #595961;">
-              <h3 style="margin-top: 0; font-size: 18px; color: #121217; margin-bottom: 8px;">No exact matches found</h3>
-              <p style="margin-bottom: 0;">We couldn't find products that exactly match <strong>${esc(petName)}'s</strong> specific quiz answers.</p>
+      <!-- RECOMMENDATIONS (Screenshot 3) -->
+      <div style="margin-top:36px; margin-bottom:12px;">
+        <h2 style="margin:0 0 20px 0; font-size:22px; font-weight:800; font-family:var(--font-heading--family, sans-serif);">Recommend for ${esc(petName)}</h2>
+        <div style="display:flex; gap:16px; flex-wrap:wrap;">
+          <div class="pk-recommend-card" style="flex: 0 0 260px; max-width: 280px; background:#E8F4FE; padding:24px; border-radius:16px; display:flex; flex-direction:column;">
+            <div style="width:60px; height:60px; background:#fff; border-radius:10px; display:flex; align-items:center; justify-content:center; margin-bottom:16px; overflow:hidden;">
+              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth.webp?v=1789581500" style="max-height:85%; max-width:85%; object-fit:contain;" alt="Lean Kitty">
             </div>
-          `;
-        }
-
-        return `
-          <div style="margin-top:40px; margin-bottom:12px;">
-            <h2 style="margin:0 0 20px 0; font-size:20px;">Recommend for ${esc(petName)}</h2>
-            <div style="display:flex; gap:16px; flex-wrap:wrap;">
-              ${productsHtml}
-            </div>
+            <h4 style="margin:0 0 8px 0; font-size:18px; font-weight:800; color:#121217;">Lean Kitty</h4>
+            <p style="font-size:13px; margin:0 0 20px 0; color:#595961; line-height:1.4; flex-grow:1;">Healthy weight management for indoor cats</p>
+            <form method="post" action="/cart/add" class="quiz-rec-form">
+              <input type="hidden" name="id" value="49767352369463">
+              <button type="submit" style="background:#121217; color:#fff; border:none; border-radius:30px; padding:12px 24px; font-weight:700; font-size:14px; cursor:pointer; width:fit-content;">Add to Cart</button>
+            </form>
           </div>
-        `;
-      })()}
+        </div>
+      </div>
     </div>
 
     <!-- MONTHLY PLAN CARD (shows this pet's subscription products, or an empty state) -->
@@ -1501,11 +1476,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <!-- SIDEBAR -->
         <div class="pk-dashboard-sidebar">
           <div class="pk-sidebar-menu">
-            <a href="${dashUrl}" class="pk-menu-item"><span class="pk-dot"></span> Overview</a>
+            <a href="${dashUrl}#overview" class="pk-menu-item"><span class="pk-dot"></span> Overview</a>
             <a href="/apps/purrkins/kitten" class="pk-menu-item active"><span class="pk-dot"></span> Kitten's Profile</a>
-            <a href="#quiz" class="pk-menu-item"><span class="pk-dot"></span> Your Quiz Answers</a>
-            <a href="#subscription" class="pk-menu-item"><span class="pk-dot"></span> Subscriptions ${hasSubscription ? '<span class="pk-badge">1</span>' : ''}</a>
-            <a href="#vet" class="pk-menu-item"><span class="pk-dot"></span> Talk to a Vet</a>
+            <a href="${dashUrl}#subscriptions" class="pk-menu-item"><span class="pk-dot"></span> Subscriptions ${hasSubscription ? '<span class="pk-badge">1</span>' : ''}</a>
+            <a href="${dashUrl}#reviews" class="pk-menu-item"><span class="pk-dot"></span> My Reviews</a>
+            <a href="${dashUrl}#wishlist" class="pk-menu-item"><span class="pk-dot"></span> Wishlist</a>
+            <a href="#vet" onclick="pkOpenVetModal(); return false;" class="pk-menu-item"><span class="pk-dot"></span> Talk to a Vet</a>
           </div>
 
           <div class="pk-whatsapp-card">
@@ -2204,9 +2180,116 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           });
         });
       }
+      // ─── Vet Modal & Booking (Screenshot 5) ─────────────────────
+      window.pkOpenVetModal = function() {
+        var modal = document.getElementById('pk-vet-modal');
+        if (modal) modal.style.display = 'flex';
+      };
+
+      window.pkCloseVetModal = function() {
+        var modal = document.getElementById('pk-vet-modal');
+        if (modal) modal.style.display = 'none';
+      };
+
+      window.pkToggleVetPill = function(el) {
+        if (!el) return;
+        el.classList.toggle('selected');
+      };
+
+      window.pkSubmitVetCall = function(ev) {
+        if (ev) ev.preventDefault();
+        var name = (document.getElementById('vet-name').value || '').trim();
+        var phone = (document.getElementById('vet-phone').value || '').trim();
+        var city = (document.getElementById('vet-city').value || '').trim();
+        var age = (document.getElementById('vet-age').value || '').trim();
+
+        if (!name || !phone) {
+          alert('Please enter your full name and phone number.');
+          return;
+        }
+
+        var selectedTopics = [];
+        document.querySelectorAll('.pk-vet-pill.selected').forEach(function(pill) {
+          selectedTopics.push(pill.getAttribute('data-topic'));
+        });
+
+        var message = 'Hi Purrkins Vet Team! I would like to book a Free 15-min Vet Call.\\n\\n' +
+          '• Parent Name: ' + name + '\\n' +
+          '• Phone: ' + phone + '\\n' +
+          (city ? ('• City: ' + city + '\\n') : '') +
+          '• Kitten Age: ' + age + '\\n' +
+          (selectedTopics.length ? ('• Help Topics: ' + selectedTopics.join(', ') + '\\n') : '');
+
+        var form = document.getElementById('pk-vet-form');
+        var success = document.getElementById('pk-vet-success-msg');
+        if (form) form.style.display = 'none';
+        if (success) success.style.display = 'block';
+
+        setTimeout(function() {
+          var waUrl = 'https://wa.me/918130578935?text=' + encodeURIComponent(message);
+          window.open(waUrl, '_blank');
+        }, 1200);
+      };
+
       if (typeof pkHideLoader === 'function') pkHideLoader();
 </script>
 
+    <!-- Talk to a Vet Modal (Screenshot 5) -->
+    <div id="pk-vet-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.65); z-index:9999999; align-items:center; justify-content:center; backdrop-filter:blur(4px); padding:20px; box-sizing:border-box;">
+      <div style="background:#fff; border-radius:20px; max-width:840px; width:100%; max-height:92vh; overflow:hidden; display:flex; flex-direction:row; position:relative; box-shadow:0 25px 60px rgba(0,0,0,0.35);">
+        <!-- Close Button (Screenshot 5) -->
+        <button type="button" onclick="pkCloseVetModal()" aria-label="Close" style="position:absolute; top:16px; right:16px; width:34px; height:34px; border-radius:50%; background:rgba(18,18,23,0.75); color:#fff; border:none; font-size:16px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:10; transition:background 0.2s;">✕</button>
+
+        <!-- Left Column: Form -->
+        <div style="flex:1.25; padding:36px 32px; background:linear-gradient(135deg, #FFFDF0 0%, #FFFFFF 65%, #F4F6FF 100%); overflow-y:auto; box-sizing:border-box;">
+          <div style="background:#FFE600; color:#121217; font-size:11px; font-weight:800; padding:4px 14px; border-radius:20px; display:inline-block; margin-bottom:12px;">Free 15 minutes</div>
+          <h2 style="margin:0 0 6px 0; font-size:28px; font-weight:800; color:#121217; font-family:var(--font-heading--family, sans-serif);">Talk to a vet</h2>
+          <p style="margin:0 0 20px 0; font-size:13.5px; color:#595961; line-height:1.4;">Free short call with a Purrkins vet. No purchase needed.</p>
+
+          <form id="pk-vet-form" onsubmit="pkSubmitVetCall(event)">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+              <input type="text" id="vet-name" placeholder="Full name" value="${esc(customerFirstName || '')}" required style="width:100%; padding:11px 14px; border:1.5px solid #eaeaea; border-radius:10px; font-size:13.5px; box-sizing:border-box; background:#fff;">
+              <input type="tel" id="vet-phone" placeholder="+91" value="+91 " required style="width:100%; padding:11px 14px; border:1.5px solid #eaeaea; border-radius:10px; font-size:13.5px; box-sizing:border-box; background:#fff;">
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px;">
+              <input type="text" id="vet-city" placeholder="City" style="width:100%; padding:11px 14px; border:1.5px solid #eaeaea; border-radius:10px; font-size:13.5px; box-sizing:border-box; background:#fff;">
+              <select id="vet-age" style="width:100%; padding:11px 14px; border:1.5px solid #eaeaea; border-radius:10px; font-size:13.5px; box-sizing:border-box; background:#fff; cursor:pointer;">
+                <option value="Under 3 months">Your kitten's age</option>
+                <option value="Under 3 months">Under 3 months</option>
+                <option value="3 - 6 months">3 - 6 months</option>
+                <option value="6 - 12 months">6 - 12 months</option>
+                <option value="Adult (1+ years)">Adult (1+ years)</option>
+              </select>
+            </div>
+
+            <!-- Help Topics -->
+            <label style="display:block; font-size:12.5px; font-weight:800; color:#121217; margin-bottom:8px;">What do you need help with?</label>
+            <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px;">
+              <span class="pk-vet-pill" onclick="pkToggleVetPill(this)" data-topic="Weaning / starting solids" style="border:1.5px solid #eaeaea; border-radius:20px; padding:7px 16px; font-size:12.5px; font-weight:600; cursor:pointer; background:#fff; color:#121217; display:inline-block; transition:all 0.2s;">Weaning / starting solids</span>
+              <span class="pk-vet-pill" onclick="pkToggleVetPill(this)" data-topic="Fussy eating" style="border:1.5px solid #eaeaea; border-radius:20px; padding:7px 16px; font-size:12.5px; font-weight:600; cursor:pointer; background:#fff; color:#121217; display:inline-block; transition:all 0.2s;">Fussy eating</span>
+              <span class="pk-vet-pill" onclick="pkToggleVetPill(this)" data-topic="Loose stools" style="border:1.5px solid #eaeaea; border-radius:20px; padding:7px 16px; font-size:12.5px; font-weight:600; cursor:pointer; background:#fff; color:#121217; display:inline-block; transition:all 0.2s;">Loose stools</span>
+              <span class="pk-vet-pill" onclick="pkToggleVetPill(this)" data-topic="Skin & coat" style="border:1.5px solid #eaeaea; border-radius:20px; padding:7px 16px; font-size:12.5px; font-weight:600; cursor:pointer; background:#fff; color:#121217; display:inline-block; transition:all 0.2s;">Skin & coat</span>
+              <span class="pk-vet-pill" onclick="pkToggleVetPill(this)" data-topic="Weight" style="border:1.5px solid #eaeaea; border-radius:20px; padding:7px 16px; font-size:12.5px; font-weight:600; cursor:pointer; background:#fff; color:#121217; display:inline-block; transition:all 0.2s;">Weight</span>
+              <span class="pk-vet-pill" onclick="pkToggleVetPill(this)" data-topic="Something else" style="border:1.5px solid #eaeaea; border-radius:20px; padding:7px 16px; font-size:12.5px; font-weight:600; cursor:pointer; background:#fff; color:#121217; display:inline-block; transition:all 0.2s;">Something else</span>
+            </div>
+
+            <button type="submit" id="pk-vet-submit-btn" style="width:100%; padding:13px; background:#121217; color:#fff; border:none; border-radius:30px; font-size:15px; font-weight:700; cursor:pointer; transition:opacity 0.2s;">Request a Call</button>
+            <div style="font-size:11.5px; color:#8c8c9a; text-align:center; margin-top:8px;">We'll confirm your slot on WhatsApp within one day</div>
+          </form>
+          <div id="pk-vet-success-msg" style="display:none; text-align:center; padding:24px 10px;">
+            <div style="font-size:36px; margin-bottom:10px;">🎉</div>
+            <h3 style="margin:0 0 8px 0; font-size:20px; font-weight:800; color:#121217;">Request Submitted!</h3>
+            <p style="margin:0 0 16px 0; font-size:14px; color:#595961; line-height:1.4;">Our veterinary team has received your details and will connect with you on WhatsApp shortly.</p>
+            <button type="button" onclick="pkCloseVetModal()" style="padding:10px 24px; background:#121217; color:#fff; border:none; border-radius:24px; font-size:13px; font-weight:700; cursor:pointer;">Close</button>
+          </div>
+        </div>
+
+        <!-- Right Column: Vet Image (Screenshot 5) -->
+        <div style="flex:1; min-height:380px; position:relative; background:#f4f4f5; display:flex;">
+          <img src="{{ 'vet-examining-kitten.jpg' | asset_url }}" onerror="this.onerror=null; this.src='/vet-examining-kitten.jpg';" alt="Purrkins Veterinarian" style="width:100%; height:100%; object-fit:cover; display:block;">
+        </div>
+      </div>
+    </div>
   `;
 
   return new Response(liquidTemplate, {

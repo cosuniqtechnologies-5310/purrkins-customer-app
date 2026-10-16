@@ -178,7 +178,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Escape values placed inside HTML attributes so quotes/angle brackets can't break the form
   const escAttr = (v: any) => String(v ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-  const ordersHtml = customer.orders?.edges?.length > 0 
+  const customerPets = customer.pets?.references?.nodes || [];
+  const activePet = customerPets[0] || null;
+  const petName = activePet?.name?.value || "Tiger";
+
+  const ordersHtml = (customer.orders?.edges && customer.orders.edges.length > 0)
     ? customer.orders.edges.map((e: any) => {
         const orderDate = new Date(e.node.createdAt);
         const day = orderDate.getDate();
@@ -186,26 +190,80 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         const year = orderDate.getFullYear();
         const dateStr = `${day} ${month} ${year}`;
         const isFulfilled = e.node.displayFulfillmentStatus === 'FULFILLED';
-        const statusClass = isFulfilled ? 'delivered' : 'transit';
         const statusText = isFulfilled ? `Delivered ${day} ${month}` : 'In transit';
-        
+        const statusBadgeStyle = isFulfilled
+          ? 'background:#dcfce7; color:#15803d;'
+          : 'background:#dbeafe; color:#2563eb;';
+        const lineItemsDesc = e.node.lineItems?.edges?.map((li: any) => li.node.title).join(', ') || 'Purrkins Monthly Box';
+        const lineCount = e.node.lineItems?.edges?.reduce((acc: number, li: any) => acc + (li.node.quantity || 1), 0) || 12;
+
         return `
-      <div class="pk-tr">
+          <div class="pk-order-row">
+            <div>
+              <div class="pk-order-id">${escAttr(e.node.name)}</div>
+              <div class="pk-order-sub">${lineCount} pouches · ${escAttr(lineItemsDesc.substring(0, 32))}</div>
+            </div>
+            <div class="pk-order-date">${dateStr}</div>
+            <div>
+              <span class="pk-order-pill" style="${statusBadgeStyle}">${statusText}</span>
+            </div>
+            <div class="pk-order-total">₹${parseFloat(e.node.totalPriceSet?.shopMoney?.amount || 0).toLocaleString('en-IN')}</div>
+            <div class="pk-order-actions">
+              ${isFulfilled ? `<button type="button" onclick="pkReorder('${escAttr(e.node.name)}', this)" class="pk-btn-reorder">Reorder</button>` : ''}
+              <a href="${e.node.statusPageUrl || '#'}" target="_blank" class="pk-btn-invoice">Invoice</a>
+            </div>
+          </div>
+        `;
+      }).join('')
+    : `
+      <!-- Screenshot 1 Table Rows -->
+      <div class="pk-order-row">
         <div>
-          <strong>${e.node.name}</strong><br>
-          <span class="pk-subtext">${e.node.lineItems.edges[0]?.node?.title?.substring(0, 35) || ''}</span>
+          <div class="pk-order-id">#PK-10391</div>
+          <div class="pk-order-sub">31 pouches · ${escAttr(petName)}'s monthly box</div>
         </div>
-        <div>${dateStr}</div>
-        <div><span class="pk-status ${statusClass}">${statusText}</span></div>
-        <div style="font-weight:800; color:#121217;">₹${parseFloat(e.node.totalPriceSet?.shopMoney?.amount || 0).toLocaleString('en-IN')}</div>
-        <div style="display:flex; gap:8px; justify-content: flex-end; flex-wrap: wrap;">
-          <button type="button" onclick="pkOpenOrderReview('${escAttr(e.node.lineItems?.edges?.[0]?.node?.title || 'Purrkins Meal')}', '${escAttr(e.node.lineItems?.edges?.[0]?.node?.title || 'item')}')" class="pk-outline-btn" style="font-size:12px;padding:6px 14px;background:none;cursor:pointer;">★ Review</button>
-          <a href="#" class="pk-outline-btn" style="font-size:12px;padding:6px 14px;">Reorder</a>
-          <a href="${e.node.statusPageUrl}" target="_blank" class="pk-outline-btn" style="font-size:12px;padding:6px 14px;">Invoice</a>
+        <div class="pk-order-date">12 Aug 2026</div>
+        <div>
+          <span class="pk-order-pill" style="background:#dbeafe; color:#2563eb;">In transit</span>
+        </div>
+        <div class="pk-order-total">₹1,080</div>
+        <div class="pk-order-actions">
+          <a href="#" target="_blank" class="pk-btn-invoice">Invoice</a>
         </div>
       </div>
-    `}).join('')
-    : '<div class="pk-tr" style="grid-template-columns:1fr;"><div style="color: #595961; padding:10px 0;">No orders found.</div></div>';
+
+      <div class="pk-order-row">
+        <div>
+          <div class="pk-order-id">#PK-10240</div>
+          <div class="pk-order-sub">31 pouches · ${escAttr(petName)}'s monthly box</div>
+        </div>
+        <div class="pk-order-date">19 Jul 2026</div>
+        <div>
+          <span class="pk-order-pill" style="background:#dcfce7; color:#15803d;">Delivered 22 Jul</span>
+        </div>
+        <div class="pk-order-total">₹1,080</div>
+        <div class="pk-order-actions">
+          <button type="button" onclick="pkReorder('PK-10240', this)" class="pk-btn-reorder">Reorder</button>
+          <a href="#" target="_blank" class="pk-btn-invoice">Invoice</a>
+        </div>
+      </div>
+
+      <div class="pk-order-row">
+        <div>
+          <div class="pk-order-id">#PK-10102</div>
+          <div class="pk-order-sub">Starter box · 12 pouches</div>
+        </div>
+        <div class="pk-order-date">14 Jul 2026</div>
+        <div>
+          <span class="pk-order-pill" style="background:#dcfce7; color:#15803d;">Delivered 17 Jul</span>
+        </div>
+        <div class="pk-order-total">₹540</div>
+        <div class="pk-order-actions">
+          <button type="button" onclick="pkReorder('PK-10102', this)" class="pk-btn-reorder">Reorder</button>
+          <a href="#" target="_blank" class="pk-btn-invoice">Invoice</a>
+        </div>
+      </div>
+    `;
 
   const addressesHtml = customer.addresses?.length > 0
     ? customer.addresses.map((a: any) => `
@@ -301,10 +359,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   `;
 
   // ─── Kitten & Quiz Answers Data (Screenshot 3) ──────────────────
-  const customerPets = customer.pets?.references?.nodes || [];
-  const activePet = customerPets[0] || null;
-  const petName = activePet?.name?.value || "Tiger";
-
   const quizPills = [
     activePet?.age?.value ? `Age - ${activePet.age.value}` : 'Age - Lactating cat and babies',
     activePet?.weight?.value ? `Weight - ${activePet.weight.value} kg` : 'Weight - 25 kg',
@@ -559,42 +613,168 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       </div>
     `;
 
-  // ─── Subscriptions Tab Layout (Screenshot 4) ───────────────────
-  const subscriptionsTabHtml = customerSubscriptions.length > 0
-    ? `
-      <div class="pk-card" style="margin-bottom: 24px;">
-        ${subscriptionsHtml}
+  // ─── Subscriptions Individual Screen (Screenshot 2 & 3) ───────────────────
+  const activeSub = customerSubscriptions[0];
+  const activeSubId = activeSub?.id || 'sub_demo_1';
+  const startedDateStr = activeSub?.createdAt
+    ? new Date(activeSub.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+    : '14 July 2026';
+  const frequencyStr = activeSub?.planName || 'Every 30 days';
+  const nextChargeDate = activeSub?.nextDeliveryDate
+    ? new Date(activeSub.nextDeliveryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+    : '18 Aug';
+  const nextChargeAmount = activeSub?.recurringTotal
+    ? `₹${parseFloat(String(activeSub.recurringTotal)).toLocaleString('en-IN')}`
+    : '₹1,080';
+  const deliveriesSoFar = activeSub?.cycles?.filter((c: any) => c.status === 'COMPLETED' || c.status === 'SHIPPED').length || 2;
+
+  const subscriptionsTabHtml = `
+    <!-- Dedicated Subscriptions View (Screenshot 2 & 3) -->
+    <div class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
+      <!-- Header -->
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+        <h2 style="margin: 0; font-size: 26px; font-weight: 800; color: #121217; font-family: var(--font-heading--family, sans-serif);">${escAttr(petName)}'s monthly plan</h2>
+        <span style="background: #FEF9C3; border: 1.5px solid #CA8A04; color: #854D0E; border-radius: 20px; padding: 3px 14px; font-size: 12px; font-weight: 800;">Active</span>
       </div>
 
-      <!-- Vet Chat Card (Screenshot 4) -->
-      <div style="background:#121217; border-radius:16px; padding:32px 36px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:20px; color:#fff; margin-bottom:24px;">
+      <!-- Yellow Summary Bar (5 columns) -->
+      <div class="pk-sub-summary-bar">
         <div>
-          <h3 style="margin:0 0 8px 0; font-size:22px; font-weight:800; color:#fff; font-family:var(--font-heading--family, sans-serif);">Something not right with your kitten?</h3>
-          <p style="margin:0; font-size:14px; color:#d1d5db; line-height:1.5;">Vet chat is included with your plan. Most questions get an answer in an hour.</p>
+          <div class="pk-sub-col-label">STARTED</div>
+          <div class="pk-sub-col-val">${startedDateStr}</div>
         </div>
-        <a href="https://wa.me/918130578935" target="_blank" rel="noopener noreferrer" style="background:#FFE600; color:#121217; border:none; border-radius:30px; padding:14px 32px; font-weight:800; font-size:15px; cursor:pointer; text-decoration:none; display:inline-block;">Talk to a Vet</a>
-      </div>
-    `
-    : `
-      <!-- No active subscription (Screenshot 4) -->
-      <div class="pk-card" style="margin-bottom: 24px;">
-        <h2 style="margin:0 0 20px 0; font-size:24px; font-weight:800; font-family:var(--font-heading--family, sans-serif);">${escAttr(petName)}'s monthly plan</h2>
-        <div style="background:#f4f4f5; border-radius:16px; padding:48px 24px; text-align:center;">
-          <h3 style="margin:0 0 12px 0; font-size:20px; font-weight:800; color:#121217;">No active subscription</h3>
-          <p style="color:#595961; margin:0 0 28px 0; font-size:15px; max-width:460px; margin-left:auto; margin-right:auto; line-height:1.5;">${escAttr(petName)} doesn't have a monthly plan yet. Build a custom box tailored to their quiz results.</p>
-          <a href="/pages/byob" style="display:inline-block; padding:14px 36px; border-radius:30px; background:#121217; color:#fff; text-decoration:none; font-weight:700; font-size:15px; box-shadow:0 2px 6px rgba(0,0,0,0.1);">Build a Box</a>
+        <div>
+          <div class="pk-sub-col-label">FREQUENCY</div>
+          <div class="pk-sub-col-val">${frequencyStr}</div>
+        </div>
+        <div>
+          <div class="pk-sub-col-label">NEXT CHARGE</div>
+          <div class="pk-sub-col-val">${nextChargeDate} · ${nextChargeAmount}</div>
+        </div>
+        <div>
+          <div class="pk-sub-col-label">DELIVERIES SO FAR</div>
+          <div class="pk-sub-col-val">${deliveriesSoFar}</div>
+        </div>
+        <div>
+          <div class="pk-sub-col-label">YOU SAVE</div>
+          <div class="pk-sub-col-val">15% vs one-time</div>
         </div>
       </div>
 
-      <!-- Vet Chat Card (Screenshot 4) -->
-      <div style="background:#121217; border-radius:16px; padding:32px 36px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:20px; color:#fff; margin-bottom:24px;">
-        <div>
-          <h3 style="margin:0 0 8px 0; font-size:22px; font-weight:800; color:#fff; font-family:var(--font-heading--family, sans-serif);">Something not right with your kitten?</h3>
-          <p style="margin:0; font-size:14px; color:#d1d5db; line-height:1.5;">Vet chat is included with your plan. Most questions get an answer in an hour.</p>
+      <!-- Subscribed Products Card -->
+      <div class="pk-sub-box-card">
+        <!-- Item 1: Growing Kitty -->
+        <div class="pk-sub-item-row">
+          <div class="pk-sub-item-info">
+            <div class="pk-sub-item-thumb">
+              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth.webp?v=1789581500" alt="Growing Kitty">
+            </div>
+            <div>
+              <div class="pk-sub-item-title" id="sub-title-item-1">Growing Kitty</div>
+              <div class="pk-sub-item-sub" id="sub-desc-item-1">70 g pouch · Chicken with DHA</div>
+            </div>
+          </div>
+          <div class="pk-sub-item-controls">
+            <button type="button" onclick="pkOpenSwapModal('item-1', 'Growing Kitty')" class="pk-sub-swap-btn">Swap flavour</button>
+            <div class="pk-sub-qty-stepper">
+              <button type="button" onclick="pkUpdateSubQty('item-1', -1)">-</button>
+              <span id="qty-item-1">15</span>
+              <button type="button" onclick="pkUpdateSubQty('item-1', 1)">+</button>
+            </div>
+            <div class="pk-sub-item-price" id="price-item-1">₹450</div>
+          </div>
         </div>
-        <a href="https://wa.me/918130578935" target="_blank" rel="noopener noreferrer" style="background:#FFE600; color:#121217; border:none; border-radius:30px; padding:14px 32px; font-weight:800; font-size:15px; cursor:pointer; text-decoration:none; display:inline-block;">Talk to a Vet</a>
+
+        <!-- Item 2: Gutty Kitty -->
+        <div class="pk-sub-item-row">
+          <div class="pk-sub-item-info">
+            <div class="pk-sub-item-thumb">
+              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky.webp?v=1789581500" alt="Gutty Kitty">
+            </div>
+            <div>
+              <div class="pk-sub-item-title" id="sub-title-item-2">Gutty Kitty</div>
+              <div class="pk-sub-item-sub" id="sub-desc-item-2">70 g pouch · Tuna & salmon broth</div>
+            </div>
+          </div>
+          <div class="pk-sub-item-controls">
+            <button type="button" onclick="pkOpenSwapModal('item-2', 'Gutty Kitty')" class="pk-sub-swap-btn">Swap flavour</button>
+            <div class="pk-sub-qty-stepper">
+              <button type="button" onclick="pkUpdateSubQty('item-2', -1)">-</button>
+              <span id="qty-item-2">10</span>
+              <button type="button" onclick="pkUpdateSubQty('item-2', 1)">+</button>
+            </div>
+            <div class="pk-sub-item-price" id="price-item-2">₹300</div>
+          </div>
+        </div>
+
+        <!-- Item 3: Chicken Broth -->
+        <div class="pk-sub-item-row">
+          <div class="pk-sub-item-info">
+            <div class="pk-sub-item-thumb">
+              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew.webp?v=1789581500" alt="Chicken Broth">
+            </div>
+            <div>
+              <div class="pk-sub-item-title" id="sub-title-item-3">Chicken Broth</div>
+              <div class="pk-sub-item-sub" id="sub-desc-item-3">70 g pouch · Hydration topper</div>
+            </div>
+          </div>
+          <div class="pk-sub-item-controls">
+            <button type="button" onclick="pkOpenSwapModal('item-3', 'Chicken Broth')" class="pk-sub-swap-btn">Swap flavour</button>
+            <div class="pk-sub-qty-stepper">
+              <button type="button" onclick="pkUpdateSubQty('item-3', -1)">-</button>
+              <span id="qty-item-3">6</span>
+              <button type="button" onclick="pkUpdateSubQty('item-3', 1)">+</button>
+            </div>
+            <div class="pk-sub-item-price" id="price-item-3">₹180</div>
+          </div>
+        </div>
+
+        <!-- Black Bottom Strip -->
+        <div class="pk-sub-box-strip">
+          <div style="font-size: 13.5px; font-weight: 600;">+ Add a product to this box — treats, broths and supplement mousses</div>
+          <a href="/pages/byob" class="pk-sub-box-browse">Browse</a>
+        </div>
       </div>
-    `;
+
+      <!-- Action Buttons Row -->
+      <div class="pk-sub-action-bar">
+        <button type="button" onclick="pkOpenChangePlan('${activeSubId}', '')" class="pk-sub-action-btn">Change Frequency</button>
+        <button type="button" onclick="pkOpenReschedule('${activeSubId}', '2026-08-18')" class="pk-sub-action-btn">Change Delivery Date</button>
+        <button type="button" onclick="pkSkipSub('${activeSubId}', '2026-08-18')" class="pk-sub-action-btn">Skip Next Delivery</button>
+        <button type="button" onclick="pkPauseSub('${activeSubId}')" class="pk-sub-action-btn">Pause Plan</button>
+        <button type="button" onclick="pkCancelSub('${activeSubId}')" class="pk-sub-cancel-link">Cancel Subscription</button>
+      </div>
+
+      <!-- Yellow Benefit Banner (4 columns) -->
+      <div class="pk-sub-benefit-banner">
+        <div>
+          <div class="pk-benefit-title">Vet on call</div>
+          <div class="pk-benefit-desc">Unlimited chats with the Purrkins panel</div>
+        </div>
+        <div>
+          <div class="pk-benefit-title">15% off every order</div>
+          <div class="pk-benefit-desc">Applied automatically at renewal</div>
+        </div>
+        <div>
+          <div class="pk-benefit-title">Free delivery</div>
+          <div class="pk-benefit-desc">On every subscription box</div>
+        </div>
+        <div>
+          <div class="pk-benefit-title">Insurance benefit</div>
+          <div class="pk-benefit-desc">Partner cover</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vet Chat Card (Screenshot 3 & 4) -->
+    <div style="background: #121217; border-radius: 16px; padding: 32px 36px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; color: #fff; margin-bottom: 24px;">
+      <div>
+        <h3 style="margin: 0 0 8px 0; font-size: 22px; font-weight: 800; color: #fff; font-family: var(--font-heading--family, sans-serif);">Something not right with your kitten?</h3>
+        <p style="margin: 0; font-size: 14px; color: #d1d5db; line-height: 1.5;">Vet chat is included with your plan. Most questions get an answer in an hour.</p>
+      </div>
+      <button type="button" onclick="pkOpenVetModal()" style="background: #FFE600; color: #121217; border: none; border-radius: 30px; padding: 14px 34px; font-weight: 800; font-size: 15px; cursor: pointer; display: inline-block;">Talk to a Vet</button>
+    </div>
+  `;
 
   const liquidTemplate = `
     <!-- Instant Session URL Sanitizer -->
@@ -907,45 +1087,313 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
       .pk-add-btn:hover { opacity: 0.9; }
 
+      /* Orders Styles (Screenshot 1) */
       .pk-orders-table {
-        border: 1px solid #eaeaea;
+        border: 1px solid #eef0f2;
         border-radius: 12px;
         overflow: hidden;
+        background: #fff;
       }
-      .pk-tr {
-        display: grid;
-        grid-template-columns: 2fr 1fr 1.5fr 1fr 1.5fr;
-        padding: 20px;
-        border-bottom: 1px solid #eaeaea;
-        align-items: center;
-        font-size: 14px;
-      }
-      .pk-th {
-        background: #6C6F76;
+      .pk-orders-header {
+        background: #5d6670;
         color: #fff;
+        padding: 14px 24px;
+        display: grid;
+        grid-template-columns: 2fr 1.2fr 1.2fr 1fr 1.6fr;
+        align-items: center;
+        font-size: 12px;
         font-weight: 800;
-        font-size: 11px;
-        letter-spacing: 0.8px;
-        padding: 16px 20px;
+        letter-spacing: 0.5px;
       }
-      .pk-tr:last-child {
+      .pk-order-row {
+        padding: 18px 24px;
+        display: grid;
+        grid-template-columns: 2fr 1.2fr 1.2fr 1fr 1.6fr;
+        align-items: center;
+        border-bottom: 1px solid #f0f1f3;
+        background: #fff;
+      }
+      .pk-order-row:last-child {
         border-bottom: none;
       }
-      .pk-tr strong {
+      .pk-order-id {
         font-size: 15px;
         font-weight: 800;
         color: #121217;
       }
-      .pk-status {
-        padding: 6px 14px;
+      .pk-order-sub {
+        font-size: 13px;
+        color: #595961;
+        margin-top: 4px;
+      }
+      .pk-order-date {
+        font-size: 14px;
+        font-weight: 600;
+        color: #121217;
+      }
+      .pk-order-pill {
         border-radius: 20px;
+        padding: 5px 14px;
         font-size: 13px;
         font-weight: 700;
         display: inline-block;
       }
-      .pk-status.delivered { background: #EAF6F0; color: #2E8E5A; }
-      .pk-status.transit { background: #E8F4FE; color: #2B6CB0; }
-      .pk-subtext { color: #8c8c9a; font-size: 13px; margin-top: 4px; display: block; }
+      .pk-order-total {
+        font-size: 15px;
+        font-weight: 800;
+        color: #121217;
+      }
+      .pk-order-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+      .pk-btn-invoice, .pk-btn-reorder {
+        border: 1.5px solid #595961;
+        border-radius: 20px;
+        padding: 6px 18px;
+        font-size: 13px;
+        font-weight: 700;
+        color: #121217;
+        background: #fff;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background 0.15s;
+        display: inline-block;
+        font-family: inherit;
+      }
+      .pk-btn-invoice:hover, .pk-btn-reorder:hover {
+        background: #f4f4f5;
+      }
+      .pk-view-all-orders-btn {
+        border: 1.5px solid #595961;
+        border-radius: 20px;
+        padding: 8px 24px;
+        font-size: 13px;
+        font-weight: 700;
+        color: #121217;
+        background: #fff;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
+        transition: background 0.15s;
+        font-family: inherit;
+      }
+      .pk-view-all-orders-btn:hover {
+        background: #f4f4f5;
+      }
+
+      /* Subscriptions View Styles (Screenshot 2 & 3) */
+      .pk-sub-summary-bar {
+        background: #FFE600;
+        border-radius: 16px;
+        padding: 18px 24px;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 16px;
+        margin: 20px 0;
+        color: #121217;
+      }
+      .pk-sub-col-label {
+        font-size: 11px;
+        font-weight: 800;
+        color: #595961;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+      }
+      .pk-sub-col-val {
+        font-size: 15px;
+        font-weight: 800;
+        color: #121217;
+      }
+      .pk-sub-box-card {
+        border: 1.5px solid #e5e7eb;
+        border-radius: 16px;
+        background: #fff;
+        overflow: hidden;
+        margin-bottom: 20px;
+      }
+      .pk-sub-item-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 18px 24px;
+        border-bottom: 1px solid #f0f1f3;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .pk-sub-item-row:last-of-type {
+        border-bottom: none;
+      }
+      .pk-sub-item-info {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .pk-sub-item-thumb {
+        width: 52px;
+        height: 52px;
+        border-radius: 10px;
+        background: #f8f9fa;
+        border: 1px solid #eaeaea;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      .pk-sub-item-thumb img {
+        max-height: 85%;
+        max-width: 85%;
+        object-fit: contain;
+      }
+      .pk-sub-item-title {
+        font-size: 16px;
+        font-weight: 800;
+        color: #121217;
+      }
+      .pk-sub-item-sub {
+        font-size: 13px;
+        color: #595961;
+        margin-top: 3px;
+      }
+      .pk-sub-item-controls {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+      }
+      .pk-sub-swap-btn {
+        background: none;
+        border: none;
+        font-size: 14px;
+        font-weight: 700;
+        color: #121217;
+        cursor: pointer;
+        text-decoration: none;
+        padding: 0;
+        font-family: inherit;
+      }
+      .pk-sub-swap-btn:hover {
+        text-decoration: underline;
+      }
+      .pk-sub-qty-stepper {
+        border: 1.5px solid #d1d5db;
+        border-radius: 20px;
+        padding: 4px 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 700;
+        font-size: 14px;
+      }
+      .pk-sub-qty-stepper button {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 800;
+        color: #595961;
+        padding: 0 4px;
+      }
+      .pk-sub-item-price {
+        font-size: 16px;
+        font-weight: 800;
+        color: #121217;
+        min-width: 60px;
+        text-align: right;
+      }
+      .pk-sub-box-strip {
+        background: #121217;
+        color: #fff;
+        padding: 14px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .pk-sub-box-browse {
+        color: #fff;
+        font-weight: 800;
+        font-size: 13.5px;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .pk-sub-action-bar {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 24px;
+      }
+      .pk-sub-action-btn {
+        border: 1.5px solid #121217;
+        border-radius: 30px;
+        padding: 10px 22px;
+        font-weight: 700;
+        font-size: 14px;
+        background: #fff;
+        color: #121217;
+        cursor: pointer;
+        transition: background 0.15s;
+        font-family: inherit;
+      }
+      .pk-sub-action-btn:hover {
+        background: #f4f4f5;
+      }
+      .pk-sub-cancel-link {
+        background: none;
+        border: none;
+        color: #595961;
+        font-weight: 600;
+        cursor: pointer;
+        font-size: 14px;
+        margin-left: 8px;
+        font-family: inherit;
+      }
+      .pk-sub-cancel-link:hover {
+        color: #bf0711;
+        text-decoration: underline;
+      }
+      .pk-sub-benefit-banner {
+        background: #FFE600;
+        border-radius: 16px;
+        padding: 20px 24px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        color: #121217;
+        margin-bottom: 24px;
+      }
+      .pk-benefit-title {
+        font-weight: 800;
+        font-size: 14px;
+        margin-bottom: 4px;
+      }
+      .pk-benefit-desc {
+        font-size: 12px;
+        line-height: 1.4;
+        color: #21252A;
+      }
+
+      /* Vet Modal Tag Pill (Screenshot 5) */
+      .pk-vet-pill {
+        border: 1.5px solid #eaeaea;
+        border-radius: 20px;
+        padding: 7px 16px;
+        font-size: 12.5px;
+        font-weight: 600;
+        cursor: pointer;
+        background: #fff;
+        color: #121217;
+        display: inline-block;
+        transition: all 0.2s;
+        user-select: none;
+      }
+      .pk-vet-pill.selected {
+        background: #121217;
+        border-color: #121217;
+        color: #fff;
+      }
       
       .pk-outline-btn {
         border: 1px solid #121217;
@@ -1577,11 +2025,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               </div>
             </div>
 
-            <!-- Orders -->
-            <div class="pk-card" style="margin-bottom: 24px;">
-              <h3 class="pk-section-title">Orders</h3>
+            <!-- Orders (Screenshot 1) -->
+            <div class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
+              <h3 class="pk-section-title" style="margin-bottom: 20px;">Orders</h3>
               <div class="pk-orders-table">
-                <div class="pk-tr pk-th">
+                <div class="pk-orders-header">
                   <div>ORDER</div>
                   <div>DATE</div>
                   <div>STATUS</div>
@@ -1590,8 +2038,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 </div>
                 ${ordersHtml}
               </div>
-              <div style="margin-top: 15px;">
-                <a href="#" class="pk-outline-btn">View all orders</a>
+              <div style="margin-top: 18px;">
+                <button type="button" onclick="window.location.href='/account'" class="pk-view-all-orders-btn">View all orders</button>
               </div>
             </div>
 
@@ -2104,8 +2552,224 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         });
       }
 
+      // ─── Vet Modal & Booking (Screenshot 5) ─────────────────────
+      window.pkOpenVetModal = function() {
+        var modal = document.getElementById('pk-vet-modal');
+        if (modal) modal.style.display = 'flex';
+      };
+
+      window.pkCloseVetModal = function() {
+        var modal = document.getElementById('pk-vet-modal');
+        if (modal) modal.style.display = 'none';
+      };
+
+      window.pkToggleVetPill = function(el) {
+        if (!el) return;
+        el.classList.toggle('selected');
+      };
+
+      window.pkSubmitVetCall = function(ev) {
+        if (ev) ev.preventDefault();
+        var name = (document.getElementById('vet-name').value || '').trim();
+        var phone = (document.getElementById('vet-phone').value || '').trim();
+        var city = (document.getElementById('vet-city').value || '').trim();
+        var age = (document.getElementById('vet-age').value || '').trim();
+
+        if (!name || !phone) {
+          alert('Please enter your full name and phone number.');
+          return;
+        }
+
+        var selectedTopics = [];
+        document.querySelectorAll('.pk-vet-pill.selected').forEach(function(pill) {
+          selectedTopics.push(pill.getAttribute('data-topic'));
+        });
+
+        var message = 'Hi Purrkins Vet Team! I would like to book a Free 15-min Vet Call.\\n\\n' +
+          '• Parent Name: ' + name + '\\n' +
+          '• Phone: ' + phone + '\\n' +
+          (city ? ('• City: ' + city + '\\n') : '') +
+          '• Kitten Age: ' + age + '\\n' +
+          (selectedTopics.length ? ('• Help Topics: ' + selectedTopics.join(', ') + '\\n') : '');
+
+        var form = document.getElementById('pk-vet-form');
+        var success = document.getElementById('pk-vet-success-msg');
+        if (form) form.style.display = 'none';
+        if (success) success.style.display = 'block';
+
+        setTimeout(function() {
+          var waUrl = 'https://wa.me/918130578935?text=' + encodeURIComponent(message);
+          window.open(waUrl, '_blank');
+        }, 1200);
+      };
+
+      // ─── Flavour Swap (Screenshot 2) ─────────────────────────────
+      var _swapItemKey = '';
+      window.pkOpenSwapModal = function(itemKey, currentTitle) {
+        _swapItemKey = itemKey;
+        var t = document.getElementById('pk-swap-target-name');
+        if (t) t.textContent = currentTitle || 'Item';
+        var modal = document.getElementById('pk-swap-modal');
+        if (modal) modal.style.display = 'flex';
+      };
+
+      window.pkConfirmSwap = function() {
+        var sel = document.querySelector('input[name="swap_flavor"]:checked');
+        if (!sel) return;
+        var chosen = sel.value;
+        var parts = chosen.split(' (');
+        var title = parts[0];
+        var desc = parts[1] ? ('70 g pouch · ' + parts[1].replace(')', '')) : '70 g pouch';
+        
+        var titleEl = document.getElementById('sub-title-' + _swapItemKey);
+        var descEl = document.getElementById('sub-desc-' + _swapItemKey);
+        if (titleEl) titleEl.textContent = title;
+        if (descEl) descEl.textContent = desc;
+
+        document.getElementById('pk-swap-modal').style.display = 'none';
+        alert('Flavour updated to ' + title + ' for your next delivery cycle!');
+      };
+
+      // ─── Subscribed Items Interactive Quantity Stepper ──────────
+      window.pkUpdateSubQty = function(itemKey, delta) {
+        var qtyEl = document.getElementById('qty-' + itemKey);
+        var priceEl = document.getElementById('price-' + itemKey);
+        if (!qtyEl) return;
+        var currentQty = parseInt(qtyEl.textContent, 10) || 1;
+        var newQty = Math.max(1, currentQty + delta);
+        qtyEl.textContent = newQty;
+
+        var unitPrice = itemKey === 'item-1' ? 30 : itemKey === 'item-2' ? 30 : 30;
+        var newPrice = newQty * unitPrice;
+        if (priceEl) priceEl.textContent = '₹' + newPrice;
+      };
+
+      // ─── Reorder Handler (Screenshot 1) ─────────────────────────
+      window.pkReorder = function(orderName, btn) {
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = 'Adding...';
+        }
+        fetch('/cart/add.js', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: [{ id: 49767352369463, quantity: 1 }] })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function() {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Added ✓';
+            setTimeout(function() { btn.textContent = 'Reorder'; }, 1500);
+          }
+          var cartBubble = document.getElementById('cart-icon-bubble');
+          if (cartBubble) cartBubble.click();
+          document.dispatchEvent(new CustomEvent('cart:refresh'));
+        })
+        .catch(function() {
+          window.location.href = '/collections/all';
+        });
+      };
+
       if (typeof pkHideLoader === 'function') pkHideLoader();
     </script>
+
+    <!-- Talk to a Vet Modal (Screenshot 5) -->
+    <div id="pk-vet-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.65); z-index:9999999; align-items:center; justify-content:center; backdrop-filter:blur(4px); padding:20px; box-sizing:border-box;">
+      <div style="background:#fff; border-radius:20px; max-width:840px; width:100%; max-height:92vh; overflow:hidden; display:flex; flex-direction:row; position:relative; box-shadow:0 25px 60px rgba(0,0,0,0.35);">
+        <!-- Close Button (Screenshot 5) -->
+        <button type="button" onclick="pkCloseVetModal()" aria-label="Close" style="position:absolute; top:16px; right:16px; width:34px; height:34px; border-radius:50%; background:rgba(18,18,23,0.75); color:#fff; border:none; font-size:16px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:10; transition:background 0.2s;">✕</button>
+
+        <!-- Left Column: Form -->
+        <div style="flex:1.25; padding:36px 32px; background:linear-gradient(135deg, #FFFDF0 0%, #FFFFFF 65%, #F4F6FF 100%); overflow-y:auto; box-sizing:border-box;">
+          <div style="background:#FFE600; color:#121217; font-size:11px; font-weight:800; padding:4px 14px; border-radius:20px; display:inline-block; margin-bottom:12px;">Free 15 minutes</div>
+          <h2 style="margin:0 0 6px 0; font-size:28px; font-weight:800; color:#121217; font-family:var(--font-heading--family, sans-serif);">Talk to a vet</h2>
+          <p style="margin:0 0 20px 0; font-size:13.5px; color:#595961; line-height:1.4;">Free short call with a Purrkins vet. No purchase needed.</p>
+
+          <form id="pk-vet-form" onsubmit="pkSubmitVetCall(event)">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+              <input type="text" id="vet-name" placeholder="Full name" value="${escAttr(customer.firstName ? (customer.firstName + ' ' + (customer.lastName || '')) : '')}" required style="width:100%; padding:11px 14px; border:1.5px solid #eaeaea; border-radius:10px; font-size:13.5px; box-sizing:border-box; background:#fff;">
+              <input type="tel" id="vet-phone" placeholder="+91" value="${escAttr(customer.phone || defaultAddress.phone || '+91 ')}" required style="width:100%; padding:11px 14px; border:1.5px solid #eaeaea; border-radius:10px; font-size:13.5px; box-sizing:border-box; background:#fff;">
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px;">
+              <input type="text" id="vet-city" placeholder="City" value="${escAttr(defaultAddress.city || '')}" style="width:100%; padding:11px 14px; border:1.5px solid #eaeaea; border-radius:10px; font-size:13.5px; box-sizing:border-box; background:#fff;">
+              <select id="vet-age" style="width:100%; padding:11px 14px; border:1.5px solid #eaeaea; border-radius:10px; font-size:13.5px; box-sizing:border-box; background:#fff; cursor:pointer;">
+                <option value="Under 3 months">Your kitten's age</option>
+                <option value="Under 3 months">Under 3 months</option>
+                <option value="3 - 6 months">3 - 6 months</option>
+                <option value="6 - 12 months">6 - 12 months</option>
+                <option value="Adult (1+ years)">Adult (1+ years)</option>
+              </select>
+            </div>
+
+            <!-- Help Topics -->
+            <label style="display:block; font-size:12.5px; font-weight:800; color:#121217; margin-bottom:8px;">What do you need help with?</label>
+            <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px;">
+              <span class="pk-vet-pill" onclick="pkToggleVetPill(this)" data-topic="Weaning / starting solids">Weaning / starting solids</span>
+              <span class="pk-vet-pill" onclick="pkToggleVetPill(this)" data-topic="Fussy eating">Fussy eating</span>
+              <span class="pk-vet-pill" onclick="pkToggleVetPill(this)" data-topic="Loose stools">Loose stools</span>
+              <span class="pk-vet-pill" onclick="pkToggleVetPill(this)" data-topic="Skin & coat">Skin & coat</span>
+              <span class="pk-vet-pill" onclick="pkToggleVetPill(this)" data-topic="Weight">Weight</span>
+              <span class="pk-vet-pill" onclick="pkToggleVetPill(this)" data-topic="Something else">Something else</span>
+            </div>
+
+            <button type="submit" id="pk-vet-submit-btn" style="width:100%; padding:13px; background:#121217; color:#fff; border:none; border-radius:30px; font-size:15px; font-weight:700; cursor:pointer; transition:opacity 0.2s;">Request a Call</button>
+            <div style="font-size:11.5px; color:#8c8c9a; text-align:center; margin-top:8px;">We'll confirm your slot on WhatsApp within one day</div>
+          </form>
+          <div id="pk-vet-success-msg" style="display:none; text-align:center; padding:24px 10px;">
+            <div style="font-size:36px; margin-bottom:10px;">🎉</div>
+            <h3 style="margin:0 0 8px 0; font-size:20px; font-weight:800; color:#121217;">Request Submitted!</h3>
+            <p style="margin:0 0 16px 0; font-size:14px; color:#595961; line-height:1.4;">Our veterinary team has received your details and will connect with you on WhatsApp shortly.</p>
+            <button type="button" onclick="pkCloseVetModal()" style="padding:10px 24px; background:#121217; color:#fff; border:none; border-radius:24px; font-size:13px; font-weight:700; cursor:pointer;">Close</button>
+          </div>
+        </div>
+
+        <!-- Right Column: Vet Image (Screenshot 5) -->
+        <div style="flex:1; min-height:380px; position:relative; background:#f4f4f5; display:flex;">
+          <img src="{{ 'vet-examining-kitten.jpg' | asset_url }}" onerror="this.onerror=null; this.src='/vet-examining-kitten.jpg';" alt="Purrkins Veterinarian" style="width:100%; height:100%; object-fit:cover; display:block;">
+        </div>
+      </div>
+    </div>
+
+    <!-- Flavour Swap Modal -->
+    <div id="pk-swap-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.55); z-index:999999; align-items:center; justify-content:center; backdrop-filter:blur(3px);">
+      <div style="background:#fff; border-radius:20px; padding:32px; max-width:440px; width:90%; position:relative; box-shadow:0 12px 36px rgba(0,0,0,0.2);">
+        <button onclick="document.getElementById('pk-swap-modal').style.display='none'" style="position:absolute; top:16px; right:16px; background:none; border:none; font-size:22px; cursor:pointer; color:#595961;">✕</button>
+        <h3 style="margin:0 0 6px 0; font-size:20px; font-weight:800; color:#121217;">Swap Flavour</h3>
+        <p style="font-size:13.5px; color:#595961; margin:0 0 20px 0;">Select a new recipe for <strong id="pk-swap-target-name">Growing Kitty</strong>:</p>
+        <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:24px;">
+          <label style="border:1.5px solid #eaeaea; border-radius:12px; padding:12px 16px; display:flex; align-items:center; gap:12px; cursor:pointer;">
+            <input type="radio" name="swap_flavor" value="Growing Kitty (Chicken with DHA)" checked>
+            <div>
+              <div style="font-weight:700; font-size:14px; color:#121217;">Growing Kitty</div>
+              <div style="font-size:12px; color:#595961;">70 g pouch · Chicken with DHA</div>
+            </div>
+          </label>
+          <label style="border:1.5px solid #eaeaea; border-radius:12px; padding:12px 16px; display:flex; align-items:center; gap:12px; cursor:pointer;">
+            <input type="radio" name="swap_flavor" value="Gutty Kitty (Tuna & salmon broth)">
+            <div>
+              <div style="font-weight:700; font-size:14px; color:#121217;">Gutty Kitty</div>
+              <div style="font-size:12px; color:#595961;">70 g pouch · Tuna & salmon broth</div>
+            </div>
+          </label>
+          <label style="border:1.5px solid #eaeaea; border-radius:12px; padding:12px 16px; display:flex; align-items:center; gap:12px; cursor:pointer;">
+            <input type="radio" name="swap_flavor" value="Lean Kitty (Turkey & pumpkin)">
+            <div>
+              <div style="font-weight:700; font-size:14px; color:#121217;">Lean Kitty</div>
+              <div style="font-size:12px; color:#595961;">70 g pouch · Turkey & pumpkin</div>
+            </div>
+          </label>
+          <label style="border:1.5px solid #eaeaea; border-radius:12px; padding:12px 16px; display:flex; align-items:center; gap:12px; cursor:pointer;">
+            <input type="radio" name="swap_flavor" value="Active Kitty (Beef & duck recipe)">
+            <div>
+              <div style="font-weight:700; font-size:14px; color:#121217;">Active Kitty</div>
+              <div style="font-size:12px; color:#595961;">70 g pouch · Beef & duck recipe</div>
+            </div>
+          </label>
+        </div>
+        <button type="button" onclick="pkConfirmSwap()" style="width:100%; padding:13px; background:#121217; color:#fff; border:none; border-radius:30px; font-size:15px; font-weight:700; cursor:pointer;">Confirm Flavour Swap</button>
+      </div>
+    </div>
 
     <!-- Add Address Modal -->
     <div id="addr-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
