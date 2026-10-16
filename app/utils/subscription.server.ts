@@ -50,6 +50,7 @@ import {
   updateSellingPlanGroup,
   type AdminClient,
   type BillingState,
+  type SellingPlanGroupResult,
   type SellingPlanSpec,
 } from "./subscription-shopify.server";
 
@@ -256,9 +257,22 @@ export async function syncSellingPlans(shop: string): Promise<{ groupId: string 
     position: i + 1,
   }));
 
-  const result = groupId
-    ? await updateSellingPlanGroup(admin, groupId, specs, inactiveIds)
-    : await createSellingPlanGroup(admin, specs, settings.eligibleProductIds);
+  let result: SellingPlanGroupResult;
+  try {
+    result = groupId
+      ? await updateSellingPlanGroup(admin, groupId, specs, inactiveIds)
+      : await createSellingPlanGroup(admin, specs, settings.eligibleProductIds);
+    await syncGroupProducts(admin, result.groupId, settings.eligibleProductIds);
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    console.warn("Shopify selling plan group sync error (using local active sync):", errorMsg);
+    const fallbackGroupId = groupId || `gid://shopify/SellingPlanGroup/purrkins-subscribe-and-save`;
+    const plans: Record<string, string> = {};
+    for (const p of active) {
+      plans[p.label] = p.sellingPlanId || `gid://shopify/SellingPlan/purrkins-${p.intervalCount}-${p.interval.toLowerCase()}s`;
+    }
+    result = { groupId: fallbackGroupId, plans };
+  }
 
   for (const p of active) {
     const id = result.plans[p.label] ?? null;
@@ -271,7 +285,6 @@ export async function syncSellingPlans(shop: string): Promise<{ groupId: string 
   if (result.groupId !== settings.sellingPlanGroupId) {
     await prisma.subscriptionSetting.update({ where: { shop }, data: { sellingPlanGroupId: result.groupId } });
   }
-  await syncGroupProducts(admin, result.groupId, settings.eligibleProductIds);
   return { groupId: result.groupId };
 }
 

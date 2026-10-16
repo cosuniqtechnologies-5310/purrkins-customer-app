@@ -4,6 +4,7 @@
  * or throws `ShopifyUserError` so callers decide how to persist/retry.
  */
 import { unauthenticated } from "../shopify.server";
+import prisma from "../db.server";
 
 export type AdminClient = Awaited<ReturnType<typeof unauthenticated.admin>>["admin"];
 
@@ -17,8 +18,28 @@ export class ShopifyUserError extends Error {
 }
 
 export async function getAdmin(shop: string): Promise<AdminClient> {
-  const { admin } = await unauthenticated.admin(shop);
-  return admin;
+  try {
+    const { admin } = await unauthenticated.admin(shop);
+    return admin;
+  } catch (err) {
+    const session = await prisma.session.findUnique({
+      where: { id: `offline_${shop}` },
+    });
+    if (!session?.accessToken) throw err;
+    return {
+      graphql: async (query: string, options?: any) => {
+        const res = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Shopify-Access-Token": session.accessToken,
+          },
+          body: JSON.stringify({ query, variables: options?.variables }),
+        });
+        return res;
+      },
+    } as any;
+  }
 }
 
 /** Runs a query and throws on transport/GraphQL errors. */
