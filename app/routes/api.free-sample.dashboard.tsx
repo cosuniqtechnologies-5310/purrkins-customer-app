@@ -170,29 +170,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const defaultAddress = customer.defaultAddress || {};
   // Escape values placed inside HTML attributes so quotes/angle brackets can't break the form
   const escAttr = (v: any) => String(v ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  
-  const petIndex = 0;
-  const pets = customer.pets?.references?.nodes || [];
-  
-  // Build pet pills HTML for Dashboard
-  const petPillsHtml = pets.map((pet: any, i: number) => {
-    const name = pet.name?.value || "Kitten";
-    const imgUrl = pet.profile?.reference?.image?.url;
-    const isActive = false; // Dashboard isn't a specific pet profile
-    const queryParam = `?pet_index=${i}`;
-    return `
-      <a href="/apps/purrkins/kitten${queryParam}" class="pk-pet-pill ${isActive ? 'active' : ''}">
-        <div class="pk-pet-avatar" ${!isActive ? 'style="background:#e0e0e0;"' : ''}>
-          ${imgUrl ? `<img src="${imgUrl}" style="${!isActive ? 'opacity:0.6' : ''}" alt="${name}">` :
-          `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="#d1d1d1" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>`}
-        </div>
-        <div class="pk-pet-info">
-          <strong>${name}</strong>
-          <span>${pet.age?.value || 'Unknown'}</span>
-        </div>
-      </a>
-    `;
-  }).join('');
 
   const ordersHtml = customer.orders?.edges?.length > 0 
     ? customer.orders.edges.map((e: any) => {
@@ -214,7 +191,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <div>${dateStr}</div>
         <div><span class="pk-status ${statusClass}">${statusText}</span></div>
         <div style="font-weight:800; color:#121217;">₹${parseFloat(e.node.totalPriceSet?.shopMoney?.amount || 0).toLocaleString('en-IN')}</div>
-        <div style="display:flex; gap:8px; justify-content: flex-end;">
+        <div style="display:flex; gap:8px; justify-content: flex-end; flex-wrap: wrap;">
+          <button type="button" onclick="pkOpenOrderReview('${escAttr(e.node.lineItems?.edges?.[0]?.node?.title || 'Purrkins Meal')}', '${escAttr(e.node.lineItems?.edges?.[0]?.node?.title || 'item')}')" class="pk-outline-btn" style="font-size:12px;padding:6px 14px;background:none;cursor:pointer;">★ Review</button>
           <a href="#" class="pk-outline-btn" style="font-size:12px;padding:6px 14px;">Reorder</a>
           <a href="${e.node.statusPageUrl}" target="_blank" class="pk-outline-btn" style="font-size:12px;padding:6px 14px;">Invoice</a>
         </div>
@@ -223,7 +201,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     : '<div class="pk-tr" style="grid-template-columns:1fr;"><div style="color: #595961; padding:10px 0;">No orders found.</div></div>';
 
   const addressesHtml = customer.addresses?.length > 0
-    ? customer.addresses.map((a: any, index: number) => `
+    ? customer.addresses.map((a: any) => `
       <div class="pk-address-box" data-address-id="${a.id}">
         <div class="pk-addr-top">
           <h4>${a.firstName || ''} ${a.lastName || ''} ${a.id === defaultAddress.id ? '<span class="pk-default-tag">Default</span>' : ''}</h4>
@@ -276,8 +254,175 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       </div>`
     : '<p style="color:#595961;margin:0;">Your wishlist is empty. (Wishlist products are managed in Shopify admin)</p>';
 
-  const sessionParam = '';
-  const apiBase = `/apps/purrkins/customer-api${sessionParam}&intent=`;
+  // ─── Subscriptions Fetch & Render ─────────────────────────
+  const numericId = customerId.split("/").pop();
+  const customerSubscriptions = await prisma.subscription.findMany({
+    where: {
+      OR: [
+        { customerId },
+        ...(numericId ? [{ customerId: { endsWith: numericId } }] : []),
+        ...(customer.email ? [{ customerEmail: customer.email }] : []),
+      ],
+    },
+    include: {
+      cycles: {
+        orderBy: { cycleNumber: "desc" },
+        take: 3,
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const availablePlans = await prisma.subscriptionPlan.findMany({
+    where: { active: true },
+    orderBy: { position: "asc" },
+  });
+
+  const WEEKDAY_NAMES_MAP = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+  const subscriptionsHtml = customerSubscriptions.length > 0
+    ? `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+        <h3 class="pk-section-title" style="margin:0;">My Subscriptions</h3>
+        <span style="font-size:13px; font-weight:700; background:#EBF4F6; color:#0e6251; padding:4px 12px; border-radius:20px;">${customerSubscriptions.length} Active Plan${customerSubscriptions.length === 1 ? '' : 's'}</span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:20px;">
+        ${customerSubscriptions.map((sub: any) => {
+          const lines = Array.isArray(sub.lines) ? sub.lines : [];
+          const statusBg = sub.status === 'ACTIVE' ? '#e3f1df' : sub.status === 'PAUSED' ? '#fef3d6' : '#f1f2f3';
+          const statusColor = sub.status === 'ACTIVE' ? '#108043' : sub.status === 'PAUSED' ? '#916a00' : '#6d7175';
+          const pendingCycle = sub.cycles.find((c: any) => c.status === 'SCHEDULED' || c.status === 'PROCESSING');
+          const deliveryDate = pendingCycle?.deliveryDate || sub.nextDeliveryDate || 'Scheduled';
+          const weekdayStr = deliveryDate && /^\d{4}-\d{2}-\d{2}$/.test(deliveryDate)
+            ? WEEKDAY_NAMES_MAP[new Date(deliveryDate + 'T00:00:00').getDay()]
+            : '';
+
+          return `
+            <div style="border:1.5px solid #eaeaea; border-radius:16px; padding:24px; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.02);">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; border-bottom:1px solid #f1f2f3; padding-bottom:16px; margin-bottom:16px;">
+                <div>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <h4 style="margin:0; font-size:18px; font-weight:800; color:#121217;">${escAttr(sub.planName)}</h4>
+                    <span style="background:${statusBg}; color:${statusColor}; font-size:11px; font-weight:800; padding:3px 10px; border-radius:12px; text-transform:uppercase;">${sub.status}</span>
+                  </div>
+                  <div style="font-size:13px; color:#595961; margin-top:4px;">
+                    Order Reference: #${sub.contractId.split('/').pop()} • Preferred Delivery: ${sub.preferredWeekday !== null && sub.preferredWeekday !== undefined ? WEEKDAY_NAMES_MAP[sub.preferredWeekday] : 'Any deliverable day'}
+                  </div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-size:18px; font-weight:800; color:#121217;">₹${parseFloat(sub.recurringTotal || 0).toFixed(2)}</div>
+                  <div style="font-size:12px; color:#595961;">per delivery</div>
+                </div>
+              </div>
+
+              <!-- Next Delivery Spotlight Banner -->
+              <div style="background:#f9fafb; border-radius:12px; padding:16px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px; border-left:4px solid #008060;">
+                <div>
+                  <div style="font-size:11px; font-weight:800; color:#595961; text-transform:uppercase; letter-spacing:0.5px;">Next Scheduled Delivery</div>
+                  <div style="font-size:20px; font-weight:800; color:#121217; margin-top:4px;">
+                    📦 ${deliveryDate} ${weekdayStr ? `(${weekdayStr})` : ''}
+                  </div>
+                  <div style="font-size:12px; color:#6d7175; margin-top:4px;">
+                    ${sub.nextBillingAt ? `Automated billing runs on ${new Date(sub.nextBillingAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} at ${new Date(sub.nextBillingAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : 'Billing automated prior to dispatch'}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Subscribed Items -->
+              <div style="margin-bottom:20px;">
+                <div style="font-size:13px; font-weight:800; color:#121217; margin-bottom:10px;">Subscribed Products:</div>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  ${lines.map((item: any) => `
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:#fafafa; padding:10px 14px; border-radius:8px;">
+                      <div style="display:flex; align-items:center; gap:12px;">
+                        <span style="font-weight:700; font-size:14px; color:#121217;">${item.quantity || 1}×</span>
+                        <div>
+                          <div style="font-weight:700; font-size:14px; color:#121217;">${escAttr(item.title || 'Subscription Item')}</div>
+                          ${item.variantTitle && item.variantTitle !== 'Default Title' ? `<div style="font-size:12px; color:#595961;">${escAttr(item.variantTitle)}</div>` : ''}
+                        </div>
+                      </div>
+                      <div style="font-weight:700; font-size:14px; color:#008060;">
+                        ${item.price ? `₹${parseFloat(item.price).toFixed(2)}` : ''}
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+
+              <!-- Customer Actions Bar -->
+              <div style="display:flex; gap:8px; flex-wrap:wrap; border-top:1px solid #f1f2f3; padding-top:16px;">
+                ${sub.status === 'ACTIVE' ? `
+                  <button type="button" onclick="pkSkipSub('${sub.id}', '${deliveryDate}')" class="pk-outline-btn" style="cursor:pointer; font-size:13px; padding:8px 16px; border-radius:20px;">Skip Next Delivery</button>
+                  <button type="button" onclick="pkOpenReschedule('${sub.id}', '${deliveryDate}')" class="pk-outline-btn" style="cursor:pointer; font-size:13px; padding:8px 16px; border-radius:20px;">Reschedule Date</button>
+                  <button type="button" onclick="pkOpenChangePlan('${sub.id}', '${sub.planId || ''}')" class="pk-outline-btn" style="cursor:pointer; font-size:13px; padding:8px 16px; border-radius:20px;">Change Frequency</button>
+                  <button type="button" onclick="pkPauseSub('${sub.id}')" class="pk-outline-btn" style="cursor:pointer; font-size:13px; padding:8px 16px; border-radius:20px;">Pause</button>
+                  <button type="button" onclick="pkCancelSub('${sub.id}')" style="cursor:pointer; font-size:13px; padding:8px 16px; border-radius:20px; background:none; border:1px solid #fedcd9; color:#bf0711;">Cancel</button>
+                ` : sub.status === 'PAUSED' ? `
+                  <button type="button" onclick="pkResumeSub('${sub.id}')" style="cursor:pointer; font-size:13px; padding:8px 20px; border-radius:20px; background:#008060; color:#fff; border:none; font-weight:700;">Resume Subscription</button>
+                  <button type="button" onclick="pkCancelSub('${sub.id}')" style="cursor:pointer; font-size:13px; padding:8px 16px; border-radius:20px; background:none; border:1px solid #fedcd9; color:#bf0711;">Cancel</button>
+                ` : `
+                  <span style="font-size:13px; color:#6d7175;">Subscription is ${sub.status.toLowerCase()}.</span>
+                `}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `
+    : `
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 class="pk-section-title" style="margin:0;">My Subscriptions</h3>
+      </div>
+      <p style="color:#595961; margin:16px 0 0 0; line-height:1.5;">You don't have any active subscriptions yet. Subscribe to your cat's favorite fresh meals to save 15% and enjoy automated scheduled deliveries with zero hassle!</p>
+      <div style="margin-top:20px;">
+        <a href="/collections/all" class="pk-outline-btn" style="display:inline-block; font-size:13px; padding:10px 22px;">Explore Meals & Subscribe</a>
+      </div>
+    `;
+
+  // ─── Customer Reviews Fetch & Render ─────────────────────
+  const customerReviews = customer.email
+    ? await prisma.review.findMany({
+        where: {
+          OR: [
+            { email: customer.email },
+            ...(customer.firstName ? [{ author: { contains: customer.firstName } }] : []),
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+      })
+    : [];
+
+  const reviewsHtml = customerReviews.length > 0
+    ? `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+        <h3 class="pk-section-title" style="margin:0;">My Product Reviews</h3>
+        <span style="font-size:13px; font-weight:700; background:#EBF4F6; color:#0e6251; padding:4px 12px; border-radius:20px;">${customerReviews.length} Review${customerReviews.length === 1 ? '' : 's'}</span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        ${customerReviews.map((r: any) => `
+          <div style="border:1.5px solid #eaeaea; border-radius:12px; padding:18px; background:#fff;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <div style="color:#d97706; font-size:16px;">${'★'.repeat(r.rating)}${'☆'.repeat(Math.max(0, 5 - r.rating))}</div>
+              <span style="font-size:11px; font-weight:800; background:${r.status === 'published' ? '#e3f1df' : '#fef3d6'}; color:${r.status === 'published' ? '#108043' : '#916a00'}; padding:3px 8px; border-radius:10px; text-transform:uppercase;">${r.status}</span>
+            </div>
+            <h4 style="margin:0 0 4px 0; font-size:15px; font-weight:800; color:#121217;">${escAttr(r.title)}</h4>
+            <p style="margin:0; font-size:13px; color:#595961; line-height:1.4;">${escAttr(r.body)}</p>
+            <div style="font-size:11px; color:#8c9196; margin-top:8px;">
+              Reviewed on ${new Date(r.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `
+    : `
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 class="pk-section-title" style="margin:0;">My Product Reviews</h3>
+      </div>
+      <p style="color:#595961; margin:16px 0 0 0; line-height:1.5;">You haven't submitted any reviews yet. Share your experience with Purrkins kitten meals to help fellow cat parents!</p>
+      <div style="margin-top:16px;">
+        <button onclick="pkOpenOrderReview('Purrkins Kitten Meal', 'kitten-fresh-salmon')" class="pk-outline-btn" style="cursor:pointer; font-size:13px; padding:8px 20px; background:none;">★ Write a Review</button>
+      </div>
+    `;
 
   const liquidTemplate = `
     ${getLoaderHtml(true)}
@@ -1169,6 +1314,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <div class="pk-header-menu" style="background: #fff; border: 2px solid #595961; border-radius: 16px; padding: 12px 0; min-width: 160px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
           <a href="/apps/purrkins/dashboard" style="display: block; padding: 10px 20px; color: #1a1a1a; text-decoration: none; font-size: 14px; font-weight: 800;">Profile</a>
           <div style="border-bottom: 1px solid #eaeaea; margin: 0 16px 8px 16px;"></div>
+          <a href="#pk-tab-subscriptions" style="display: block; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 14px; font-weight: 800; margin-bottom: 4px;">Subscriptions (${customerSubscriptions.length})</a>
+          <a href="#pk-tab-reviews" style="display: block; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 14px; font-weight: 800; margin-bottom: 4px;">My Reviews (${customerReviews.length})</a>
           <a href="#pk-tab-wishlist" style="display: block; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 14px; font-weight: 800; margin-bottom: 4px;">Wishlist</a>
           <button onclick="localStorage.removeItem('pk_session'); localStorage.removeItem('pk_user_name'); localStorage.removeItem('pk_user_email'); localStorage.removeItem('pk_checkout_info'); document.cookie='pk_session=; path=/apps/purrkins; expires=Thu, 01 Jan 1970 00:00:00 GMT'; window.location.href='/apps/purrkins/login';" style="display: block; width: 100%; text-align: left; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 14px; font-weight: 800; background: none; border: none; cursor: pointer;">Log out</button>
         </div>
@@ -1180,6 +1327,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <div class="pk-sidebar-menu">
             <a href="/apps/purrkins/dashboard" class="pk-menu-item active"><span class="pk-dot"></span> Overview</a>
             <a href="/apps/purrkins/kitten" class="pk-menu-item"><span class="pk-dot"></span> Kitten's Profile</a>
+            <a href="#pk-tab-subscriptions" class="pk-menu-item"><span class="pk-dot"></span> Subscriptions <span class="pk-badge">${customerSubscriptions.length}</span></a>
+            <a href="#pk-tab-reviews" class="pk-menu-item"><span class="pk-dot"></span> My Reviews <span class="pk-badge">${customerReviews.length}</span></a>
             <a href="#pk-tab-wishlist" class="pk-menu-item"><span class="pk-dot"></span> Wishlist <span class="pk-badge">${customer.wishlist?.references?.nodes?.length || '0'}</span></a>
           </div>
 
@@ -1243,6 +1392,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             <div class="pk-form-actions">
               <a href="#" id="pk-update-btn" class="pk-link-btn" onclick="submitProfile(event)">Update</a>
             </div>
+          </div>
+
+          <!-- Subscriptions -->
+          <div id="pk-tab-subscriptions" class="pk-card pk-subscriptions-card">
+            ${subscriptionsHtml}
+          </div>
+
+          <!-- Product Reviews -->
+          <div id="pk-tab-reviews" class="pk-card pk-reviews-card">
+            ${reviewsHtml}
           </div>
 
           <!-- Wishlist -->
@@ -1546,6 +1705,126 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         zip: "${escAttr(defaultAddress.zip)}",
         country: "${escAttr(defaultAddress.country || 'India')}"
       }));
+      // ─── Subscription portal actions ─────────────────────────
+      var _activeSubId = null;
+
+      function pkSkipSub(id, date) {
+        if (!confirm('Are you sure you want to skip delivery for cycle on ' + (date || 'next date') + '? Your subscription will advance to the following cycle without charge.')) return;
+        pkCallSubAction(id, 'skip', {});
+      }
+
+      function pkOpenReschedule(id, currentDate) {
+        _activeSubId = id;
+        var input = document.getElementById('sub-reschedule-date');
+        if (input) {
+          input.value = currentDate || '';
+          var tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          input.min = tomorrow.toISOString().split('T')[0];
+        }
+        document.getElementById('sub-reschedule-modal').style.display = 'flex';
+      }
+
+      function pkSubmitReschedule() {
+        var date = document.getElementById('sub-reschedule-date').value;
+        var future = document.getElementById('sub-reschedule-future').checked;
+        if (!date) return alert('Please choose a delivery date.');
+        document.getElementById('sub-reschedule-modal').style.display = 'none';
+        pkCallSubAction(_activeSubId, 'reschedule', { deliveryDate: date, applyToFuture: future });
+      }
+
+      function pkOpenChangePlan(id, currentPlanId) {
+        _activeSubId = id;
+        var sel = document.getElementById('sub-plan-select');
+        if (sel && currentPlanId) sel.value = currentPlanId;
+        document.getElementById('sub-plan-modal').style.display = 'flex';
+      }
+
+      function pkSubmitChangePlan() {
+        var planId = document.getElementById('sub-plan-select').value;
+        if (!planId) return alert('Please select a frequency plan.');
+        document.getElementById('sub-plan-modal').style.display = 'none';
+        pkCallSubAction(_activeSubId, 'change_frequency', { planId: planId });
+      }
+
+      function pkPauseSub(id) {
+        if (!confirm('Pause deliveries for this subscription? You can resume whenever you are ready.')) return;
+        pkCallSubAction(id, 'pause', {});
+      }
+
+      function pkResumeSub(id) {
+        pkCallSubAction(id, 'resume', {});
+      }
+
+      function pkCancelSub(id) {
+        _activeSubId = id;
+        document.getElementById('sub-cancel-modal').style.display = 'flex';
+      }
+
+      function pkSubmitCancel() {
+        var reason = document.getElementById('sub-cancel-reason').value.trim() || 'Customer requested in self-service portal';
+        document.getElementById('sub-cancel-modal').style.display = 'none';
+        pkCallSubAction(_activeSubId, 'cancel', { reason: reason });
+      }
+
+      function pkCallSubAction(id, action, body) {
+        if (typeof pkShowLoader === 'function') pkShowLoader();
+        var session = localStorage.getItem('pk_session') || '';
+        fetch('/apps/purrkins/subscription-action.customer?session=' + session, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(Object.assign({ subscriptionId: id, action: action }, body))
+        }).then(function(r) { return r.json(); }).then(function(d) {
+          if (typeof pkHideLoader === 'function') pkHideLoader();
+          if (d.success) {
+            alert(d.message || 'Subscription updated successfully!');
+            window.location.reload();
+          } else {
+            alert('Error: ' + (d.message || 'Action failed'));
+          }
+        }).catch(function(err) {
+          if (typeof pkHideLoader === 'function') pkHideLoader();
+          alert('Request failed. Please check your internet connection.');
+        });
+      function pkOpenOrderReview(productTitle, productId) {
+        var el = document.getElementById('cr-prod-title');
+        if (el) el.innerText = productTitle || 'Purrkins Meal';
+        var idEl = document.getElementById('cr-prod-id');
+        if (idEl) idEl.value = productId || 'item';
+        document.getElementById('cust-review-modal').style.display = 'flex';
+      }
+
+      function pkSubmitCustomerReview() {
+        var rating = document.getElementById('cr-rating').value;
+        var title = document.getElementById('cr-title').value.trim();
+        var body = document.getElementById('cr-body').value.trim();
+        var prodId = document.getElementById('cr-prod-id').value;
+        if (!title || !body) return alert('Please enter both review title and feedback.');
+        if (typeof pkShowLoader === 'function') pkShowLoader();
+        document.getElementById('cust-review-modal').style.display = 'none';
+
+        var fd = new FormData();
+        fd.append('productId', prodId);
+        fd.append('rating', rating);
+        fd.append('title', title);
+        fd.append('body', body);
+        fd.append('author', typeof custFullName !== 'undefined' && custFullName ? custFullName : 'Verified Customer');
+        fd.append('email', typeof custEmail !== 'undefined' && custEmail ? custEmail : '');
+
+        fetch('/apps/purrkins/reviews?shop=purrkins-mhrlfymw.myshopify.com', {
+          method: 'POST',
+          body: fd
+        }).then(function(r) { return r.json(); }).then(function(d) {
+          if (typeof pkHideLoader === 'function') pkHideLoader();
+          alert('Thank you! Your review has been submitted.');
+          window.location.reload();
+        }).catch(function() {
+          if (typeof pkHideLoader === 'function') pkHideLoader();
+          alert('Thank you! Your review has been submitted.');
+          window.location.reload();
+        });
+      }
+
       if (typeof pkHideLoader === 'function') pkHideLoader();
     </script>
 
@@ -1567,6 +1846,97 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         </div>
         <div id="addr-msg" style="margin-top:12px;color:#e53e3e;font-size:14px;display:none;"></div>
         <button onclick="submitAddress()" style="margin-top:20px;width:100%;padding:14px;background:#121217;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;">Save Address</button>
+      </div>
+    </div>
+
+    <!-- Subscription Reschedule Modal -->
+    <div id="sub-reschedule-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+      <div style="background:#fff;border-radius:20px;padding:32px;max-width:440px;width:90%;position:relative;box-shadow:0 10px 25px rgba(0,0,0,0.15);">
+        <button onclick="document.getElementById('sub-reschedule-modal').style.display='none'" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;">✕</button>
+        <h3 style="margin:0 0 12px 0;font-size:18px;font-weight:800;color:#121217;">Reschedule Delivery</h3>
+        <p style="font-size:13px;color:#595961;margin:0 0 16px 0;">Select your preferred upcoming delivery date. Our engine ensures your lead time and courier days are respected.</p>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:12px;font-weight:700;color:#121217;margin-bottom:6px;">NEW DELIVERY DATE:</label>
+          <input type="date" id="sub-reschedule-date" style="width:100%;padding:12px;border:1.5px solid #eaeaea;border-radius:8px;font-size:14px;box-sizing:border-box;">
+        </div>
+        <div style="margin-bottom:20px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#121217;cursor:pointer;">
+            <input type="checkbox" id="sub-reschedule-future" checked>
+            <span>Shift all future deliveries forward from this date</span>
+          </label>
+        </div>
+        <button onclick="pkSubmitReschedule()" style="width:100%;padding:14px;background:#121217;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">Save Delivery Date</button>
+      </div>
+    </div>
+
+    <!-- Subscription Change Plan Modal -->
+    <div id="sub-plan-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+      <div style="background:#fff;border-radius:20px;padding:32px;max-width:440px;width:90%;position:relative;box-shadow:0 10px 25px rgba(0,0,0,0.15);">
+        <button onclick="document.getElementById('sub-plan-modal').style.display='none'" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;">✕</button>
+        <h3 style="margin:0 0 12px 0;font-size:18px;font-weight:800;color:#121217;">Change Delivery Frequency</h3>
+        <p style="font-size:13px;color:#595961;margin:0 0 16px 0;">Switch how often your meals arrive. New frequency applies immediately starting from your next cycle.</p>
+        <div style="margin-bottom:20px;">
+          <label style="display:block;font-size:12px;font-weight:700;color:#121217;margin-bottom:6px;">SELECT FREQUENCY:</label>
+          <select id="sub-plan-select" style="width:100%;padding:12px;border:1.5px solid #eaeaea;border-radius:8px;font-size:14px;background:#fff;box-sizing:border-box;">
+            ${availablePlans.map((p: any) => `
+              <option value="${p.id}">${escAttr(p.name)} (${p.label})${p.discountPercent > 0 ? ` • Save ${p.discountPercent}%` : ''}</option>
+            `).join('')}
+          </select>
+        </div>
+        <button onclick="pkSubmitChangePlan()" style="width:100%;padding:14px;background:#121217;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;">Update Plan</button>
+      </div>
+    </div>
+
+    <!-- Subscription Cancel Modal -->
+    <div id="sub-cancel-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+      <div style="background:#fff;border-radius:20px;padding:32px;max-width:440px;width:90%;position:relative;box-shadow:0 10px 25px rgba(0,0,0,0.15);">
+        <button onclick="document.getElementById('sub-cancel-modal').style.display='none'" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;">✕</button>
+        <h3 style="margin:0 0 12px 0;font-size:18px;font-weight:800;color:#bf0711;">Cancel Subscription</h3>
+        <p style="font-size:13px;color:#595961;margin:0 0 16px 0;">We're sorry to see you go! You can pause anytime instead to skip payments while keeping your special subscriber discounts.</p>
+        <div style="margin-bottom:20px;">
+          <label style="display:block;font-size:12px;font-weight:700;color:#121217;margin-bottom:6px;">REASON FOR CANCELLING:</label>
+          <input type="text" id="sub-cancel-reason" placeholder="e.g. My kitten has enough food for now" style="width:100%;padding:12px;border:1.5px solid #eaeaea;border-radius:8px;font-size:14px;box-sizing:border-box;">
+        </div>
+        <div style="display:flex;gap:10px;">
+          <button onclick="document.getElementById('sub-cancel-modal').style.display='none'" style="flex:1;padding:12px;background:#f1f2f3;color:#121217;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">Keep Active</button>
+          <button onclick="pkSubmitCancel()" style="flex:1;padding:12px;background:#bf0711;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">Cancel Plan</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Order Product Review Modal -->
+    <div id="cust-review-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;backdrop-filter:blur(3px);">
+      <div style="background:#fff;border-radius:20px;padding:32px;max-width:480px;width:90%;position:relative;box-shadow:0 12px 32px rgba(0,0,0,0.2);">
+        <button onclick="document.getElementById('cust-review-modal').style.display='none'" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:#595961;">✕</button>
+        <h3 style="margin:0 0 4px 0;font-size:20px;font-weight:800;color:#121217;">Write a Review</h3>
+        <p style="font-size:13px;color:#595961;margin:0 0 18px 0;">Share your thoughts on <strong id="cr-prod-title" style="color:#008060;">Purrkins Meal</strong></p>
+        <input type="hidden" id="cr-prod-id" value="">
+        
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:12px;font-weight:700;color:#121217;margin-bottom:6px;">OVERALL RATING:</label>
+          <select id="cr-rating" style="width:100%;padding:10px 12px;border:1.5px solid #eaeaea;border-radius:8px;font-size:14px;background:#fff;font-weight:600;box-sizing:border-box;">
+            <option value="5">★★★★★ (5 / 5) - Excellent</option>
+            <option value="4">★★★★☆ (4 / 5) - Very Good</option>
+            <option value="3">★★★☆☆ (3 / 5) - Average</option>
+            <option value="2">★★☆☆☆ (2 / 5) - Below Average</option>
+            <option value="1">★☆☆☆☆ (1 / 5) - Poor</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:12px;font-weight:700;color:#121217;margin-bottom:6px;">REVIEW HEADLINE:</label>
+          <input type="text" id="cr-title" placeholder="e.g. My kitten loved the fresh chicken recipe!" style="width:100%;padding:10px 12px;border:1.5px solid #eaeaea;border-radius:8px;font-size:14px;box-sizing:border-box;">
+        </div>
+
+        <div style="margin-bottom:20px;">
+          <label style="display:block;font-size:12px;font-weight:700;color:#121217;margin-bottom:6px;">DETAILED FEEDBACK:</label>
+          <textarea id="cr-body" rows="4" placeholder="Tell other pet parents what you and your kitten thought of the taste, packaging, and delivery..." style="width:100%;padding:10px 12px;border:1.5px solid #eaeaea;border-radius:8px;font-size:14px;box-sizing:border-box;resize:vertical;"></textarea>
+        </div>
+
+        <div style="display:flex;gap:10px;">
+          <button onclick="document.getElementById('cust-review-modal').style.display='none'" style="flex:1;padding:12px;background:#f1f2f3;color:#121217;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">Cancel</button>
+          <button onclick="pkSubmitCustomerReview()" style="flex:1.5;padding:12px;background:#008060;color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;">Submit Review</button>
+        </div>
       </div>
     </div>
   `;

@@ -1,5 +1,4 @@
 import type { LoaderFunctionArgs } from "react-router";
-import prisma from "../db.server";
 import jwt from "jsonwebtoken";
 import { unauthenticated } from "../shopify.server";
 import { getLoaderHtml } from "../loader-snippet";

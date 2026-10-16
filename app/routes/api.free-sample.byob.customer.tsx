@@ -1,8 +1,6 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate, unauthenticated } from "../shopify.server";
 import { appCache } from "../cache.server";
-import fs from "fs";
-import path from "path";
 
 export const loader = async () => {
   return Response.json(

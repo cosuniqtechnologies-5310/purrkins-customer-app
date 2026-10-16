@@ -29,10 +29,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     
     // Delete any existing OTPs for this email first
-    // @ts-ignore
     await prisma.oTP.deleteMany({ where: { email } });
 
-    // @ts-ignore
     await prisma.oTP.create({
       data: {
         email,
@@ -79,7 +77,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "verify_otp") {
     const code = (formData.get("code") as string).trim();
     
-    // @ts-ignore
     const validOtp = await prisma.oTP.findFirst({
       where: { email, code, expiresAt: { gt: new Date() } }
     });
@@ -147,7 +144,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     console.log("Final customerId for JWT:", customerId);
 
-    // @ts-ignore
     await prisma.oTP.delete({ where: { id: validOtp.id } });
 
     // Generate JWT token for session

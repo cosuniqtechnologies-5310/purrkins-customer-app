@@ -63,3 +63,112 @@ model StoreSetting {
   shop String @unique
   autoApproveReviews Boolean @default(true)
 }
+
+// ─── Subscription module ────────────────────────────────────────────────
+
+// Per-shop scheduling rules + the Shopify selling-plan group this app manages.
+model SubscriptionSetting {
+  id                 String   @id @default(cuid())
+  shop               String   @unique
+  timezone           String   @default("Asia/Kolkata") // IANA tz; all dates are computed in this zone
+  billingHour        Int      @default(6)               // local hour (0-23) at which renewals are charged
+  leadTimeDays       Int      @default(2)               // charge this many days before the delivery date
+  cutoffHours        Int      @default(24)              // changes must be made this many hours before billing
+  deliveryWeekdays   Int[]    @default([1, 2, 3, 4, 5, 6]) // 0=Sun .. 6=Sat. Days we can deliver on
+  blackoutDates      String[] @default([])              // YYYY-MM-DD holidays, never delivered on
+  defaultWeekday     Int?                               // preferred weekday when the customer has none
+  maxRetries         Int      @default(3)               // failed-payment retries before the subscription is paused
+  retryIntervalDays  Int      @default(2)
+  sellingPlanGroupId String?
+  eligibleProductIds String[] @default([])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+// A merchant-defined frequency ("Every month", "Every 2 weeks") with its discount.
+model SubscriptionPlan {
+  id              String   @id @default(cuid())
+  shop            String
+  name            String                      // "Delivered every month"
+  label           String                      // option shown in the storefront dropdown, e.g. "1 Month"
+  interval        String                      // WEEK | MONTH
+  intervalCount   Int
+  discountPercent Float    @default(0)
+  position        Int      @default(0)
+  active          Boolean  @default(true)
+  sellingPlanId   String?                     // gid://shopify/SellingPlan/...
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([shop])
+}
+
+// Local mirror of a Shopify SubscriptionContract + our schedule state.
+model Subscription {
+  id               String    @id @default(cuid())
+  shop             String
+  contractId       String    @unique            // gid://shopify/SubscriptionContract/...
+  originOrderId    String?
+  originOrderName  String?
+  customerId       String?
+  customerEmail    String?
+  customerName     String?
+  status           String    @default("ACTIVE") // ACTIVE | PAUSED | CANCELLED | EXPIRED | FAILED
+  pauseReason      String?
+  cancelReason     String?
+  planId           String?
+  sellingPlanId    String?
+  planName         String
+  interval         String
+  intervalCount    Int
+  preferredWeekday Int?                         // 0=Sun .. 6=Sat, null = first deliverable day
+  // Cadence: delivery base for pending cycle = anchorDate + anchorStep * interval.
+  // Computing from the anchor (not from the last date) prevents month-end drift.
+  anchorDate       String                       // YYYY-MM-DD
+  anchorStep       Int       @default(1)
+  lastDeliveryDate String                       // YYYY-MM-DD, used to re-anchor on frequency change
+  cycleNumber      Int       @default(1)        // number of the pending cycle (monotonic, never reused)
+  nextDeliveryDate String?                      // denormalised from the pending cycle
+  nextBillingAt    DateTime?                    // denormalised from the pending cycle
+  lines            Json                         // [{ title, variantTitle, quantity, price, variantId }]
+  currency         String    @default("USD")
+  recurringTotal   Float     @default(0)
+  deliveryPrice    Float     @default(0)
+  shippingSummary  String?
+  lastBilledAt     DateTime?
+  ordersBilled     Int       @default(0)
+  skippedCount     Int       @default(0)
+  pausedAt         DateTime?
+  cancelledAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  cycles           SubscriptionCycle[]
+
+  @@index([shop, status])
+  @@index([shop, nextBillingAt])
+}
+
+// One row per billing/delivery cycle: the ledger and the scheduler's work queue.
+model SubscriptionCycle {
+  id                  String       @id @default(cuid())
+  shop                String
+  subscriptionId      String
+  subscription        Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  cycleNumber         Int
+  deliveryDate        String                  // YYYY-MM-DD planned delivery
+  billingAt           DateTime                // instant at which the charge is attempted
+  status              String       @default("SCHEDULED") // SCHEDULED | PROCESSING | BILLED | FAILED | SKIPPED | CANCELLED
+  attempts            Int          @default(0)
+  idempotencyKey      String?
+  billingAttemptId    String?
+  processingStartedAt DateTime?
+  orderId             String?
+  orderName           String?
+  error               String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@unique([subscriptionId, cycleNumber])
+  @@index([status, billingAt])
+  @@index([shop, deliveryDate])
+}

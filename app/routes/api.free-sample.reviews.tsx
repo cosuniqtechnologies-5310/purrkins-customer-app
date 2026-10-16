@@ -12,7 +12,7 @@ async function getCustomerPurchasedProductIds(
   if (!admin || (!customerId && !email)) return purchasedIds;
 
   try {
-    let orders: any[] = [];
+    const orders: any[] = [];
 
     // 1. If customer ID is provided, query customer orders
     if (customerId) {
@@ -119,7 +119,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   try {
     // Show all published reviews for the shop
-    let reviews = await prisma.review.findMany({
+    const reviews = await prisma.review.findMany({
       where: {
         shop,
         status: "published",

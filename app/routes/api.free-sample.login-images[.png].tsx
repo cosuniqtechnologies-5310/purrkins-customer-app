@@ -1,8 +1,7 @@
-import type { LoaderFunctionArgs } from "react-router";
 import * as fs from "fs";
 import * as path from "path";
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
+export const loader = async () => {
   const imagePath = path.resolve(process.cwd(), "public", "login-images.png");
   
   try {
