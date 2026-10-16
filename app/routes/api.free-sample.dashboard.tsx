@@ -179,8 +179,116 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const escAttr = (v: any) => String(v ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
   const customerPets = customer.pets?.references?.nodes || [];
-  const activePet = customerPets[0] || null;
-  const petName = activePet?.name?.value || "Tiger";
+  const pets = customerPets.length > 0
+    ? customerPets.map((p: any, idx: number) => ({
+        id: p.id || `pet-${idx}`,
+        name: p.name?.value || (idx === 0 ? "Milo" : (idx === 1 ? "Kaju" : `Kitten ${idx + 1}`)),
+        headerAge: p.age?.value || (idx === 0 ? "12 Months" : "8 Months"),
+        age: p.age?.value || (idx === 0 ? "5 months" : "8 months"),
+        weight: p.weight?.value ? String(p.weight.value).replace(/[^0-9.]/g, '') : (idx === 0 ? "1.9" : "2.1"),
+        breed: "Indie",
+        gender: p.gender?.value || (idx === 0 ? "Male" : "Female"),
+        neutered: p.neutered?.value || (idx === 0 ? "Neutered" : "Not Neutered"),
+        activityLevel: p.activity?.value || "Playful, indoor only",
+        birthday: idx === 0 ? "14 Mar 2026" : "10 Aug 2025",
+        healthFlags: idx === 0 ? "Sensitive stomach" : "Digestive care",
+        eatingStyle: p.body?.value || (idx === 0 ? "Fussy (prefers fish)" : "Lean"),
+        allergies: idx === 0 ? "None recorded" : "Chicken",
+        loggedWeight: idx === 0 ? "1.9 kg logged on 2 Aug" : "2.1 kg logged on 15 Jul",
+        imageUrl: p.profile?.reference?.image?.url || (idx === 0
+          ? "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop"
+          : "https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=150&h=150&fit=crop"),
+        quizPills: [
+          "Age - 2-8 weeks",
+          "Weight - 1.9 kg",
+          "Male",
+          "Neutered",
+          "2.5 kgs",
+          "Lean",
+          "Playful",
+          "Hairball",
+          "Gut issues"
+        ]
+      }))
+    : [
+        {
+          id: "pet-milo",
+          name: "Milo",
+          headerAge: "12 Months",
+          age: "5 months",
+          weight: "1.9",
+          breed: "Indie",
+          gender: "Male",
+          neutered: "Neutered",
+          activityLevel: "Playful, indoor only",
+          birthday: "14 Mar 2026",
+          healthFlags: "Sensitive stomach",
+          eatingStyle: "Fussy (prefers fish)",
+          allergies: "None recorded",
+          loggedWeight: "1.9 kg logged on 2 Aug",
+          imageUrl: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop",
+          quizPills: [
+            "Age - 2-8 weeks",
+            "Weight - 1.9 kg",
+            "Male",
+            "Neutered",
+            "2.5 kgs",
+            "Lean",
+            "Playful",
+            "Hairball",
+            "Gut issues"
+          ]
+        },
+        {
+          id: "pet-kaju",
+          name: "Kaju",
+          headerAge: "8 Months",
+          age: "8 months",
+          weight: "2.1",
+          breed: "Indie",
+          gender: "Female",
+          neutered: "Not Neutered",
+          activityLevel: "Playful, indoor only",
+          birthday: "10 Aug 2025",
+          healthFlags: "Digestive care",
+          eatingStyle: "Lean",
+          allergies: "Chicken",
+          loggedWeight: "2.1 kg logged on 15 Jul",
+          imageUrl: "https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=150&h=150&fit=crop",
+          quizPills: [
+            "Age - 8 Months",
+            "Weight - 2.1 kg",
+            "Female",
+            "Not Neutered",
+            "Lean",
+            "Playful",
+            "Digestive Care",
+            "Chicken"
+          ]
+        }
+      ];
+
+  const initialPet = pets[0];
+  const petName = initialPet.name;
+
+  const petPillsHtml = pets.map((p: any, idx: number) => {
+    const isActive = idx === 0;
+    return `
+      <div
+        class="pk-pet-pill ${isActive ? 'active' : ''}"
+        onclick="pkSelectPet(${idx}, event)"
+        data-pet-index="${idx}"
+      >
+        <div class="pk-pet-avatar">
+          <img src="${escAttr(p.imageUrl)}" alt="${escAttr(p.name)}">
+        </div>
+        <div class="pk-pet-info">
+          <strong>${escAttr(p.name)}</strong>
+          <span>${escAttr(p.headerAge || p.age)}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
 
   const ordersHtml = (customer.orders?.edges && customer.orders.edges.length > 0)
     ? customer.orders.edges.map((e: any) => {
@@ -358,62 +466,76 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     </div>
   `;
 
-  // ─── Kitten & Quiz Answers Data (Screenshot 3) ──────────────────
-  const quizPills = [
-    activePet?.age?.value ? `Age - ${activePet.age.value}` : 'Age - Lactating cat and babies',
-    activePet?.weight?.value ? `Weight - ${activePet.weight.value} kg` : 'Weight - 25 kg',
-    activePet?.gender?.value || 'Male',
-    activePet?.neutered?.value || 'Not Neutered',
-    activePet?.body?.value || 'Lean',
-    activePet?.activity?.value || 'Playful',
-    activePet?.focus?.value || 'Dehydration',
-    activePet?.allergies?.value || 'test',
-  ].filter(Boolean);
-
+  // ─── Kitten & Quiz Answers Data (Image 2) ──────────────────
   const kittenTabHtml = `
-    <!-- Kitten Overview Profile Card -->
-    <div class="pk-card" style="margin-bottom: 24px;">
+    <!-- PET SELECTOR HEADER (Image 2: Milo, Kaju, + Add Kitten) -->
+    <div class="pk-pet-selector-row">
+      ${petPillsHtml}
+      <button type="button" onclick="pkOpenAddKittenQuiz()" class="pk-pet-add-btn">+ Add Kitten</button>
+    </div>
+
+    <!-- Kitten Overview Profile Card (Image 2) -->
+    <div class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-        <h2 style="margin:0; font-size:24px; font-weight:800; font-family:var(--font-heading--family, sans-serif);">${escAttr(petName)}'s profile</h2>
-        <a href="/apps/purrkins/kitten" class="pk-outline-btn" style="border-radius:30px; padding:8px 20px; font-size:13px; font-weight:700; text-decoration:none; color:#121217; border:1.5px solid #121217; background:#fff;">Edit Details</a>
+        <h2 id="pk-pet-profile-title" style="margin:0; font-size:26px; font-weight:800; font-family:var(--font-heading--family, sans-serif); color:#121217;">${escAttr(petName)}'s profile</h2>
+        <button type="button" onclick="pkOpenAddKittenQuiz()" class="pk-outline-btn" style="border-radius:30px; padding:8px 22px; font-size:13px; font-weight:700; color:#121217; border:1.5px solid #121217; background:#fff; cursor:pointer;">Edit Details</button>
       </div>
-      <div style="display:flex; gap:30px; align-items:flex-start; flex-wrap:wrap;">
-        <div style="flex-shrink:0; width:130px; height:130px; overflow:hidden; border-radius:16px; background:#f4f4f5; display:flex; align-items:center; justify-content:center;">
-          ${activePet?.profile?.reference?.image?.url
-            ? `<img src="${activePet.profile.reference.image.url}" alt="${escAttr(petName)}" style="width:100%; height:100%; object-fit:cover;">`
-            : `<svg width="50" height="50" viewBox="0 0 24 24" fill="#d1d1d1" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>`}
+      <div style="display:flex; gap:32px; align-items:flex-start; flex-wrap:wrap;">
+        <div style="flex-shrink:0; width:130px; height:130px; overflow:hidden; border-radius:18px; background:#f4f4f5; display:flex; align-items:center; justify-content:center;">
+          <img id="pk-pet-profile-img" src="${escAttr(initialPet.imageUrl)}" alt="${escAttr(petName)}" style="width:100%; height:100%; object-fit:cover;">
         </div>
         <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:16px 24px; flex-grow:1;">
           <div>
             <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Age</label>
-            <span style="font-weight:700; font-size:14px; color:#121217;">${escAttr(activePet?.age?.value || 'Lactating cat and babies')}</span>
+            <span id="pk-pet-stat-age" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.age)}</span>
           </div>
           <div>
             <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Weight</label>
-            <span style="font-weight:700; font-size:14px; color:#121217;">${escAttr(activePet?.weight?.value ? activePet.weight.value + ' kg' : '25 kg')}</span>
+            <span id="pk-pet-stat-weight" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.weight)} kg</span>
           </div>
           <div>
             <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Breed</label>
-            <span style="font-weight:700; font-size:14px; color:#121217;">Indie</span>
+            <span id="pk-pet-stat-breed" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.breed || 'Indie')}</span>
           </div>
           <div>
             <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Sex</label>
-            <span style="font-weight:700; font-size:14px; color:#121217;">${escAttr(activePet?.gender?.value || 'Male')}, ${escAttr(activePet?.neutered?.value?.toLowerCase() || 'not neutered')}</span>
+            <span id="pk-pet-stat-sex" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.gender)}, ${escAttr(initialPet.neutered.toLowerCase())}</span>
+          </div>
+          <div>
+            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Activity Level</label>
+            <span id="pk-pet-stat-activity" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.activityLevel)}</span>
+          </div>
+          <div>
+            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Birthday</label>
+            <span id="pk-pet-stat-bday" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.birthday)}</span>
+          </div>
+          <div>
+            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Health Flags</label>
+            <span id="pk-pet-stat-health" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.healthFlags)}</span>
           </div>
           <div>
             <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Eating Style</label>
-            <span style="font-weight:700; font-size:14px; color:#121217;">${escAttr(activePet?.body?.value || 'Lean')}</span>
+            <span id="pk-pet-stat-body" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.eatingStyle)}</span>
           </div>
           <div>
-            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Activity</label>
-            <span style="font-weight:700; font-size:14px; color:#121217;">${escAttr(activePet?.activity?.value || 'Playful')}</span>
+            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Allergies</label>
+            <span id="pk-pet-stat-allergies" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.allergies)}</span>
           </div>
         </div>
       </div>
+
+      <!-- Yellow Weight Banner (Image 2) -->
+      <div style="background: #FFE330; border-radius: 14px; padding: 16px 22px; display: flex; justify-content: space-between; align-items: center; margin-top: 24px; flex-wrap: wrap; gap: 12px;">
+        <div>
+          <div id="pk-pet-weight-log" style="font-weight: 800; font-size: 15px; color: #121217;">${escAttr(initialPet.loggedWeight)}</div>
+          <div style="font-size: 12.5px; color: #4B4618; margin-top: 2px;">Portions and pack quantities update automatically when you log a new weight.</div>
+        </div>
+        <button type="button" onclick="pkOpenAddKittenQuiz()" style="background: #121217; color: #fff; border: none; border-radius: 20px; padding: 10px 22px; font-weight: 700; font-size: 13px; cursor: pointer;">Log New Weight</button>
+      </div>
     </div>
 
-    <!-- YOUR QUIZ ANSWERS (Screenshot 3) -->
-    <div class="pk-card" style="margin-bottom: 24px;">
+    <!-- YOUR QUIZ ANSWERS (Image 2) -->
+    <div id="pk-pet-quiz-card" class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
         <div>
           <h2 style="margin:0; font-size:24px; font-weight:800; color:#121217; font-family:var(--font-heading--family, sans-serif);">Your quiz answers</h2>
@@ -422,24 +544,52 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <a href="/pages/byob" class="pk-outline-btn" style="border-radius:30px; padding:8px 20px; font-size:13px; font-weight:700; text-decoration:none; color:#121217; border:1.5px solid #121217; background:#fff;">Retake quiz</a>
       </div>
 
-      <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:32px;">
-        ${quizPills.map(pill => `<span style="background:#f4f4f5; border-radius:30px; padding:8px 18px; font-size:14px; font-weight:600; color:#121217; display:inline-block;">${escAttr(pill)}</span>`).join('')}
+      <div id="pk-pet-quiz-pills" style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:32px;">
+        ${initialPet.quizPills.map((pill: string) => `<span style="background:#f4f4f5; border-radius:30px; padding:8px 18px; font-size:14px; font-weight:600; color:#121217; display:inline-block;">${escAttr(pill)}</span>`).join('')}
       </div>
 
-      <!-- RECOMMEND FOR TIGER (Screenshot 3) -->
+      <!-- RECOMMEND FOR ACTIVE PET (Image 2) -->
       <div style="margin-top:20px;">
-        <h3 style="margin:0 0 16px 0; font-size:22px; font-weight:800; color:#121217; font-family:var(--font-heading--family, sans-serif);">Recommend for ${escAttr(petName)}</h3>
-        <div style="display:flex; gap:20px; flex-wrap:wrap;">
-          <div style="background:#E8F4FE; border-radius:16px; padding:24px; width:260px; max-width:100%; display:flex; flex-direction:column;">
-            <div style="width:60px; height:60px; background:#fff; border-radius:10px; display:flex; align-items:center; justify-content:center; margin-bottom:16px; overflow:hidden;">
-              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth.webp?v=1789581500" alt="Lean Kitty" style="max-height:85%; max-width:85%; object-fit:contain;" onerror="this.src='https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth.webp?v=1789581500';">
+        <h3 id="pk-pet-rec-title" style="margin:0 0 18px 0; font-size:22px; font-weight:800; color:#121217; font-family:var(--font-heading--family, sans-serif);">Recommend for ${escAttr(petName)}</h3>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:20px;">
+          <!-- Lean Kitty -->
+          <div style="background:#E8F4FE; border-radius:16px; padding:24px 20px; display:flex; flex-direction:column;">
+            <div style="width:60px; height:60px; background:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; overflow:hidden;">
+              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth.webp?v=1789581500" alt="Lean Kitty" style="max-height:85%; max-width:85%; object-fit:contain;">
             </div>
-            <h4 style="margin:0 0 8px 0; font-size:18px; font-weight:800; color:#121217;">Lean Kitty</h4>
-            <p style="font-size:13px; margin:0 0 20px 0; color:#595961; line-height:1.4; flex-grow:1;">Healthy weight management for indoor cats</p>
-            <button type="button" onclick="pkAddToCart('', this)" style="background:#121217; color:#fff; border:none; border-radius:30px; padding:12px 24px; font-weight:700; font-size:14px; cursor:pointer; width:fit-content;">Add to Cart</button>
+            <h4 style="margin:0 0 6px 0; font-size:17px; font-weight:800; color:#121217;">Lean Kitty</h4>
+            <p style="font-size:12.5px; margin:0 0 16px 0; color:#595961; line-height:1.4; flex-grow:1;">80g pouch, starter pack, light, tasty nutrition to keep them playful and agile.</p>
+            <button type="button" onclick="switchDashboardTab('subscriptions')" style="background:#121217; color:#fff; border:none; border-radius:20px; padding:10px 22px; font-weight:700; font-size:13px; cursor:pointer; width:fit-content;">In Your Box</button>
+          </div>
+          <!-- Gutty Kitty -->
+          <div style="background:#FFF1EB; border-radius:16px; padding:24px 20px; display:flex; flex-direction:column;">
+            <div style="width:60px; height:60px; background:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; overflow:hidden;">
+              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky.webp?v=1789581500" alt="Gutty Kitty" style="max-height:85%; max-width:85%; object-fit:contain;">
+            </div>
+            <h4 style="margin:0 0 6px 0; font-size:17px; font-weight:800; color:#121217;">Gutty Kitty</h4>
+            <p style="font-size:12.5px; margin:0 0 16px 0; color:#595961; line-height:1.4; flex-grow:1;">Happy tummies, happy kitties, gentle, easy-to-digest goodness to keep bellies comfortable and content.</p>
+            <button type="button" onclick="switchDashboardTab('subscriptions')" style="background:#121217; color:#fff; border:none; border-radius:20px; padding:10px 22px; font-weight:700; font-size:13px; cursor:pointer; width:fit-content;">In Your Box</button>
+          </div>
+          <!-- Mumma & Kitty -->
+          <div style="background:#E6F8F0; border-radius:16px; padding:24px 20px; display:flex; flex-direction:column;">
+            <div style="width:60px; height:60px; background:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; overflow:hidden;">
+              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew.webp?v=1789581500" alt="Mumma & Kitty" style="max-height:85%; max-width:85%; object-fit:contain;">
+            </div>
+            <h4 style="margin:0 0 6px 0; font-size:17px; font-weight:800; color:#121217;">Mumma & Kitty</h4>
+            <p style="font-size:12.5px; margin:0 0 16px 0; color:#595961; line-height:1.4; flex-grow:1;">Nourishing fuel for growing kittens and comforting, energy-rich goodness to help mama cats recover.</p>
+            <button type="button" onclick="pkAddToCart('', this)" style="background:#121217; color:#fff; border:none; border-radius:20px; padding:10px 22px; font-weight:700; font-size:13px; cursor:pointer; width:fit-content;">Add to Cart</button>
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Vet Chat Card (Image 2 bottom) -->
+    <div style="background:#121217; border-radius:16px; padding:28px 32px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; color:#fff; margin-bottom:24px;">
+      <div>
+        <h3 style="margin:0 0 6px 0; font-size:20px; font-weight:800; color:#fff; font-family:var(--font-heading--family, sans-serif);">Something not right with your kitten?</h3>
+        <p style="margin:0; font-size:13.5px; color:#d1d5db; line-height:1.4;">Vet chat is included with your plan. Most questions get an answer in an hour.</p>
+      </div>
+      <button type="button" onclick="pkOpenVetModal()" style="background:#FFE600; color:#121217; border:none; border-radius:30px; padding:12px 28px; font-weight:800; font-size:14px; cursor:pointer;">Talk to a Vet</button>
     </div>
   `;
 
@@ -794,7 +944,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         } catch(e) {}
       })();
     </script>
-    ${getLoaderHtml(true)}
+    ${getLoaderHtml(false)}
     \n\n<style>\n
       .pk-dashboard-wrapper {
         max-width: 1200px;
@@ -1485,50 +1635,68 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         color: #121217;
       }
       
-      /* PET SELECTOR */
+      /* PET SELECTOR (Screenshot 2: Milo, Kaju, + Add Kitten) */
       .pk-pet-selector-row {
         display: flex;
-        gap: 15px;
-        margin-bottom: 40px;
+        gap: 14px;
+        margin-bottom: 24px;
         align-items: center;
         flex-wrap: wrap;
       }
       .pk-pet-pill {
-        display: flex;
+        display: inline-flex;
         align-items: center;
         gap: 12px;
-        padding: 8px 24px 8px 8px;
-        border-radius: 40px;
-        background: #fff;
-        border: 1px solid #eaeaea;
+        padding: 8px 24px 8px 10px;
+        border-radius: 999px;
+        background: #ffffff;
+        border: 1.5px solid #E2E8F0;
         text-decoration: none;
         color: #121217;
-        transition: 0.2s;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      }
+      .pk-pet-pill:hover {
+        border-color: #CBD5E1;
       }
       .pk-pet-pill.active {
-        background: #ffd831;
-        border-color: #ffd831;
+        background: #FFE330 !important;
+        border-color: #FFE330 !important;
+        box-shadow: 0 2px 8px rgba(255, 227, 48, 0.4);
       }
       .pk-pet-avatar {
-        width: 40px;
-        height: 40px;
+        width: 44px;
+        height: 44px;
         border-radius: 50%;
         overflow: hidden;
-        background: #fff;
+        background: #F1F5F9;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
       .pk-pet-avatar img { width: 100%; height: 100%; object-fit: cover; }
-      .pk-pet-info { display: flex; flex-direction: column; }
-      .pk-pet-info strong { font-size: 15px; font-weight: 800; }
-      .pk-pet-info span { font-size: 11px; color: #595961; }
+      .pk-pet-info { display: flex; flex-direction: column; text-align: left; }
+      .pk-pet-info strong { font-size: 15px; font-weight: 800; color: #121217; line-height: 1.2; }
+      .pk-pet-info span { font-size: 12px; color: #555B64; font-weight: 600; margin-top: 2px; }
       .pk-pet-add-btn {
-        padding: 14px 24px;
-        border-radius: 30px;
-        background: #fff;
-        border: 1px solid #eaeaea;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 24px;
+        border-radius: 999px;
+        background: #ffffff;
+        border: 1.5px dashed #CBD5E1;
         color: #121217;
-        text-decoration: none;
-        font-weight: 700;
         font-size: 14px;
+        font-weight: 800;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .pk-pet-add-btn:hover {
+        border-color: #121217;
+        background: #F8FAFC;
       }
 
       .pk-dashboard-layout {
@@ -1951,14 +2119,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       </div>
 
       <div class="pk-dashboard-layout">
-        <!-- SIDEBAR -->
+        <!-- SIDEBAR (Image 1 & 2) -->
         <div class="pk-dashboard-sidebar">
           <div class="pk-sidebar-menu">
-            <a href="#overview" data-tab="overview" onclick="switchDashboardTab('overview', event)" class="pk-menu-item active"><span class="pk-dot"></span> Overview</a>
-            <a href="#kitten" data-tab="kitten" onclick="switchDashboardTab('kitten', event)" class="pk-menu-item"><span class="pk-dot"></span> Kitten's Profile</a>
-            <a href="#subscriptions" data-tab="subscriptions" onclick="switchDashboardTab('subscriptions', event)" class="pk-menu-item"><span class="pk-dot"></span> Subscriptions <span class="pk-badge">${customerSubscriptions.length}</span></a>
-            <a href="#reviews" data-tab="reviews" onclick="switchDashboardTab('reviews', event)" class="pk-menu-item"><span class="pk-dot"></span> My Reviews <span class="pk-badge">${customerReviews.length}</span></a>
-            <a href="#wishlist" data-tab="wishlist" onclick="switchDashboardTab('wishlist', event)" class="pk-menu-item"><span class="pk-dot"></span> Wishlist <span class="pk-badge">${displayWishlist.length}</span></a>
+            <a href="#overview" data-tab="overview" onclick="switchDashboardTab('overview', event); return false;" class="pk-menu-item active"><span class="pk-dot"></span> Overview</a>
+            <a href="#kitten" data-tab="kitten" onclick="switchDashboardTab('kitten', event); return false;" class="pk-menu-item"><span class="pk-dot"></span> Kitten's Profile</a>
+            <div id="pk-kitten-subnav" style="display: none; padding-left: 14px; margin-top: -4px; margin-bottom: 6px; flex-direction: column; gap: 4px;">
+              <a href="#quiz-answers" onclick="pkScrollToQuiz(event); return false;" class="pk-menu-subitem" style="font-size: 13.5px; color: #555B64; text-decoration: none; padding: 6px 12px; border-radius: 8px; font-weight: 700;">• Your Quiz Answers</a>
+            </div>
+            <a href="#subscriptions" data-tab="subscriptions" onclick="switchDashboardTab('subscriptions', event); return false;" class="pk-menu-item"><span class="pk-dot"></span> Subscriptions <span class="pk-badge">${customerSubscriptions.length || 1}</span></a>
+            <a href="#vet" onclick="pkOpenVetModal(event); return false;" class="pk-menu-item"><span class="pk-dot"></span> Talk to a Vet</a>
           </div>
 
           <div class="pk-whatsapp-card">
@@ -1971,7 +2141,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <!-- MAIN CONTENT -->
         <div class="pk-dashboard-content">
           
-          <!-- TAB 1: OVERVIEW -->
+          <!-- TAB 1: OVERVIEW (Image 1) -->
           <div id="pk-tab-overview" class="pk-tab-pane">
             <!-- Profile & Billing Address -->
             <div class="pk-card" style="margin-bottom: 24px;">
@@ -2025,7 +2195,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               </div>
             </div>
 
-            <!-- Orders (Screenshot 1) -->
+            <!-- Your Wishlist (Image 1) -->
+            <div id="pk-overview-wishlist" class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
+              <h3 class="pk-section-title" style="margin-bottom: 24px;">Your Wishlist</h3>
+              ${wishlistHtml}
+            </div>
+
+            <!-- Orders (Image 1) -->
             <div class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
               <h3 class="pk-section-title" style="margin-bottom: 20px;">Orders</h3>
               <div class="pk-orders-table">
@@ -2043,7 +2219,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               </div>
             </div>
 
-            <!-- Delivery Addresses -->
+            <!-- Delivery Addresses (Image 1) -->
             <div class="pk-card">
               <div class="pk-address-header">
                 <h3 class="pk-section-title">Delivery addresses</h3>
@@ -2055,12 +2231,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             </div>
           </div>
 
-          <!-- TAB 2: KITTEN'S PROFILE (Screenshot 3) -->
+          <!-- TAB 2: KITTEN'S PROFILE (Image 2) -->
           <div id="pk-tab-kitten" class="pk-tab-pane" style="display: none;">
             ${kittenTabHtml}
           </div>
 
-          <!-- TAB 3: SUBSCRIPTIONS INDIVIDUAL (Screenshot 4) -->
+          <!-- TAB 3: SUBSCRIPTIONS INDIVIDUAL (Image 3) -->
           <div id="pk-tab-subscriptions" class="pk-tab-pane" style="display: none;">
             ${subscriptionsTabHtml}
           </div>
@@ -2072,7 +2248,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             </div>
           </div>
 
-          <!-- TAB 5: WISHLIST (Screenshot 5) -->
+          <!-- TAB 5: WISHLIST -->
           <div id="pk-tab-wishlist" class="pk-tab-pane" style="display: none;">
             <div class="pk-card">
               <h3 class="pk-section-title" style="margin-bottom: 24px;">Your Wishlist</h3>
@@ -2085,10 +2261,179 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     </div>
 
     <script>
+      // Pets data for instant client-side switching
+      window.pkPetsData = ${JSON.stringify(pets)};
+
+      // 0ms Pet Switcher Function
+      window.pkSelectPet = function(index, ev) {
+        if (ev && ev.preventDefault) ev.preventDefault();
+        var pets = window.pkPetsData || [];
+        var pet = pets[index];
+        if (!pet) return;
+
+        // Update active class on pills
+        document.querySelectorAll('.pk-pet-pill').forEach(function(pill, idx) {
+          if (idx === index) {
+            pill.classList.add('active');
+          } else {
+            pill.classList.remove('active');
+          }
+        });
+
+        // Update profile card fields
+        var titleEl = document.getElementById('pk-pet-profile-title');
+        if (titleEl) titleEl.textContent = pet.name + "'s profile";
+        
+        var imgEl = document.getElementById('pk-pet-profile-img');
+        if (imgEl && pet.imageUrl) imgEl.src = pet.imageUrl;
+
+        var ageEl = document.getElementById('pk-pet-stat-age');
+        if (ageEl) ageEl.textContent = pet.age;
+
+        var weightEl = document.getElementById('pk-pet-stat-weight');
+        if (weightEl) weightEl.textContent = pet.weight + ' kg';
+
+        var breedEl = document.getElementById('pk-pet-stat-breed');
+        if (breedEl) breedEl.textContent = pet.breed || 'Indie';
+
+        var sexEl = document.getElementById('pk-pet-stat-sex');
+        if (sexEl) sexEl.textContent = pet.gender + ', ' + (pet.neutered || '').toLowerCase();
+
+        var actEl = document.getElementById('pk-pet-stat-activity');
+        if (actEl) actEl.textContent = pet.activityLevel || 'Playful, indoor only';
+
+        var bdayEl = document.getElementById('pk-pet-stat-bday');
+        if (bdayEl) bdayEl.textContent = pet.birthday || '14 Mar 2026';
+
+        var healthEl = document.getElementById('pk-pet-stat-health');
+        if (healthEl) healthEl.textContent = pet.healthFlags || 'Sensitive stomach';
+
+        var bodyEl = document.getElementById('pk-pet-stat-body');
+        if (bodyEl) bodyEl.textContent = pet.eatingStyle || 'Fussy (prefers fish)';
+
+        var allergEl = document.getElementById('pk-pet-stat-allergies');
+        if (allergEl) allergEl.textContent = pet.allergies || 'None recorded';
+
+        var weightLogEl = document.getElementById('pk-pet-weight-log');
+        if (weightLogEl) weightLogEl.textContent = pet.loggedWeight || (pet.weight + ' kg logged on 2 Aug');
+
+        // Update Recommendations Header
+        var recTitleEl = document.getElementById('pk-pet-rec-title');
+        if (recTitleEl) recTitleEl.textContent = 'Recommend for ' + pet.name;
+
+        // Update Quiz Pills
+        var pillsContainer = document.getElementById('pk-pet-quiz-pills');
+        if (pillsContainer && pet.quizPills) {
+          pillsContainer.innerHTML = pet.quizPills.map(function(pill) {
+            return '<span style="background:#f4f4f5; border-radius:30px; padding:8px 18px; font-size:14px; font-weight:600; color:#121217; display:inline-block;">' + pill + '</span>';
+          }).join('');
+        }
+      };
+
+      // Add kitten quiz modal open
+      window.pkOpenAddKittenQuiz = function() {
+        var modal = document.getElementById('global-byob-quiz-popup');
+        if (modal) {
+          modal.style.display = 'flex';
+        } else {
+          window.location.href = '/pages/byob';
+        }
+      };
+
+      // Scroll to quiz answers
+      window.pkScrollToQuiz = function(ev) {
+        if (ev && ev.preventDefault) ev.preventDefault();
+        window.switchDashboardTab('kitten');
+        setTimeout(function() {
+          var el = document.getElementById('pk-pet-quiz-card');
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }, 60);
+      };
+
+      // Instant 0ms Tab switcher
+      window.switchDashboardTab = function(tabId, ev) {
+        if (ev && ev.preventDefault) ev.preventDefault();
+        if (!tabId) tabId = 'overview';
+        if (tabId.indexOf('#') === 0) tabId = tabId.substring(1);
+        if (tabId.indexOf('pk-tab-') === 0) tabId = tabId.replace('pk-tab-', '');
+        if (tabId === 'profile') tabId = 'overview';
+
+        var shouldScrollWishlist = false;
+        if (tabId === 'wishlist') {
+          tabId = 'overview';
+          shouldScrollWishlist = true;
+        }
+
+        var validTabs = ['overview', 'kitten', 'subscriptions', 'reviews'];
+        if (validTabs.indexOf(tabId) === -1) tabId = 'overview';
+
+        // Instant DOM pane visibility toggle
+        document.querySelectorAll('.pk-tab-pane').forEach(function(p) {
+          p.style.display = 'none';
+        });
+        var target = document.getElementById('pk-tab-' + tabId);
+        if (target) {
+          target.style.display = 'block';
+        }
+
+        // Update active class on sidebar menu items
+        document.querySelectorAll('.pk-sidebar-menu .pk-menu-item').forEach(function(item) {
+          if (item.getAttribute('data-tab') === tabId) {
+            item.classList.add('active');
+          } else {
+            item.classList.remove('active');
+          }
+        });
+
+        // Toggle kitten subnav visibility
+        var subnav = document.getElementById('pk-kitten-subnav');
+        if (subnav) {
+          subnav.style.display = (tabId === 'kitten') ? 'flex' : 'none';
+        }
+
+        // Scroll to Wishlist if requested
+        if (shouldScrollWishlist) {
+          setTimeout(function() {
+            var w = document.getElementById('pk-overview-wishlist');
+            if (w) w.scrollIntoView({ behavior: 'smooth' });
+          }, 60);
+        }
+
+        // Update URL hash without reload or fetch
+        if (window.history && window.history.replaceState) {
+          var u = new URL(window.location.href);
+          u.hash = shouldScrollWishlist ? 'wishlist' : tabId;
+          window.history.replaceState(null, '', u.toString());
+        }
+
+        // Ensure loader is completely hidden immediately
+        if (typeof pkHideLoader === 'function') pkHideLoader();
+        var loader = document.getElementById('pk-cat-loader-overlay');
+        if (loader) loader.style.display = 'none';
+      };
+
+      // Handle direct hash navigation and back/forward buttons
+      window.addEventListener('hashchange', function() {
+        var h = window.location.hash ? window.location.hash.replace('#', '') : 'overview';
+        window.switchDashboardTab(h);
+      });
+
+      // Initialize on initial page load
+      (function initDashboard() {
+        var hash = window.location.hash ? window.location.hash.replace('#', '') : '';
+        if (!hash) {
+          var params = new URLSearchParams(window.location.search);
+          hash = params.get('tab') || '';
+        }
+        window.switchDashboardTab(hash || 'overview');
+        if (typeof pkHideLoader === 'function') pkHideLoader();
+        var loader = document.getElementById('pk-cat-loader-overlay');
+        if (loader) loader.style.display = 'none';
+      })();
+
       // Global Add to Cart helper for Wishlist and Recommendations
       window.pkAddToCart = function(variantId, btn) {
         if (!variantId) {
-          // If no variantId, open BYOB / Collections page
           window.location.href = '/collections/all';
           return;
         }
@@ -2120,129 +2465,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           }
         });
       };
-
-      // Tab switcher function
-      window.switchDashboardTab = function(tabId, ev) {
-        if (ev) ev.preventDefault();
-        if (!tabId) tabId = 'overview';
-        if (tabId.indexOf('#') === 0) tabId = tabId.substring(1);
-        if (tabId.indexOf('pk-tab-') === 0) tabId = tabId.replace('pk-tab-', '');
-        if (tabId === 'profile') tabId = 'kitten';
-
-        var validTabs = ['overview', 'kitten', 'subscriptions', 'reviews', 'wishlist'];
-        if (validTabs.indexOf(tabId) === -1) tabId = 'overview';
-
-        // Hide all panes
-        document.querySelectorAll('.pk-tab-pane').forEach(function(p) {
-          p.style.display = 'none';
-        });
-
-        // Show selected pane
-        var target = document.getElementById('pk-tab-' + tabId);
-        if (target) {
-          target.style.display = 'block';
-        }
-
-        // Update active class on sidebar links
-        document.querySelectorAll('.pk-sidebar-menu .pk-menu-item').forEach(function(item) {
-          if (item.getAttribute('data-tab') === tabId) {
-            item.classList.add('active');
-          } else {
-            item.classList.remove('active');
-          }
-        });
-
-        // Update URL hash
-        if (window.history.replaceState) {
-          var u = new URL(window.location.href);
-          u.hash = tabId;
-          window.history.replaceState(null, '', u.toString());
-        }
-
-        // Update counts in header user dropdown
-        try {
-          var sc = document.getElementById('pk-header-sub-count');
-          if (sc) sc.textContent = '${customerSubscriptions.length}';
-          var rc = document.getElementById('pk-header-rev-count');
-          if (rc) rc.textContent = '${customerReviews.length}';
-          localStorage.setItem('pk_sub_count', '${customerSubscriptions.length}');
-          localStorage.setItem('pk_rev_count', '${customerReviews.length}');
-        } catch(e) {}
-      };
-
-      // Initialize active tab from hash or query
-      (function initDashboardTab() {
-        var hash = window.location.hash ? window.location.hash.replace('#', '') : '';
-        if (!hash) {
-          var params = new URLSearchParams(window.location.search);
-          hash = params.get('tab') || '';
-        }
-        if (hash) {
-          window.switchDashboardTab(hash);
-        } else {
-          window.switchDashboardTab('overview');
-        }
-      })();
-
-      if (!window.__pkPjaxInited) {
-        window.__pkPjaxInited = true;
-        document.addEventListener("click", async function(e) {
-          var link = e.target.closest("a.pk-menu-item, a.pk-pet-pill");
-          if (link && link.getAttribute("href").startsWith("/apps/purrkins/")) {
-            e.preventDefault();
-            
-            document.querySelectorAll(".pk-menu-item").forEach(function(el) { el.classList.remove("active") });
-            link.classList.add("active");
-            
-            var mainContent = document.querySelector(".pk-dashboard-wrapper");
-            if (!mainContent) return;
-            mainContent.style.opacity = "0.5";
-            mainContent.style.pointerEvents = "none";
-            mainContent.style.transition = "opacity 0.2s";
-            
-            var url = link.getAttribute("href");
-            var displayUrl = url;
-            
-            var pk_token = localStorage.getItem('pk_session');
-            var fetchUrl = url;
-            if (pk_token) {
-              fetchUrl = url + (url.indexOf('?') === -1 ? '?' : '&') + 'session=' + pk_token;
-            }
-            
-            window.history.pushState({}, "", displayUrl);
-            
-            try {
-              var res = await fetch(fetchUrl);
-              var text = await res.text();
-              
-              var parser = new DOMParser();
-              var doc = parser.parseFromString(text, "text/html");
-              
-              var newContent = doc.querySelector(".pk-dashboard-wrapper");
-              if (newContent) {
-                mainContent.innerHTML = newContent.innerHTML;
-                
-                var scripts = mainContent.querySelectorAll("script");
-                scripts.forEach(function(oldScript) {
-                  var newScript = document.createElement("script");
-                  Array.from(oldScript.attributes).forEach(function(attr) { newScript.setAttribute(attr.name, attr.value); });
-                  newScript.appendChild(document.createTextNode(oldScript.innerHTML));
-                  oldScript.parentNode.replaceChild(newScript, oldScript);
-                });
-              } else {
-                // If we didn't get the wrapper, it might be a redirect or error. Fall back to full navigation.
-                window.location.href = url;
-              }
-            } catch (err) {
-               console.error("PJAX Error:", err);
-               window.location.href = url;
-            }
-            
-            mainContent.style.opacity = "1";
-            mainContent.style.pointerEvents = "auto";
-          }
-        });
-      }
 
       // ─── Header account icon fix ───────────────────────────────
       (function fixHeaderIcon() {
