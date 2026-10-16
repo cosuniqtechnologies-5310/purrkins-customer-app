@@ -101,7 +101,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     switch (intent) {
       case "save_plan": {
         const id = formData.get("id") ? String(formData.get("id")) : undefined;
-        const interval = String(formData.get("interval")) as "WEEK" | "MONTH";
+        const interval = String(formData.get("interval")) as "DAY" | "WEEK" | "MONTH";
         const intervalCount = parseInt(String(formData.get("intervalCount") || "1"), 10);
         const discountPercent = parseFloat(String(formData.get("discountPercent") || "15"));
         const name = String(formData.get("name") || "").trim() || undefined;
@@ -116,22 +116,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
 
       case "seed_default_plans": {
-        await savePlan(shop, {
-          name: "Delivered Every Month (Save 15%)",
-          interval: "MONTH",
-          intervalCount: 1,
-          discountPercent: 15,
-        });
-        await savePlan(shop, {
-          name: "Delivered Every 2 Weeks (Save 15%)",
-          interval: "WEEK",
-          intervalCount: 2,
-          discountPercent: 15,
-        });
+        // Create the 4 standard day delivery plans (15, 30, 45, 60 days)
+        const dayIntervals = [15, 30, 45, 60];
+        for (const days of dayIntervals) {
+          const existing = await prisma.subscriptionPlan.findFirst({
+            where: { shop, interval: "DAY", intervalCount: days },
+          });
+          if (!existing) {
+            await savePlan(shop, {
+              name: `Delivered every ${days} days (Save 15%)`,
+              interval: "DAY",
+              intervalCount: days,
+              discountPercent: 15,
+            });
+          } else if (!existing.active) {
+            await prisma.subscriptionPlan.update({
+              where: { id: existing.id },
+              data: { active: true },
+            });
+          }
+        }
         await syncSellingPlans(shop);
         return {
           success: true,
-          message: "Standard default subscription plans created with 15% discount.",
+          message: "Standard delivery options (15, 30, 45, 60 days) created with 15% discount and synced to Shopify.",
         };
       }
 
@@ -206,8 +214,8 @@ export default function SubscriptionPlans() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<typeof plans[0] | null>(null);
   const [name, setName] = useState("");
-  const [interval, setInterval] = useState<"WEEK" | "MONTH">("MONTH");
-  const [intervalCount, setIntervalCount] = useState(1);
+  const [interval, setInterval] = useState<"DAY" | "WEEK" | "MONTH">("DAY");
+  const [intervalCount, setIntervalCount] = useState(30);
   const [discountPercent, setDiscountPercent] = useState(15);
 
   // Eligibility Scope: default is ALL
@@ -236,9 +244,9 @@ export default function SubscriptionPlans() {
 
   const openCreateModal = () => {
     setEditingPlan(null);
-    setName("Delivered every month (Save 15%)");
-    setInterval("MONTH");
-    setIntervalCount(1);
+    setName("Delivered every 30 days (Save 15%)");
+    setInterval("DAY");
+    setIntervalCount(30);
     setDiscountPercent(15); // Default 15% discount offer
     setModalOpen(true);
   };
@@ -246,7 +254,7 @@ export default function SubscriptionPlans() {
   const openEditModal = (p: typeof plans[0]) => {
     setEditingPlan(p);
     setName(p.name);
-    setInterval(p.interval as "WEEK" | "MONTH");
+    setInterval(p.interval as "DAY" | "WEEK" | "MONTH");
     setIntervalCount(p.intervalCount);
     setDiscountPercent(p.discountPercent);
     setModalOpen(true);
@@ -859,11 +867,12 @@ export default function SubscriptionPlans() {
                     id="plan-interval-select"
                     name="interval"
                     value={interval}
-                    onChange={(e) => setInterval(e.target.value as "WEEK" | "MONTH")}
+                    onChange={(e) => setInterval(e.target.value as "DAY" | "WEEK" | "MONTH")}
                     style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1.5px solid #000", color: "#000" }}
                   >
-                    <option value="MONTH">Month(s)</option>
+                    <option value="DAY">Day(s)</option>
                     <option value="WEEK">Week(s)</option>
+                    <option value="MONTH">Month(s)</option>
                   </select>
                 </div>
 
@@ -876,7 +885,7 @@ export default function SubscriptionPlans() {
                     type="number"
                     name="intervalCount"
                     min="1"
-                    max="12"
+                    max="365"
                     value={intervalCount}
                     onChange={(e) => setIntervalCount(parseInt(e.target.value, 10) || 1)}
                     style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1.5px solid #000", color: "#000" }}

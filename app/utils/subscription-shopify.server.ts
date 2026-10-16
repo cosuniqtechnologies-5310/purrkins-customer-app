@@ -56,7 +56,7 @@ export interface SellingPlanSpec {
   sellingPlanId?: string | null;
   name: string;
   label: string;
-  interval: "WEEK" | "MONTH";
+  interval: "DAY" | "WEEK" | "MONTH";
   intervalCount: number;
   discountPercent: number;
   position: number;
@@ -65,7 +65,7 @@ export interface SellingPlanSpec {
 function sellingPlanInput(p: SellingPlanSpec, isUpdate: boolean) {
   const base: Record<string, unknown> = {
     name: p.name,
-    options: p.label,
+    options: [p.label],
     position: p.position,
     category: "SUBSCRIPTION",
     billingPolicy: { recurring: { interval: p.interval, intervalCount: p.intervalCount } },

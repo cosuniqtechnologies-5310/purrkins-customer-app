@@ -142,13 +142,18 @@ export async function saveSettings(shop: string, input: SettingsInput) {
 
 export interface PlanInput {
   id?: string;
-  interval: "WEEK" | "MONTH";
+  interval: "DAY" | "WEEK" | "MONTH";
   intervalCount: number;
   discountPercent: number;
   name?: string;
 }
 
 function planNames(interval: string, count: number) {
+  if (interval === "DAY") {
+    const label = `${count} days`;
+    const name = `Delivered every ${count} days`;
+    return { name, label };
+  }
   const unit = interval === "WEEK" ? "week" : "month";
   const label = `${count} ${interval === "WEEK" ? "Week" : "Month"}${count === 1 ? "" : "s"}`;
   const name = count === 1 ? `Delivered every ${unit}` : `Delivered every ${count} ${unit}s`;
@@ -156,9 +161,11 @@ function planNames(interval: string, count: number) {
 }
 
 export async function savePlan(shop: string, input: PlanInput) {
-  if (input.interval !== "WEEK" && input.interval !== "MONTH") throw new SubscriptionError("Choose weeks or months.");
-  if (!Number.isInteger(input.intervalCount) || input.intervalCount < 1 || input.intervalCount > 12) {
-    throw new SubscriptionError("Frequency must be between 1 and 12.");
+  if (input.interval !== "DAY" && input.interval !== "WEEK" && input.interval !== "MONTH") {
+    throw new SubscriptionError("Choose days, weeks or months.");
+  }
+  if (!Number.isInteger(input.intervalCount) || input.intervalCount < 1 || input.intervalCount > 365) {
+    throw new SubscriptionError("Frequency must be between 1 and 365.");
   }
   if (!(input.discountPercent >= 0 && input.discountPercent <= 90)) {
     throw new SubscriptionError("Discount must be between 0% and 90%.");
@@ -243,7 +250,7 @@ export async function syncSellingPlans(shop: string): Promise<{ groupId: string 
     sellingPlanId: p.sellingPlanId,
     name: p.name,
     label: p.label,
-    interval: p.interval as "WEEK" | "MONTH",
+    interval: p.interval as "DAY" | "WEEK" | "MONTH",
     intervalCount: p.intervalCount,
     discountPercent: p.discountPercent,
     position: i + 1,
