@@ -467,16 +467,24 @@ export default function SubscriptionPlans() {
             </div>
           </div>
 
-          <div style={{ width: "100%", overflowX: "auto", borderRadius: "10px", border: "1px solid #E2E8F0" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", whiteSpace: "nowrap" }}>
+          <div style={{ width: "100%", overflowX: "hidden", borderRadius: "10px", border: "1px solid #E2E8F0" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", tableLayout: "fixed" }}>
+              <colgroup>
+                <col style={{ width: "16.666%" }} />
+                <col style={{ width: "16.666%" }} />
+                <col style={{ width: "16.666%" }} />
+                <col style={{ width: "16.666%" }} />
+                <col style={{ width: "16.666%" }} />
+                <col style={{ width: "16.666%" }} />
+              </colgroup>
               <thead>
                 <tr style={{ backgroundColor: "#F8FAFC", borderBottom: "1px solid #E2E8F0", textAlign: "left" }}>
-                  <th style={{ padding: "12px 16px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>PLAN NAME</th>
-                  <th style={{ padding: "12px 16px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>FREQUENCY</th>
-                  <th style={{ padding: "12px 16px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>DISCOUNT</th>
-                  <th style={{ padding: "12px 16px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>SHOPIFY SELLING PLAN</th>
-                  <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>STATUS</th>
-                  <th style={{ padding: "12px 16px", textAlign: "right", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>ACTIONS</th>
+                  <th style={{ width: "16.666%", padding: "12px 14px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title="PLAN NAME">PLAN NAME</th>
+                  <th style={{ width: "16.666%", padding: "12px 14px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title="FREQUENCY">FREQUENCY</th>
+                  <th style={{ width: "16.666%", padding: "12px 14px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title="DISCOUNT">DISCOUNT</th>
+                  <th style={{ width: "16.666%", padding: "12px 14px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title="SHOPIFY SELLING PLAN">SHOPIFY SELLING PLAN</th>
+                  <th style={{ width: "16.666%", padding: "12px 14px", textAlign: "center", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title="STATUS">STATUS</th>
+                  <th style={{ width: "16.666%", padding: "12px 14px", textAlign: "right", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title="ACTIONS">ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
@@ -487,41 +495,95 @@ export default function SubscriptionPlans() {
                     onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#F8FAFC")}
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                   >
-                    <td style={{ padding: "16px 16px", whiteSpace: "nowrap" }}>
-                      <span style={{ fontWeight: "700", fontSize: "14px", color: "#0F172A", whiteSpace: "nowrap" }}>
+                    <td style={{ padding: "16px 14px", width: "16.666%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <div
+                        title={p.name}
+                        style={{
+                          fontWeight: "700",
+                          fontSize: "14px",
+                          color: "#0F172A",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         {p.name}
-                      </span>
+                      </div>
                     </td>
-                    <td style={{ padding: "16px 16px", color: "#1E293B", fontWeight: "600", fontSize: "13px", whiteSpace: "nowrap" }}>
-                      {describeFrequency(p.interval, p.intervalCount)}
+                    <td style={{ padding: "16px 14px", width: "16.666%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <div
+                        title={describeFrequency(p.interval, p.intervalCount)}
+                        style={{
+                          color: "#1E293B",
+                          fontWeight: "600",
+                          fontSize: "13px",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {describeFrequency(p.interval, p.intervalCount)}
+                      </div>
                     </td>
-                    <td style={{ padding: "16px 16px", fontSize: "13px", whiteSpace: "nowrap" }}>
-                      {p.discountPercent > 0 ? (
-                        <span style={{ whiteSpace: "nowrap" }}>
-                          <strong style={{ color: "#0F172A", fontWeight: "700" }}>{p.discountPercent}% OFF</strong>{" "}
-                          <span style={{ color: "#64748B", fontSize: "12px" }}>(Default)</span>
-                        </span>
-                      ) : (
-                        <span style={{ color: "#94A3B8", whiteSpace: "nowrap" }}>No Discount</span>
-                      )}
+                    <td style={{ padding: "16px 14px", width: "16.666%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <div
+                        title={p.discountPercent > 0 ? `${p.discountPercent}% OFF (Default)` : "No Discount"}
+                        style={{
+                          fontSize: "13px",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {p.discountPercent > 0 ? (
+                          <>
+                            <strong style={{ color: "#0F172A", fontWeight: "700" }}>{p.discountPercent}% OFF</strong>{" "}
+                            <span style={{ color: "#64748B", fontSize: "12px" }}>(Default)</span>
+                          </>
+                        ) : (
+                          <span style={{ color: "#94A3B8" }}>No Discount</span>
+                        )}
+                      </div>
                     </td>
-                    <td style={{ padding: "16px 16px", fontSize: "12px", whiteSpace: "nowrap" }}>
-                      {p.sellingPlanId ? (
-                        <span style={{ background: "#F1F5F9", color: "#334155", border: "1px solid #E2E8F0", padding: "4px 8px", borderRadius: "6px", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "12px", fontWeight: "600", whiteSpace: "nowrap" }}>
-                          #{p.sellingPlanId.split("/").pop()}
-                        </span>
-                      ) : (
-                        <span style={{ fontWeight: "400", color: "#94A3B8", whiteSpace: "nowrap" }}>Pending Sync</span>
-                      )}
+                    <td style={{ padding: "16px 14px", width: "16.666%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {p.sellingPlanId ? (
+                          <span
+                            title={`#${p.sellingPlanId.split("/").pop()}`}
+                            style={{
+                              background: "#F1F5F9",
+                              color: "#334155",
+                              border: "1px solid #E2E8F0",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                              fontSize: "12px",
+                              fontWeight: "600",
+                              display: "inline-block",
+                              maxWidth: "100%",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              verticalAlign: "middle",
+                              boxSizing: "border-box",
+                            }}
+                          >
+                            #{p.sellingPlanId.split("/").pop()}
+                          </span>
+                        ) : (
+                          <span style={{ fontWeight: "400", color: "#94A3B8" }}>Pending Sync</span>
+                        )}
+                      </div>
                     </td>
-                    <td style={{ padding: "16px 16px", textAlign: "center", whiteSpace: "nowrap" }}>
-                      <Form method="post" style={{ display: "inline" }}>
+                    <td style={{ padding: "16px 14px", width: "16.666%", textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <Form method="post" style={{ display: "inline-block", maxWidth: "100%" }}>
                         <input type="hidden" name="intent" value="toggle_active" />
                         <input type="hidden" name="id" value={p.id} />
                         <input type="hidden" name="active" value={p.active ? "false" : "true"} />
                         <button
                           type="submit"
                           disabled={isBusy}
+                          title={p.active ? "Active" : "Disabled"}
                           style={{
                             background: p.active ? "#ECFDF5" : "#F1F5F9",
                             color: p.active ? "#065F46" : "#64748B",
@@ -532,6 +594,10 @@ export default function SubscriptionPlans() {
                             fontWeight: "700",
                             cursor: "pointer",
                             transition: "all 0.15s ease",
+                            display: "inline-block",
+                            maxWidth: "100%",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
                           }}
                         >
@@ -539,8 +605,8 @@ export default function SubscriptionPlans() {
                         </button>
                       </Form>
                     </td>
-                    <td style={{ padding: "16px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
-                      <div style={{ display: "inline-flex", gap: "8px", justifyContent: "flex-end", alignItems: "center", whiteSpace: "nowrap" }}>
+                    <td style={{ padding: "16px 14px", width: "16.666%", textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <div style={{ display: "inline-flex", gap: "6px", justifyContent: "flex-end", alignItems: "center", maxWidth: "100%", whiteSpace: "nowrap" }}>
                         <button
                           type="button"
                           onClick={() => openEditModal(p)}
@@ -549,13 +615,14 @@ export default function SubscriptionPlans() {
                             color: "#1E293B",
                             border: "1px solid #E2E8F0",
                             borderRadius: "6px",
-                            padding: "6px 12px",
+                            padding: "5px 10px",
                             fontSize: "12px",
                             fontWeight: "600",
                             cursor: "pointer",
                             transition: "all 0.15s ease",
                             boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
                             whiteSpace: "nowrap",
+                            flexShrink: 0,
                           }}
                         >
                           Edit
@@ -571,13 +638,14 @@ export default function SubscriptionPlans() {
                               color: "#DC2626",
                               border: "1px solid #FECACA",
                               borderRadius: "6px",
-                              padding: "6px 12px",
+                              padding: "5px 10px",
                               fontSize: "12px",
                               fontWeight: "600",
                               cursor: "pointer",
                               transition: "all 0.15s ease",
                               boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
                               whiteSpace: "nowrap",
+                              flexShrink: 0,
                             }}
                           >
                             Delete
