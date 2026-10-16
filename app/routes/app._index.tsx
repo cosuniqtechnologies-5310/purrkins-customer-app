@@ -367,13 +367,26 @@ export default function HomeDashboard() {
                           {"☆".repeat(Math.max(0, 5 - r.rating))}
                         </span>
                       </td>
-                      <td style={{ padding: "12px 8px", fontWeight: "600", color: "#202223" }}>
-                        {r.author}
-                        {r.isVerified && (
-                          <span style={{ display: "block", fontSize: "11px", color: "#008060", fontWeight: "700" }}>
-                            ✓ Verified
-                          </span>
-                        )}
+                      <td style={{ padding: "12px 8px", fontWeight: "600", color: "#202223", whiteSpace: "nowrap" }}>
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                          <span>{r.author}</span>
+                          {r.isVerified && (
+                            <span
+                              title="Verified Buyer"
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                color: "#10B981",
+                                flexShrink: 0,
+                              }}
+                            >
+                              <svg width="15" height="15" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M10 1.66663L12.575 4.24163L16.2167 4.24163L16.2167 7.88329L18.7917 10.4583L16.2167 13.0333L16.2167 16.675L12.575 16.675L10 19.25L7.42502 16.675L3.78335 16.675L3.78335 13.0333L1.20835 10.4583L3.78335 7.88329L3.78335 4.24163L7.42502 4.24163L10 1.66663Z" fill="#10B981"/>
+                                <path d="M8.33331 13.3333L5 10L6.175 8.82502L8.33331 10.9834L13.825 5.4917L15 6.66669L8.33331 13.3333Z" fill="white"/>
+                              </svg>
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td style={{ padding: "12px 8px", maxWidth: "340px" }}>
                         <div style={{ fontWeight: "700", color: "#202223" }}>{r.title}</div>

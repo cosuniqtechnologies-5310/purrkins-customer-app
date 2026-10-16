@@ -468,15 +468,15 @@ export default function SubscriptionPlans() {
           </div>
 
           <div style={{ width: "100%", overflowX: "auto", borderRadius: "10px", border: "1px solid #E2E8F0" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", whiteSpace: "nowrap" }}>
               <thead>
                 <tr style={{ backgroundColor: "#F8FAFC", borderBottom: "1px solid #E2E8F0", textAlign: "left" }}>
-                  <th style={{ padding: "12px 14px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>PLAN NAME</th>
-                  <th style={{ padding: "12px 14px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>FREQUENCY</th>
-                  <th style={{ padding: "12px 14px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>DISCOUNT</th>
-                  <th style={{ padding: "12px 14px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>SHOPIFY SELLING PLAN</th>
-                  <th style={{ padding: "12px 14px", textAlign: "center", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>STATUS</th>
-                  <th style={{ padding: "12px 14px", textAlign: "right", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>ACTIONS</th>
+                  <th style={{ padding: "12px 16px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>PLAN NAME</th>
+                  <th style={{ padding: "12px 16px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>FREQUENCY</th>
+                  <th style={{ padding: "12px 16px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>DISCOUNT</th>
+                  <th style={{ padding: "12px 16px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>SHOPIFY SELLING PLAN</th>
+                  <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>STATUS</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
@@ -487,37 +487,34 @@ export default function SubscriptionPlans() {
                     onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#F8FAFC")}
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                   >
-                    <td style={{ padding: "16px 14px" }}>
-                      <div style={{ fontWeight: "700", fontSize: "14px", color: "#0F172A" }}>
+                    <td style={{ padding: "16px 16px", whiteSpace: "nowrap" }}>
+                      <span style={{ fontWeight: "700", fontSize: "14px", color: "#0F172A", whiteSpace: "nowrap" }}>
                         {p.name}
-                      </div>
-                      <div style={{ fontSize: "12px", fontWeight: "400", color: "#64748B", marginTop: "2px" }}>
-                        Storefront label: &ldquo;{p.label}&rdquo;
-                      </div>
+                      </span>
                     </td>
-                    <td style={{ padding: "16px 14px", color: "#1E293B", fontWeight: "600", fontSize: "13px" }}>
+                    <td style={{ padding: "16px 16px", color: "#1E293B", fontWeight: "600", fontSize: "13px", whiteSpace: "nowrap" }}>
                       {describeFrequency(p.interval, p.intervalCount)}
                     </td>
-                    <td style={{ padding: "16px 14px", fontSize: "13px" }}>
+                    <td style={{ padding: "16px 16px", fontSize: "13px", whiteSpace: "nowrap" }}>
                       {p.discountPercent > 0 ? (
-                        <span>
+                        <span style={{ whiteSpace: "nowrap" }}>
                           <strong style={{ color: "#0F172A", fontWeight: "700" }}>{p.discountPercent}% OFF</strong>{" "}
                           <span style={{ color: "#64748B", fontSize: "12px" }}>(Default)</span>
                         </span>
                       ) : (
-                        <span style={{ color: "#94A3B8" }}>No Discount</span>
+                        <span style={{ color: "#94A3B8", whiteSpace: "nowrap" }}>No Discount</span>
                       )}
                     </td>
-                    <td style={{ padding: "16px 14px", fontSize: "12px" }}>
+                    <td style={{ padding: "16px 16px", fontSize: "12px", whiteSpace: "nowrap" }}>
                       {p.sellingPlanId ? (
-                        <span style={{ background: "#F1F5F9", color: "#334155", border: "1px solid #E2E8F0", padding: "4px 8px", borderRadius: "6px", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "12px", fontWeight: "600" }}>
+                        <span style={{ background: "#F1F5F9", color: "#334155", border: "1px solid #E2E8F0", padding: "4px 8px", borderRadius: "6px", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "12px", fontWeight: "600", whiteSpace: "nowrap" }}>
                           #{p.sellingPlanId.split("/").pop()}
                         </span>
                       ) : (
-                        <span style={{ fontWeight: "400", color: "#94A3B8" }}>Pending Sync</span>
+                        <span style={{ fontWeight: "400", color: "#94A3B8", whiteSpace: "nowrap" }}>Pending Sync</span>
                       )}
                     </td>
-                    <td style={{ padding: "16px 14px", textAlign: "center" }}>
+                    <td style={{ padding: "16px 16px", textAlign: "center", whiteSpace: "nowrap" }}>
                       <Form method="post" style={{ display: "inline" }}>
                         <input type="hidden" name="intent" value="toggle_active" />
                         <input type="hidden" name="id" value={p.id} />
@@ -535,14 +532,15 @@ export default function SubscriptionPlans() {
                             fontWeight: "700",
                             cursor: "pointer",
                             transition: "all 0.15s ease",
+                            whiteSpace: "nowrap",
                           }}
                         >
                           {p.active ? "Active" : "Disabled"}
                         </button>
                       </Form>
                     </td>
-                    <td style={{ padding: "16px 14px", textAlign: "right" }}>
-                      <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                    <td style={{ padding: "16px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
+                      <div style={{ display: "inline-flex", gap: "8px", justifyContent: "flex-end", alignItems: "center", whiteSpace: "nowrap" }}>
                         <button
                           type="button"
                           onClick={() => openEditModal(p)}
@@ -557,6 +555,7 @@ export default function SubscriptionPlans() {
                             cursor: "pointer",
                             transition: "all 0.15s ease",
                             boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                            whiteSpace: "nowrap",
                           }}
                         >
                           Edit
@@ -577,6 +576,8 @@ export default function SubscriptionPlans() {
                               fontWeight: "600",
                               cursor: "pointer",
                               transition: "all 0.15s ease",
+                              boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                              whiteSpace: "nowrap",
                             }}
                           >
                             Delete

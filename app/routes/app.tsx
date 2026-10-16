@@ -17,13 +17,15 @@ export default function App() {
 
   return (
     <AppProvider apiKey={apiKey}>
-      <s-app-nav>
-        <s-link href="/app">Home</s-link>
-        <s-link href="/app/subscriptions">Subscriptions</s-link>
-        <s-link href="/app/subscriptions/plans">Plans</s-link>
-        <s-link href="/app/reviews">Reviews</s-link>
-      </s-app-nav>
-      <Outlet />
+      <div style={{ fontFamily: "'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", minHeight: "100vh" }}>
+        <s-app-nav>
+          <s-link href="/app">Home</s-link>
+          <s-link href="/app/subscriptions">Subscriptions</s-link>
+          <s-link href="/app/subscriptions/plans">Plans</s-link>
+          <s-link href="/app/reviews">Reviews</s-link>
+        </s-app-nav>
+        <Outlet />
+      </div>
     </AppProvider>
   );
 }
