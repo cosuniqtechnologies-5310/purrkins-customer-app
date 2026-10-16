@@ -398,7 +398,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       weight: "70g",
       desc: "Real broth for daily hyderation",
       type: "Wet Food",
-      imgUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth.webp?v=1789581500",
+      imgUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066",
       handle: "chicken-broth",
       variantId: ""
     },
@@ -408,7 +408,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       weight: "70g",
       desc: "High-protein rewards for active cats",
       type: "Wet Food",
-      imgUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky.webp?v=1789581500",
+      imgUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky-Product-Image.png?v=1789631395",
       handle: "lamb-jerky",
       variantId: ""
     },
@@ -418,7 +418,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       weight: "70g",
       desc: "Soft meal for gentle digestion",
       type: "Wet Food",
-      imgUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew.webp?v=1789581500",
+      imgUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew-Product-Image.png?v=1789634179",
       handle: "turkey-stew",
       variantId: ""
     }
@@ -436,7 +436,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           weight,
           desc: p.description ? (p.description.length > 50 ? p.description.substring(0, 47) + '...' : p.description) : 'Real broth for daily hydration',
           type: p.productType || 'Wet Food',
-          imgUrl: p.featuredImage?.url || 'https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth.webp?v=1789581500',
+          imgUrl: p.featuredImage?.url || 'https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066',
           handle: p.handle,
           variantId: v?.id ? v.id.split('/').pop() : ''
         };
@@ -449,7 +449,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <div style="border:1px solid #eaeaea; border-radius:16px; overflow:hidden; background:#fff; display:flex; flex-direction:column; box-shadow:0 2px 8px rgba(0,0,0,0.03);">
           <div style="background:#EBF4F6; padding:24px 20px 20px; position:relative; display:flex; justify-content:center; align-items:center; height:180px;">
             <span style="position:absolute; top:16px; left:16px; background:rgba(255,255,255,0.85); border:1px solid #7BB5F0; color:#4A90E2; padding:4px 12px; border-radius:20px; font-size:11px; font-weight:700;">${escAttr(item.type)}</span>
-            <img src="${item.imgUrl}" alt="${escAttr(item.title)}" style="max-height:140px; max-width:120px; object-fit:contain;" onerror="this.src='https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth.webp?v=1789581500';">
+            <img src="${item.imgUrl}" alt="${escAttr(item.title)}" style="max-height:140px; max-width:120px; object-fit:contain;" onerror="this.onerror=null; this.src='https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066';">
           </div>
           <div style="padding:20px 20px 24px; text-align:center; display:flex; flex-direction:column; flex-grow:1; align-items:center;">
             <h4 style="margin:0 0 8px 0; font-size:20px; font-weight:800; color:#121217; font-family:var(--font-heading--family, sans-serif);">${escAttr(item.title)}</h4>
@@ -555,7 +555,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <!-- Lean Kitty -->
           <div style="background:#E8F4FE; border-radius:16px; padding:24px 20px; display:flex; flex-direction:column;">
             <div style="width:60px; height:60px; background:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; overflow:hidden;">
-              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth.webp?v=1789581500" alt="Lean Kitty" style="max-height:85%; max-width:85%; object-fit:contain;">
+              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066" alt="Lean Kitty" style="max-height:85%; max-width:85%; object-fit:contain;" onerror="this.onerror=null; this.src='https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066';">
             </div>
             <h4 style="margin:0 0 6px 0; font-size:17px; font-weight:800; color:#121217;">Lean Kitty</h4>
             <p style="font-size:12.5px; margin:0 0 16px 0; color:#595961; line-height:1.4; flex-grow:1;">80g pouch, starter pack, light, tasty nutrition to keep them playful and agile.</p>
@@ -564,7 +564,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <!-- Gutty Kitty -->
           <div style="background:#FFF1EB; border-radius:16px; padding:24px 20px; display:flex; flex-direction:column;">
             <div style="width:60px; height:60px; background:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; overflow:hidden;">
-              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky.webp?v=1789581500" alt="Gutty Kitty" style="max-height:85%; max-width:85%; object-fit:contain;">
+              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky-Product-Image.png?v=1789631395" alt="Gutty Kitty" style="max-height:85%; max-width:85%; object-fit:contain;" onerror="this.onerror=null; this.src='https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky-Product-Image.png?v=1789631395';">
             </div>
             <h4 style="margin:0 0 6px 0; font-size:17px; font-weight:800; color:#121217;">Gutty Kitty</h4>
             <p style="font-size:12.5px; margin:0 0 16px 0; color:#595961; line-height:1.4; flex-grow:1;">Happy tummies, happy kitties, gentle, easy-to-digest goodness to keep bellies comfortable and content.</p>
@@ -573,7 +573,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <!-- Mumma & Kitty -->
           <div style="background:#E6F8F0; border-radius:16px; padding:24px 20px; display:flex; flex-direction:column;">
             <div style="width:60px; height:60px; background:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; overflow:hidden;">
-              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew.webp?v=1789581500" alt="Mumma & Kitty" style="max-height:85%; max-width:85%; object-fit:contain;">
+              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew-Product-Image.png?v=1789634179" alt="Mumma & Kitty" style="max-height:85%; max-width:85%; object-fit:contain;" onerror="this.onerror=null; this.src='https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew-Product-Image.png?v=1789634179';">
             </div>
             <h4 style="margin:0 0 6px 0; font-size:17px; font-weight:800; color:#121217;">Mumma & Kitty</h4>
             <p style="font-size:12.5px; margin:0 0 16px 0; color:#595961; line-height:1.4; flex-grow:1;">Nourishing fuel for growing kittens and comforting, energy-rich goodness to help mama cats recover.</p>
@@ -817,7 +817,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <div class="pk-sub-item-row">
           <div class="pk-sub-item-info">
             <div class="pk-sub-item-thumb">
-              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth.webp?v=1789581500" alt="Growing Kitty">
+              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew-Product-Image.png?v=1789634179" alt="Growing Kitty" onerror="this.onerror=null; this.src='https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew-Product-Image.png?v=1789634179';">
             </div>
             <div>
               <div class="pk-sub-item-title" id="sub-title-item-1">Growing Kitty</div>
@@ -839,7 +839,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <div class="pk-sub-item-row">
           <div class="pk-sub-item-info">
             <div class="pk-sub-item-thumb">
-              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky.webp?v=1789581500" alt="Gutty Kitty">
+              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky-Product-Image.png?v=1789631395" alt="Gutty Kitty" onerror="this.onerror=null; this.src='https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky-Product-Image.png?v=1789631395';">
             </div>
             <div>
               <div class="pk-sub-item-title" id="sub-title-item-2">Gutty Kitty</div>
@@ -861,7 +861,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <div class="pk-sub-item-row">
           <div class="pk-sub-item-info">
             <div class="pk-sub-item-thumb">
-              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew.webp?v=1789581500" alt="Chicken Broth">
+              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066" alt="Chicken Broth" onerror="this.onerror=null; this.src='https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066';">
             </div>
             <div>
               <div class="pk-sub-item-title" id="sub-title-item-3">Chicken Broth</div>
