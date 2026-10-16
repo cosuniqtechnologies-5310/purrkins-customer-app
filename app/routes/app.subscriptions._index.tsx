@@ -57,7 +57,7 @@ export default function SubscriptionsIndex() {
   }, [actionData, shopify]);
 
   return (
-    <s-page heading="Subscriptions & Delivery Management">
+    <s-page heading="Subscriptions & Recurring Orders">
       <div slot="primary-action" style={{ display: "flex", gap: "8px" }}>
         <Form method="post">
           <input type="hidden" name="intent" value="run_scheduler" />
@@ -65,8 +65,8 @@ export default function SubscriptionsIndex() {
             Run Billing Check Now
           </s-button>
         </Form>
-        <s-button href="/app/subscriptions/calendar" variant="primary">
-          View Delivery Calendar
+        <s-button href="/app/subscriptions/plans" variant="primary">
+          Manage Plans &amp; Discounts
         </s-button>
       </div>
 
@@ -94,12 +94,12 @@ export default function SubscriptionsIndex() {
           </div>
 
           <div style={{ background: "#fff", padding: "20px", borderRadius: "10px", border: "none", boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)" }}>
-            <div style={{ fontSize: "13px", fontWeight: "800", color: "#000", textTransform: "uppercase", letterSpacing: "0.5px" }}>Next 7 Days Deliveries</div>
+            <div style={{ fontSize: "13px", fontWeight: "800", color: "#000", textTransform: "uppercase", letterSpacing: "0.5px" }}>Renewals (Next 7 Days)</div>
             <div style={{ fontSize: "32px", fontWeight: "900", color: "#000", marginTop: "8px", lineHeight: "1" }}>
               {stats.billingNext7Days}
             </div>
             <div style={{ fontSize: "12px", color: "#000", marginTop: "6px", fontWeight: "500" }}>
-              Scheduled for charge & delivery
+              Scheduled recurring billing cycles
             </div>
           </div>
 
@@ -118,12 +118,10 @@ export default function SubscriptionsIndex() {
         <div style={{ background: "#f8f9fa", border: "none", borderRadius: "10px", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
           <div style={{ display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" }}>
             <span style={{ fontWeight: "800", fontSize: "14px", color: "#000" }}>Subscription Management:</span>
-            <Link to="/app/subscriptions/calendar" style={{ color: "#000", textDecoration: "underline", fontWeight: "700", fontSize: "13px" }}>📅 Monthly Delivery Calendar</Link>
-            <Link to="/app/subscriptions/plans" style={{ color: "#000", textDecoration: "underline", fontWeight: "700", fontSize: "13px" }}>📦 Subscription Plans & Discounts</Link>
-            <Link to="/app/subscriptions/settings" style={{ color: "#000", textDecoration: "underline", fontWeight: "700", fontSize: "13px" }}>⚙️ Delivery & Billing Rules</Link>
+            <Link to="/app/subscriptions/plans" style={{ color: "#000", textDecoration: "underline", fontWeight: "700", fontSize: "13px" }}>📦 Subscription Plans &amp; Discounts</Link>
           </div>
           <div style={{ color: "#000", fontSize: "12px", fontWeight: "600" }}>
-            Automated delivery calculations & cut-off protection active
+            🚚 Shipping &amp; fulfillment are automatically handled by <strong>NimbusPost</strong> on created Shopify orders
           </div>
         </div>
 
@@ -211,8 +209,7 @@ export default function SubscriptionsIndex() {
                       <th style={{ padding: "14px 16px", fontSize: "12px", color: "#000", fontWeight: "900", textTransform: "uppercase" }}>Subscriber</th>
                       <th style={{ padding: "14px 16px", fontSize: "12px", color: "#000", fontWeight: "900", textTransform: "uppercase" }}>Items & Recurring Total</th>
                       <th style={{ padding: "14px 16px", fontSize: "12px", color: "#000", fontWeight: "900", textTransform: "uppercase" }}>Plan Frequency</th>
-                      <th style={{ padding: "14px 16px", fontSize: "12px", color: "#000", fontWeight: "900", textTransform: "uppercase" }}>Next Delivery Date</th>
-                      <th style={{ padding: "14px 16px", fontSize: "12px", color: "#000", fontWeight: "900", textTransform: "uppercase" }}>Next Billing</th>
+                      <th style={{ padding: "14px 16px", fontSize: "12px", color: "#000", fontWeight: "900", textTransform: "uppercase" }}>Next Renewal Billing</th>
                       <th style={{ padding: "14px 16px", fontSize: "12px", color: "#000", fontWeight: "900", textTransform: "uppercase" }}>Status</th>
                       <th style={{ padding: "14px 16px", fontSize: "12px", color: "#000", fontWeight: "900", textTransform: "uppercase", textAlign: "right" }}>Actions</th>
                     </tr>
@@ -220,7 +217,6 @@ export default function SubscriptionsIndex() {
                   <tbody>
                     {list.rows.map((sub) => {
                       const lines = (Array.isArray(sub.lines) ? sub.lines : []) as Array<{ quantity?: number; title?: string }>;
-                      const deliveryDay = sub.nextDeliveryDate ? WEEKDAY_NAMES[weekdayOf(sub.nextDeliveryDate)] : null;
                       return (
                         <tr
                           key={sub.id}
@@ -255,22 +251,16 @@ export default function SubscriptionsIndex() {
                             </span>
                           </td>
 
-                          <td style={{ padding: "14px 16px", fontSize: "14px" }}>
-                            {sub.nextDeliveryDate ? (
+                          <td style={{ padding: "14px 16px", fontSize: "13px", color: "#000" }}>
+                            {sub.nextBillingAt ? (
                               <div>
-                                <div style={{ fontWeight: "800", color: "#000" }}>{sub.nextDeliveryDate}</div>
-                                <div style={{ fontSize: "12px", color: "#000", fontWeight: "600" }}>
-                                  {deliveryDay}
+                                <div style={{ fontWeight: "800" }}>
+                                  {new Date(sub.nextBillingAt).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}
+                                </div>
+                                <div style={{ fontSize: "11px", color: "#666" }}>
+                                  Auto-bills to Shopify order
                                 </div>
                               </div>
-                            ) : (
-                              <span style={{ color: "#000" }}>None</span>
-                            )}
-                          </td>
-
-                          <td style={{ padding: "14px 16px", fontSize: "13px", color: "#000", fontWeight: "600" }}>
-                            {sub.nextBillingAt ? (
-                              <div>{new Date(sub.nextBillingAt).toLocaleDateString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</div>
                             ) : (
                               "—"
                             )}

@@ -304,25 +304,22 @@ export default function SubscriptionDetail() {
             }}
           >
             <div style={{ fontSize: "12px", fontWeight: "800", color: "#000000", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-              Next Scheduled Delivery
+              Next Scheduled Renewal &amp; Billing
             </div>
             {pending ? (
               <>
                 <div style={{ fontSize: "26px", fontWeight: "900", color: "#000000", marginTop: "8px" }}>
-                  {pending.deliveryDate}
+                  {new Date(pending.billingAt).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}
                 </div>
                 <div style={{ fontSize: "14px", color: "#000000", fontWeight: "700", marginTop: "2px" }}>
-                  {WEEKDAY_NAMES[weekdayOf(pending.deliveryDate)]} (Cycle #{pending.cycleNumber})
+                  Cycle #{pending.cycleNumber}
                 </div>
                 <div style={{ marginTop: "12px", fontSize: "13px", color: "#000000", lineHeight: "1.6" }}>
                   <div>
-                    <strong>Billing Scheduled:</strong> {new Date(pending.billingAt).toLocaleString("en-IN")}
+                    <strong>Scheduled Billing:</strong> {new Date(pending.billingAt).toLocaleString("en-IN")}
                   </div>
                   <div>
-                    <strong>Cutoff Window:</strong> {cfg.cutoffHours} hrs prior
-                  </div>
-                  <div>
-                    <strong>Lead Time:</strong> {cfg.leadTimeDays} days before delivery
+                    <strong>Shipping &amp; Fulfillment:</strong> Auto-creates Shopify order (shipped via NimbusPost)
                   </div>
                   {pending.attempts > 0 && (
                     <div style={{ color: "#000000", fontWeight: "700" }}>
@@ -349,24 +346,20 @@ export default function SubscriptionDetail() {
             }}
           >
             <div style={{ fontSize: "12px", fontWeight: "800", color: "#000000", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-              Subscription Cadence & Anchors
+              Subscription Details
             </div>
             <div style={{ marginTop: "12px", fontSize: "13px", color: "#000000", lineHeight: "1.8" }}>
               <div>
                 <strong>Frequency Plan:</strong> {describeFrequency(sub.interval, sub.intervalCount)}
               </div>
               <div>
-                <strong>Original Anchor Date:</strong> {sub.anchorDate}
+                <strong>Subscription Created:</strong> {sub.anchorDate}
               </div>
               <div>
-                <strong>Current Anchor Step:</strong> Cycle {sub.anchorStep}
+                <strong>Completed Orders:</strong> {sub.ordersBilled} cycles billed
               </div>
               <div>
-                <strong>Timezone:</strong> {cfg.timezone} (Daily billing run at {String(cfg.billingHour).padStart(2, "0")}:00)
-              </div>
-              <div>
-                <strong>Allowed Delivery Days:</strong>{" "}
-                {cfg.deliveryWeekdays.map((d: number) => WEEKDAY_NAMES[d].slice(0, 3)).join(", ")}
+                <strong>Shipping Provider:</strong> NimbusPost (dispatches generated orders)
               </div>
             </div>
           </div>
@@ -409,14 +402,14 @@ export default function SubscriptionDetail() {
           )}
         </div>
 
-        {/* Projected Future Deliveries */}
+        {/* Projected Future Renewals */}
         {upcoming.length > 0 && (
           <div style={{ background: "#fff", borderRadius: "12px", border: "none", boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)", padding: "20px" }}>
             <h3 style={{ fontSize: "16px", fontWeight: "800", margin: "0 0 8px 0", color: "#000000" }}>
-              Projected Upcoming Delivery Calendar (Next 3 Cycles)
+              Projected Upcoming Renewal Cycles (Next 3 Billing Cycles)
             </h3>
             <p style={{ fontSize: "13px", color: "#000000", margin: "0 0 16px 0" }}>
-              Calculated using Purrkins perfect-delivery engine with anchor drift prevention, preferred weekday rules, and courier cutoff.
+              Scheduled recurring billing dates. When charged, orders are automatically placed in Shopify and fulfilled via NimbusPost.
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px" }}>
               {upcoming.map((u, i: number) => (
@@ -429,16 +422,12 @@ export default function SubscriptionDetail() {
                     border: "1px solid #e1e3e5",
                   }}
                 >
-                  <div style={{ fontSize: "12px", color: "#000000", fontWeight: "700" }}>Cycle +{i + 1}</div>
-                  <div style={{ fontSize: "20px", fontWeight: "900", color: "#000000", marginTop: "4px" }}>
-                    {u.deliveryDate}
+                  <div style={{ fontSize: "12px", color: "#000000", fontWeight: "700" }}>Billing Cycle +{i + 1}</div>
+                  <div style={{ fontSize: "18px", fontWeight: "900", color: "#000000", marginTop: "4px" }}>
+                    {new Date(u.billingAt).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}
                   </div>
-                  <div style={{ fontSize: "13px", color: "#000000", fontWeight: "700" }}>
-                    {WEEKDAY_NAMES[weekdayOf(u.deliveryDate)]}
-                  </div>
-                  <div style={{ fontSize: "12px", color: "#000000", marginTop: "8px" }}>
-                    Billing: {new Date(u.billingAt).toLocaleDateString("en-IN", { month: "short", day: "numeric" })} at{" "}
-                    {new Date(u.billingAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                  <div style={{ fontSize: "12px", color: "#666", marginTop: "6px" }}>
+                    Fulfillment via NimbusPost
                   </div>
                 </div>
               ))}

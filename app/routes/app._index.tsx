@@ -184,9 +184,9 @@ export default function HomeDashboard() {
           </div>
 
           <div style={kpiCardStyle}>
-            <div style={kpiLabelStyle}>14-Day Deliveries</div>
+            <div style={kpiLabelStyle}>Upcoming Renewals</div>
             <div style={{ ...kpiValueStyle, color: "#000" }}>{upcomingDeliveriesCount}</div>
-            <div style={kpiSubStyle}>Scheduled dispatches</div>
+            <div style={kpiSubStyle}>Next 14 days billing cycles</div>
           </div>
 
           <div style={kpiCardStyle}>
@@ -198,22 +198,22 @@ export default function HomeDashboard() {
           </div>
         </div>
 
-        {/* SECTION 1: Subscription Management & Delivery Analytics */}
+        {/* SECTION 1: Subscription Management & Recurring Orders */}
         <div style={cardStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
             <div>
               <h2 style={{ fontSize: "17px", fontWeight: "700", margin: "0 0 4px 0", color: "#202223" }}>
-                Subscriptions & Delivery Pipeline
+                Subscriptions &amp; Recurring Billing
               </h2>
               <p style={{ fontSize: "13px", color: "#6d7175", margin: 0 }}>
-                Automatic scheduled deliveries with anchor drift protection and weekday routing.
+                Manage recurring customer orders and billing. Orders automatically sync to Shopify for NimbusPost fulfillment.
               </p>
             </div>
             <div style={{ display: "flex", gap: "8px" }}>
-              <s-button href="/app/subscriptions/calendar" variant="secondary">
-                View Delivery Calendar &rarr;
+              <s-button href="/app/subscriptions" variant="secondary">
+                Manage Subscriptions
               </s-button>
-              <s-button href="/app/subscriptions/plans" variant="secondary">
+              <s-button href="/app/subscriptions/plans" variant="primary">
                 Configure Plans
               </s-button>
             </div>
@@ -251,9 +251,9 @@ export default function HomeDashboard() {
                   <tr style={{ borderBottom: "2px solid #e1e3e5", textAlign: "left", color: "#5c5f62", fontSize: "12px" }}>
                     <th style={{ padding: "10px 8px" }}>CUSTOMER</th>
                     <th style={{ padding: "10px 8px" }}>FREQUENCY</th>
-                    <th style={{ padding: "10px 8px" }}>NEXT DELIVERY</th>
-                    <th style={{ padding: "10px 8px" }}>PREFERRED DAY</th>
-                    <th style={{ padding: "10px 8px", textAlign: "right" }}>VALUE</th>
+                    <th style={{ padding: "10px 8px" }}>NEXT RENEWAL</th>
+                    <th style={{ padding: "10px 8px" }}>STATUS</th>
+                    <th style={{ padding: "10px 8px", textAlign: "right" }}>RECURRING VALUE</th>
                     <th style={{ padding: "10px 8px", textAlign: "right" }}>ACTION</th>
                   </tr>
                 </thead>
@@ -270,15 +270,16 @@ export default function HomeDashboard() {
                         {describeFrequency(sub.interval, sub.intervalCount)}
                       </td>
                       <td style={{ padding: "12px 8px" }}>
-                        <div style={{ fontWeight: "700", color: "#202223" }}>{sub.nextDeliveryDate || "Scheduled"}</div>
-                        {sub.nextDeliveryDate && (
-                          <div style={{ fontSize: "11px", color: "#008060" }}>
-                            {WEEKDAY_NAMES[weekdayOf(sub.nextDeliveryDate)]}
-                          </div>
-                        )}
+                        <div style={{ fontWeight: "700", color: "#202223" }}>
+                          {sub.nextBillingAt
+                            ? new Date(sub.nextBillingAt).toLocaleDateString("en-IN", { month: "short", day: "numeric" })
+                            : (sub.nextDeliveryDate || "Scheduled")}
+                        </div>
                       </td>
-                      <td style={{ padding: "12px 8px", color: "#5c5f62" }}>
-                        {sub.preferredWeekday !== null ? WEEKDAY_NAMES[sub.preferredWeekday] : "Any deliverable day"}
+                      <td style={{ padding: "12px 8px" }}>
+                        <span style={{ ...statusPillStyle, background: "#e3f1df", color: "#108043", border: "1px solid #aee9d1", padding: "2px 8px", fontSize: "11px" }}>
+                          ● Active
+                        </span>
                       </td>
                       <td style={{ padding: "12px 8px", textAlign: "right", fontWeight: "700", color: "#008060" }}>
                         ₹{Math.round(sub.recurringTotal).toLocaleString("en-IN")}
