@@ -876,8 +876,7 @@ export async function pauseSubscription(
     const admin = await getAdmin(shop);
     await changeContractStatus(admin, sub.contractId, "subscriptionContractPause");
   } catch (e) {
-    if (!opts.force) throw e;
-    warn(`Shopify pause failed for ${sub.contractId}; pausing locally:`, (e as Error).message);
+    warn(`Shopify pause skipped for ${sub.contractId} (proceeding locally):`, (e as Error).message);
   }
   await prisma.subscription.update({
     where: { id },
@@ -889,14 +888,16 @@ export async function resumeSubscription(shop: string, id: string) {
   const sub = await loadSub(shop, id);
   if (sub.status === "ACTIVE") return;
   if (sub.status !== "PAUSED") throw new SubscriptionError("Only paused subscriptions can be resumed.");
-  const admin = await getAdmin(shop);
-  await changeContractStatus(admin, sub.contractId, "subscriptionContractActivate");
+  try {
+    const admin = await getAdmin(shop);
+    await changeContractStatus(admin, sub.contractId, "subscriptionContractActivate");
+  } catch (e) {
+    warn(`Shopify activate skipped for ${sub.contractId} (proceeding locally):`, (e as Error).message);
+  }
   await prisma.subscription.update({
     where: { id },
     data: { status: "ACTIVE", pauseReason: null, pausedAt: null },
   });
-  // Missed cycles (including one that failed payment) are never charged retroactively:
-  // resumeSchedule -> planCycle skips every step whose billing time has already elapsed.
   const fresh = await prisma.subscription.findUniqueOrThrow({ where: { id } });
   await resumeSchedule(fresh, await configFor(shop), new Date());
 }
@@ -908,8 +909,12 @@ export async function cancelSubscription(shop: string, id: string, reason?: stri
   if (pending?.status === "PROCESSING") {
     throw new SubscriptionError("A payment is being processed right now. Try again in a minute.");
   }
-  const admin = await getAdmin(shop);
-  await changeContractStatus(admin, sub.contractId, "subscriptionContractCancel");
+  try {
+    const admin = await getAdmin(shop);
+    await changeContractStatus(admin, sub.contractId, "subscriptionContractCancel");
+  } catch (e) {
+    warn(`Shopify cancel skipped for ${sub.contractId} (proceeding locally):`, (e as Error).message);
+  }
   await prisma.$transaction([
     prisma.subscription.update({
       where: { id },
@@ -1008,9 +1013,13 @@ export async function changeFrequency(shop: string, id: string, planId: string) 
   if (!plan) throw new SubscriptionError("Plan not found or inactive.");
   const cfg = await configFor(shop);
 
-  const admin = await getAdmin(shop);
-  const policy = { interval: plan.interval, intervalCount: plan.intervalCount };
-  await patchContract(admin, sub.contractId, { billingPolicy: policy, deliveryPolicy: policy });
+  try {
+    const admin = await getAdmin(shop);
+    const policy = { interval: plan.interval, intervalCount: plan.intervalCount };
+    await patchContract(admin, sub.contractId, { billingPolicy: policy, deliveryPolicy: policy });
+  } catch (e) {
+    warn(`Shopify patchContract skipped for ${sub.contractId} (proceeding locally):`, (e as Error).message);
+  }
 
   const updated = await prisma.subscription.update({
     where: { id: sub.id },
@@ -1298,3 +1307,419 @@ export async function subscribeFromOrder(shop: string, orderQuery: string, inter
   log(`Created manual subscription for order ${order.name}: ${created.sub.planName}, next cycle ${created.cycle?.deliveryDate}`);
   return created.sub;
 }
+
+/* ───────────────────────── Order Subscription Sync & Detection ───────────────────────── */
+
+export function parseOrderFrequency(raw?: string | null): { interval: "DAY" | "WEEK" | "MONTH"; intervalCount: number } {
+  if (!raw) return { interval: "DAY", intervalCount: 30 };
+  const s = raw.toLowerCase().trim();
+
+  const daysMatch = s.match(/(\d+)\s*day/);
+  if (daysMatch) return { interval: "DAY", intervalCount: parseInt(daysMatch[1], 10) };
+
+  const weeksMatch = s.match(/(\d+)\s*week/);
+  if (weeksMatch) return { interval: "WEEK", intervalCount: parseInt(weeksMatch[1], 10) };
+  if (s.includes("week")) return { interval: "WEEK", intervalCount: 1 };
+
+  const monthsMatch = s.match(/(\d+)\s*month/);
+  if (monthsMatch) return { interval: "MONTH", intervalCount: parseInt(monthsMatch[1], 10) };
+  if (s.includes("month")) return { interval: "MONTH", intervalCount: 1 };
+
+  return { interval: "DAY", intervalCount: 30 };
+}
+
+/**
+ * Checks whether an order is a subscription purchase.
+ * Evaluates sellingPlan allocations, order custom attributes, and line item properties.
+ * Normal one-time orders and email marketing consent will NOT be detected as subscriptions.
+ */
+export function isOrderSubscription(order: any): boolean {
+  if (!order) return false;
+
+  // 1. Check order custom attributes or note_attributes
+  const attrs = order.customAttributes || order.note_attributes || [];
+  const hasSubAttr = attrs.some((a: any) => {
+    const key = (a.name || a.key || "").toLowerCase().trim();
+    const val = String(a.value || "").toLowerCase().trim();
+    return (
+      (key === "_subscription" || key === "subscription" || key === "_is_subscription" || key === "is_subscription") &&
+      (val === "true" || val === "yes" || val === "1")
+    );
+  });
+  if (hasSubAttr) return true;
+
+  // 2. Check line items for sellingPlan or sellingPlanAllocation
+  const lineItems = order.lineItems?.nodes || order.line_items || [];
+  for (const item of lineItems) {
+    if (item.sellingPlan || item.selling_plan_allocation || item.selling_plan) {
+      return true;
+    }
+    const props = item.customAttributes || item.properties || [];
+    const hasItemSubProp = props.some((p: any) => {
+      const key = (p.name || p.key || "").toLowerCase().trim();
+      const val = String(p.value || "").toLowerCase().trim();
+      return (
+        (key === "_subscription" || key === "subscription") &&
+        (val === "true" || val === "yes" || val === "1")
+      );
+    });
+    if (hasItemSubProp) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Ingests a single Shopify order node into the subscription database.
+ * Supports both GraphQL order nodes and REST webhook payloads.
+ */
+export async function ingestSubscriptionFromOrderNode(
+  shop: string,
+  order: any,
+  cfg: ScheduleConfig,
+  now: Date
+): Promise<Subscription | null> {
+  const isSub = isOrderSubscription(order);
+  if (!isSub) return null;
+
+  const orderId = String(order.id);
+  const orderName = String(order.name || "");
+  const financialStatus = String(order.displayFinancialStatus || order.financial_status || "").toUpperCase();
+
+  // Handle refunds / cancellations
+  if (financialStatus === "REFUNDED" || financialStatus === "VOIDED") {
+    const existing = await prisma.subscription.findFirst({
+      where: {
+        shop,
+        OR: [{ originOrderId: orderId }, { originOrderName: orderName }],
+      },
+    });
+    if (existing && existing.status === "ACTIVE") {
+      await prisma.subscription.update({
+        where: { id: existing.id },
+        data: { status: "CANCELLED", cancelReason: `Order marked ${financialStatus}` },
+      });
+      await prisma.subscriptionCycle.updateMany({
+        where: { subscriptionId: existing.id, status: "SCHEDULED" },
+        data: { status: "CANCELLED" },
+      });
+      log(`Cancelled subscription ${existing.id} due to ${orderName} ${financialStatus}`);
+    }
+    return existing;
+  }
+
+  // Only paid orders create an active subscription
+  if (financialStatus !== "PAID") {
+    log(`Order ${orderName} has financial status "${financialStatus}" (not PAID); skipping subscription creation.`);
+    return null;
+  }
+
+  // Avoid duplicates: check if already ingested
+  const existing = await prisma.subscription.findFirst({
+    where: {
+      shop,
+      OR: [{ originOrderId: orderId }, { originOrderName: orderName }],
+    },
+  });
+  if (existing) {
+    return existing;
+  }
+
+  // Parse frequency from custom attributes or sellingPlan
+  const attrs = order.customAttributes || order.note_attributes || [];
+  const freqAttr = attrs.find((a: any) => {
+    const key = (a.name || a.key || "").toLowerCase().trim();
+    return key === "_delivery_frequency" || key === "delivery_frequency" || key === "frequency";
+  })?.value;
+
+  const { interval, intervalCount } = parseOrderFrequency(freqAttr);
+
+  // Look up matching plan
+  const plan = await prisma.subscriptionPlan.findFirst({
+    where: { shop, interval, intervalCount, active: true },
+  });
+
+  const rawLineItems = order.lineItems?.nodes || order.line_items || [];
+  const lines = rawLineItems.map((l: any) => ({
+    title: l.title || "Subscription Item",
+    variantTitle: l.variant?.title || l.variant_title || "",
+    quantity: Number(l.quantity) || 1,
+    price: parseFloat(l.originalUnitPriceSet?.shopMoney?.amount || l.price || "0"),
+    variantId: l.variant?.id || (l.variant_id ? `gid://shopify/ProductVariant/${l.variant_id}` : ""),
+  }));
+
+  const customerEmail = order.email || order.customer?.email || null;
+  const customerName = order.customer?.displayName ||
+    (order.customer?.first_name ? `${order.customer.first_name} ${order.customer.last_name || ""}`.trim() : null) ||
+    order.customer?.name ||
+    "Customer";
+  const customerId = order.customer?.id ? String(order.customer.id) : null;
+
+  const createdAtDate = order.createdAt || order.created_at ? new Date(order.createdAt || order.created_at) : now;
+  const anchorDate = localYmd(createdAtDate, cfg.timezone);
+  const cleanNumericId = orderId.split("/").pop() || Date.now().toString();
+  const contractId = `gid://shopify/SubscriptionContract/order-${cleanNumericId}-${Date.now()}`;
+
+  const currency = order.totalPriceSet?.shopMoney?.currencyCode || order.currency || "INR";
+  const recurringTotal = lines.reduce((sum: number, l: any) => sum + (l.price * l.quantity), 0);
+
+  const draft = {
+    shop,
+    contractId,
+    originOrderId: orderId,
+    originOrderName: orderName,
+    customerId,
+    customerEmail,
+    customerName,
+    status: "ACTIVE",
+    planId: plan?.id ?? null,
+    sellingPlanId: plan?.sellingPlanId ?? null,
+    planName: plan?.name ?? `Delivered every ${intervalCount} ${interval.toLowerCase()}s`,
+    interval,
+    intervalCount,
+    preferredWeekday: null,
+    anchorDate,
+    lastDeliveryDate: anchorDate,
+    lines: lines as unknown as Prisma.InputJsonValue,
+    currency,
+    recurringTotal,
+    deliveryPrice: 0,
+    shippingSummary: "Standard delivery",
+  };
+
+  const created = await prisma.$transaction(async (tx) => {
+    const s = await tx.subscription.create({ data: draft });
+    const planned = planCycle(
+      {
+        anchorDate: s.anchorDate,
+        interval: s.interval,
+        intervalCount: s.intervalCount,
+        preferredWeekday: s.preferredWeekday,
+      },
+      1,
+      cfg,
+      now
+    );
+
+    const cycle = await tx.subscriptionCycle.create({
+      data: {
+        shop: s.shop,
+        subscriptionId: s.id,
+        cycleNumber: 1,
+        deliveryDate: planned.deliveryDate,
+        billingAt: planned.billingAt,
+      },
+    });
+
+    await tx.subscription.update({
+      where: { id: s.id },
+      data: {
+        anchorStep: planned.step,
+        cycleNumber: 1,
+        nextDeliveryDate: cycle.deliveryDate,
+        nextBillingAt: cycle.billingAt,
+      },
+    });
+
+    return s;
+  });
+
+  log(`[auto-sync] Ingested subscription from order ${orderName} (${created.id}) for ${customerName}`);
+  return created;
+}
+
+/**
+ * Reconciles Shopify subscription orders automatically.
+ * Queries Shopify GraphQL for recent orders, filters subscription purchases,
+ * and ingests missing paid subscription orders into the local database.
+ */
+export async function syncShopifySubscriptionOrders(
+  shop: string,
+  limit = 50
+): Promise<{ synced: number; totalActive: number }> {
+  try {
+    const admin = await getAdmin(shop);
+    const settings = await getSettings(shop);
+    const cfg = toScheduleConfig(settings);
+    const now = new Date();
+
+    const res = await admin.graphql(
+      `#graphql
+      query GetRecentSubscriptionOrders($limit: Int!) {
+        orders(first: $limit, sortKey: CREATED_AT, reverse: true) {
+          nodes {
+            id
+            name
+            createdAt
+            displayFinancialStatus
+            displayFulfillmentStatus
+            email
+            totalPriceSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+            customAttributes {
+              key
+              value
+            }
+            customer {
+              id
+              email
+              displayName
+            }
+            lineItems(first: 20) {
+              nodes {
+                id
+                title
+                quantity
+                originalUnitPriceSet {
+                  shopMoney {
+                    amount
+                  }
+                }
+                sellingPlan {
+                  name
+                  sellingPlanId
+                }
+                customAttributes {
+                  key
+                  value
+                }
+                variant {
+                  id
+                  title
+                }
+              }
+            }
+          }
+        }
+      }`,
+      { variables: { limit } }
+    );
+
+    const data: any = await res.json();
+    const orders = data?.data?.orders?.nodes || [];
+
+    let synced = 0;
+    for (const order of orders) {
+      const created = await ingestSubscriptionFromOrderNode(shop, order, cfg, now);
+      if (created) synced++;
+    }
+
+    const totalActive = await prisma.subscription.count({ where: { shop, status: "ACTIVE" } });
+    return { synced, totalActive };
+  } catch (err: unknown) {
+    warn("Failed to sync Shopify subscription orders:", (err as Error).message);
+    const totalActive = await prisma.subscription.count({ where: { shop, status: "ACTIVE" } });
+    return { synced: 0, totalActive };
+  }
+}
+
+export interface SubscriptionCatalogProduct {
+  id: string;
+  title: string;
+  imageUrl: string | null;
+  variantId: string;
+  variantTitle: string;
+  regularPrice: number;
+  discountedPrice: number;
+  discountPercent: number;
+  frequencies: string[];
+  hasShopifySellingPlan: boolean;
+  sellingPlanName: string;
+  isEligible: boolean;
+}
+
+/**
+ * Returns the catalog of subscription products with variant pricing,
+ * available selling plans, delivery frequencies, and discounts.
+ */
+export async function getSubscriptionProducts(shop: string): Promise<SubscriptionCatalogProduct[]> {
+  try {
+    const [admin, settings, plans] = await Promise.all([
+      getAdmin(shop),
+      getSettings(shop),
+      prisma.subscriptionPlan.findMany({
+        where: { shop, active: true },
+        orderBy: { position: "asc" },
+      }),
+    ]);
+
+    const activeDiscount = plans.find((p) => p.discountPercent > 0)?.discountPercent ?? 15;
+    const defaultFrequencies = plans.map((p) => describeFrequency(p.interval, p.intervalCount));
+
+    const res = await admin.graphql(`
+      query GetSubscriptionProductsCatalog {
+        products(first: 50, sortKey: TITLE) {
+          nodes {
+            id
+            title
+            featuredImage {
+              url
+            }
+            variants(first: 5) {
+              nodes {
+                id
+                title
+                price
+                compareAtPrice
+              }
+            }
+            sellingPlanGroups(first: 5) {
+              nodes {
+                id
+                name
+                sellingPlans(first: 5) {
+                  nodes {
+                    id
+                    name
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    `);
+
+    const json: any = await res.json();
+    const productNodes = json?.data?.products?.nodes || [];
+
+    const eligibleIds = new Set(settings.eligibleProductIds || []);
+    const isAll = settings.productSelectionType === "ALL" || eligibleIds.size === 0;
+
+    return productNodes.map((p: any): SubscriptionCatalogProduct => {
+      const isEligible = isAll || eligibleIds.has(p.id);
+      const firstVariant = p.variants?.nodes?.[0];
+      const regularPrice = parseFloat(firstVariant?.price || "0");
+      const discountedPrice = Math.round(regularPrice * (1 - activeDiscount / 100) * 100) / 100;
+
+      const spGroup = p.sellingPlanGroups?.nodes?.[0];
+      const hasShopifySellingPlan = Boolean(spGroup && spGroup.sellingPlans?.nodes?.length > 0);
+      const sellingPlanName = hasShopifySellingPlan
+        ? spGroup.name || spGroup.sellingPlans.nodes[0].name
+        : "Purrkins Subscribe & Save (15% OFF)";
+
+      return {
+        id: p.id,
+        title: p.title,
+        imageUrl: p.featuredImage?.url || null,
+        variantId: firstVariant?.id || "",
+        variantTitle: firstVariant?.title || "Default",
+        regularPrice,
+        discountedPrice,
+        discountPercent: activeDiscount,
+        frequencies: defaultFrequencies.length > 0 ? defaultFrequencies : ["Every 15 days", "Every 30 days", "Every 45 days", "Every 60 days"],
+        hasShopifySellingPlan,
+        sellingPlanName,
+        isEligible,
+      };
+    });
+  } catch (err: unknown) {
+    warn("Failed to fetch subscription products catalog:", (err as Error).message);
+    return [];
+  }
+}
+

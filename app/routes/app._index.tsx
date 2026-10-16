@@ -4,12 +4,18 @@ import { Link, useFetcher, useLoaderData } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { getStats, getUpcomingDeliveries, listSubscriptions, runSchedulerTick } from "../utils/subscription.server";
+import { getStats, getUpcomingDeliveries, listSubscriptions, runSchedulerTick, syncShopifySubscriptionOrders } from "../utils/subscription.server";
 import { describeFrequency, WEEKDAY_NAMES, weekdayOf } from "../utils/subscription-schedule";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
+
+  try {
+    await syncShopifySubscriptionOrders(shop);
+  } catch (err) {
+    console.warn("Auto-sync error in app overview loader:", err);
+  }
 
   const [reviews, storeSettingRaw, subStats, activeSubsList, upcomingDeliveries] = await Promise.all([
     prisma.review.findMany({

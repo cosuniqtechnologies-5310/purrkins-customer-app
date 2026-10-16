@@ -60,6 +60,14 @@ api_version = "2026-10"
   uri = "/webhooks/subscription_billing_attempts/failure"
   topics = [ "subscription_billing_attempts/failure" ]
 
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/orders/paid"
+  topics = [ "orders/paid" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/orders/create"
+  topics = [ "orders/create" ]
+
 [app_proxy]
 url = "https://purrkins.duckdns.org/api/free-sample"
 subpath = "purrkins"
