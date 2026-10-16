@@ -1183,3 +1183,118 @@ export async function getSubscriptionDetail(shop: string, id: string) {
   const plans = await prisma.subscriptionPlan.findMany({ where: { shop, active: true }, orderBy: { position: "asc" } });
   return { sub, pending, upcoming, plans, settings, cfg };
 }
+
+export async function subscribeFromOrder(shop: string, orderQuery: string, intervalDays: number = 30) {
+  const admin = await getAdmin(shop);
+  const cleanQ = orderQuery.trim();
+  const q = cleanQ.startsWith("#")
+    ? `name:${cleanQ}`
+    : cleanQ.includes("gid://")
+    ? `id:${cleanQ.split("/").pop()}`
+    : `name:#${cleanQ}`;
+
+  const res = await admin.graphql(
+    `#graphql
+    query FindOrder($q: String!) {
+      orders(first: 1, query: $q) {
+        nodes {
+          id
+          name
+          createdAt
+          customer {
+            id
+            email
+            displayName
+          }
+          totalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          lineItems(first: 20) {
+            nodes {
+              title
+              quantity
+              originalUnitPriceSet {
+                shopMoney {
+                  amount
+                }
+              }
+              variant {
+                id
+                title
+              }
+            }
+          }
+        }
+      }
+    }`,
+    { variables: { q } }
+  );
+
+  const data: any = await res.json();
+  const order = data?.data?.orders?.nodes?.[0];
+  if (!order) {
+    throw new SubscriptionError(`Order "${orderQuery}" was not found in Shopify.`);
+  }
+
+  const existing = await prisma.subscription.findFirst({
+    where: { shop, originOrderId: order.id },
+  });
+  if (existing) {
+    return existing;
+  }
+
+  const settings = await getSettings(shop);
+  const cfg = toScheduleConfig(settings);
+  const now = new Date();
+
+  const plan = await prisma.subscriptionPlan.findFirst({
+    where: { shop, interval: "DAY", intervalCount: intervalDays, active: true },
+  });
+
+  const lines = order.lineItems.nodes.map((l: any) => ({
+    title: l.title,
+    variantTitle: l.variant?.title ?? "",
+    quantity: l.quantity,
+    price: parseFloat(l.originalUnitPriceSet?.shopMoney?.amount || "0"),
+    variantId: l.variant?.id ?? "",
+  }));
+
+  const anchorDate = localYmd(new Date(order.createdAt), cfg.timezone);
+  const contractId = `gid://shopify/SubscriptionContract/order-${order.id.split("/").pop()}-${Date.now()}`;
+
+  const draft = {
+    shop,
+    contractId,
+    originOrderId: order.id,
+    originOrderName: order.name,
+    customerId: order.customer?.id ?? null,
+    customerEmail: order.customer?.email ?? null,
+    customerName: order.customer?.displayName ?? null,
+    status: "ACTIVE",
+    planId: plan?.id ?? null,
+    sellingPlanId: plan?.sellingPlanId ?? null,
+    planName: plan?.name ?? `Delivered every ${intervalDays} days`,
+    interval: "DAY" as const,
+    intervalCount: intervalDays,
+    preferredWeekday: settings.defaultWeekday ?? null,
+    anchorDate,
+    lastDeliveryDate: anchorDate,
+    lines: lines as unknown as Prisma.InputJsonValue,
+    currency: order.totalPriceSet?.shopMoney?.currencyCode || "INR",
+    recurringTotal: lines.reduce((sum: number, l: any) => sum + l.price * l.quantity, 0),
+    deliveryPrice: 0,
+    shippingSummary: "Standard shipping",
+  };
+
+  const created = await prisma.$transaction(async (tx) => {
+    const sub = await tx.subscription.create({ data: draft });
+    const cycle = await openCycle(tx, sub, 1, 1, cfg, now);
+    return { sub, cycle };
+  });
+
+  log(`Created manual subscription for order ${order.name}: ${created.sub.planName}, next cycle ${created.cycle?.deliveryDate}`);
+  return created.sub;
+}

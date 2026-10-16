@@ -11,7 +11,22 @@ const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY || "c48f3f570d623330d23274556ccc823f",
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "c48f3f570d623330d23274556ccc823f",
   apiVersion: ApiVersion.July26,
-  scopes: process.env.SCOPES?.split(","),
+  scopes: process.env.SCOPES
+    ? process.env.SCOPES.split(",")
+    : [
+        "write_products",
+        "write_customers",
+        "write_metaobjects",
+        "read_metaobject_definitions",
+        "read_files",
+        "write_files",
+        "read_orders",
+        "write_own_subscription_contracts",
+        "read_own_subscription_contracts",
+        "read_customer_payment_methods",
+        "write_purchase_options",
+        "read_purchase_options",
+      ],
   appUrl: process.env.SHOPIFY_APP_URL || "",
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),

@@ -1,9 +1,9 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { Form, Link, useActionData, useLoaderData, useNavigation } from "react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
-import { getStats, listSubscriptions, runSchedulerTick } from "../utils/subscription.server";
+import { getStats, listSubscriptions, runSchedulerTick, subscribeFromOrder } from "../utils/subscription.server";
 import { describeFrequency } from "../utils/subscription-schedule";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -24,7 +24,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
   const formData = await request.formData();
   const intent = formData.get("intent");
 
@@ -40,6 +41,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  if (intent === "subscribe_order") {
+    const orderName = String(formData.get("orderName") || "").trim();
+    const days = parseInt(String(formData.get("days") || "30"), 10);
+    if (!orderName) {
+      return { success: false, message: "Please enter an order number (e.g. #1004)" };
+    }
+    try {
+      const sub = await subscribeFromOrder(shop, orderName, days);
+      return {
+        success: true,
+        message: `Subscribed ${sub.customerName || sub.customerEmail || "customer"} from order ${sub.originOrderName || orderName}!`,
+      };
+    } catch (e: unknown) {
+      return {
+        success: false,
+        message: `Could not subscribe order: ${e instanceof Error ? e.message : "Order not found or already subscribed"}`,
+      };
+    }
+  }
+
   return { success: false, message: "Unknown action" };
 };
 
@@ -49,16 +70,43 @@ export default function SubscriptionsIndex() {
   const shopify = useAppBridge();
   const nav = useNavigation();
   const isBusy = nav.state !== "idle";
+  const [isSubscribeModalOpen, setIsSubscribeModalOpen] = useState(false);
+  const [orderQuery, setOrderQuery] = useState("");
+  const [frequencyDays, setFrequencyDays] = useState("30");
 
   useEffect(() => {
     if (actionData?.message) {
       shopify.toast.show(actionData.message, { isError: !actionData.success });
+      if (actionData.success) {
+        setIsSubscribeModalOpen(false);
+        setOrderQuery("");
+      }
     }
   }, [actionData, shopify]);
 
   return (
     <s-page heading="Subscriptions & Recurring Orders">
-      <div slot="primary-action" style={{ display: "flex", gap: "8px" }}>
+      <div slot="primary-action" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        <button
+          type="button"
+          onClick={() => {
+            setOrderQuery("#1004");
+            setIsSubscribeModalOpen(true);
+          }}
+          style={{
+            background: "#0F172A",
+            color: "#FFFFFF",
+            border: "none",
+            borderRadius: "8px",
+            padding: "8px 16px",
+            fontSize: "13px",
+            fontWeight: "700",
+            cursor: "pointer",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+          }}
+        >
+          + Subscribe Order
+        </button>
         <Form method="post">
           <input type="hidden" name="intent" value="run_scheduler" />
           <s-button type="submit" loading={isBusy} variant="secondary">
@@ -197,10 +245,31 @@ export default function SubscriptionsIndex() {
             {list.rows.length === 0 ? (
               <div style={{ padding: "56px 20px", textAlign: "center", width: "100%" }}>
                 <div style={{ fontSize: "36px", marginBottom: "10px" }}>📦</div>
-                <div style={{ fontSize: "16px", fontWeight: "800", color: "#000" }}>No subscriptions found.</div>
-                <div style={{ marginTop: "6px", fontSize: "13px", color: "rgba(0, 0, 0, 0.55)", maxWidth: "460px", margin: "6px auto 0", fontWeight: "400" }}>
-                  When customers purchase products with a &quot;Subscribe &amp; Save&quot; plan, they will automatically appear here.
+                <div style={{ fontSize: "16px", fontWeight: "700", color: "#0F172A" }}>No subscriptions found yet.</div>
+                <div style={{ marginTop: "6px", fontSize: "13px", color: "#64748B", maxWidth: "460px", margin: "6px auto 16px", fontWeight: "400" }}>
+                  When customers purchase products with a &quot;Subscribe &amp; Save&quot; plan, they will automatically appear here. You can also activate a subscription for an existing order.
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOrderQuery("#1004");
+                    setIsSubscribeModalOpen(true);
+                  }}
+                  style={{
+                    background: "#0F172A",
+                    color: "#FFFFFF",
+                    border: "none",
+                    borderRadius: "8px",
+                    padding: "9px 20px",
+                    fontSize: "13px",
+                    fontWeight: "700",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  + Subscribe Customer from Order (e.g. #1004)
+                </button>
               </div>
             ) : (
               <div style={{ width: "100%", overflowX: "auto", borderRadius: "10px", border: "1px solid #E2E8F0" }}>
@@ -339,6 +408,133 @@ export default function SubscriptionsIndex() {
           </div>
         </s-section>
       </s-stack>
+
+      {/* Modal to subscribe from order */}
+      {isSubscribeModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "16px",
+          }}
+        >
+          <div
+            style={{
+              background: "#FFFFFF",
+              borderRadius: "16px",
+              padding: "24px",
+              maxWidth: "480px",
+              width: "100%",
+              boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
+            }}
+          >
+            <h3 style={{ margin: "0 0 8px 0", fontSize: "18px", fontWeight: "700", color: "#0F172A" }}>
+              Subscribe Customer from Order
+            </h3>
+            <p style={{ margin: "0 0 16px 0", fontSize: "13px", color: "#64748B" }}>
+              Register a customer checkout order as an active recurring subscription with scheduled delivery cycles.
+            </p>
+
+            <Form method="post">
+              <input type="hidden" name="intent" value="subscribe_order" />
+
+              <div style={{ marginBottom: "16px" }}>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "6px", color: "#0F172A" }}>
+                  Shopify Order Number:
+                </label>
+                <input
+                  type="text"
+                  name="orderName"
+                  value={orderQuery}
+                  onChange={(e) => setOrderQuery(e.target.value)}
+                  placeholder="e.g. #1004"
+                  required
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: "8px",
+                    border: "1px solid #CBD5E1",
+                    background: "#FFFFFF",
+                    fontSize: "14px",
+                    color: "#0F172A",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: "20px" }}>
+                <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "6px", color: "#0F172A" }}>
+                  Delivery Frequency:
+                </label>
+                <select
+                  name="days"
+                  value={frequencyDays}
+                  onChange={(e) => setFrequencyDays(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: "8px",
+                    border: "1px solid #CBD5E1",
+                    background: "#FFFFFF",
+                    fontSize: "14px",
+                    color: "#0F172A",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <option value="15">Every 15 days (Save 15%)</option>
+                  <option value="30">Every 30 days (Save 15%)</option>
+                  <option value="45">Every 45 days (Save 15%)</option>
+                  <option value="60">Every 60 days (Save 15%)</option>
+                </select>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => setIsSubscribeModalOpen(false)}
+                  style={{
+                    padding: "9px 16px",
+                    background: "#F1F5F9",
+                    border: "1px solid #E2E8F0",
+                    borderRadius: "8px",
+                    color: "#334155",
+                    fontWeight: "600",
+                    fontSize: "13px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isBusy}
+                  style={{
+                    padding: "9px 20px",
+                    background: "#0F172A",
+                    border: "none",
+                    borderRadius: "8px",
+                    color: "#FFFFFF",
+                    fontWeight: "700",
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+                  }}
+                >
+                  {isBusy ? "Subscribing..." : "Activate Subscription"}
+                </button>
+              </div>
+            </Form>
+          </div>
+        </div>
+      )}
     </s-page>
   );
 }
