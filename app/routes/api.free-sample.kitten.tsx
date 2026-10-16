@@ -611,6 +611,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const dashUrl = '/apps/purrkins/dashboard';
 
   const liquidTemplate = `
+    <!-- Instant Session URL Sanitizer -->
+    <script>
+      (function() {
+        try {
+          var u = new URL(window.location.href);
+          if (u.searchParams.has('session')) {
+            var s = u.searchParams.get('session');
+            if (s) {
+              try { localStorage.setItem('pk_session', s); } catch(e){}
+              document.cookie = 'pk_session=' + s + '; path=/; max-age=604800; SameSite=Lax';
+            }
+            u.searchParams.delete('session');
+            window.history.replaceState({}, document.title, u.pathname + (u.search ? u.search : '') + u.hash);
+          }
+        } catch(e) {}
+      })();
+    </script>
     ${getLoaderHtml(true)}
     <style>
 \n
@@ -1470,13 +1487,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     \n</style>
     <div class="pk-dashboard-wrapper">
-      <div class="pk-dashboard-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
-        <h1>Welcome back, ${customerFirstName || "Friend"}</h1>
-        <div class="pk-header-menu" style="background: #fff; border: 1px solid #eaeaea; border-radius: 12px; padding: 10px 0; min-width: 150px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
-          <a href="/apps/purrkins/dashboard" style="display: block; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 13px; font-weight: 700;">Profile</a>
-          <a href="/apps/purrkins/dashboard#pk-tab-wishlist" style="display: block; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 13px; font-weight: 700; border-bottom: 1px solid #eaeaea; padding-bottom: 12px; margin-bottom: 4px;">Wishlist</a>
-          <button onclick="localStorage.removeItem('pk_session'); localStorage.removeItem('pk_user_name'); localStorage.removeItem('pk_user_email'); localStorage.removeItem('pk_checkout_info'); document.cookie='pk_session=; path=/apps/purrkins; expires=Thu, 01 Jan 1970 00:00:00 GMT'; window.location.href='/apps/purrkins/login';" style="display: block; width: 100%; text-align: left; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 13px; font-weight: 700; background: none; border: none; cursor: pointer;">Log out</button>
-        </div>
+      <div class="pk-dashboard-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+        <h1 style="margin: 0; font-family: var(--font-heading--family, sans-serif); font-size: 32px; font-weight: 800;">Welcome back, ${customerFirstName || "Friend"}</h1>
       </div>
 
       <!-- PET SELECTOR HEADER -->
@@ -2200,7 +2212,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return new Response(liquidTemplate, {
     headers: {
       "Content-Type": "application/liquid",
-      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+      ...(token ? { "Set-Cookie": `pk_session=${token}; Path=/; Max-Age=604800; SameSite=Lax` } : {})
     },
   });
   } catch (err: any) {

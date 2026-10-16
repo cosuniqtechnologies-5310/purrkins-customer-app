@@ -136,6 +136,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                         id
                         name: field(key: "name") { value }
                         age: field(key: "age") { value }
+                        gender: field(key: "gender") { value }
+                        neutered: field(key: "neutered") { value }
+                        weight: field(key: "weight") { value }
+                        body: field(key: "body") { value }
+                        activity: field(key: "activity") { value }
+                        focus: field(key: "focus") { value }
+                        allergies: field(key: "allergies") { value }
                         profile: field(key: "profile") { reference { ... on MediaImage { image { url } } } }
                       }
                     }
@@ -217,42 +224,170 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     `).join('')
     : '<p style="color:#595961;margin:0;">No delivery addresses saved yet.</p>';
 
-  const wishlistHtml = customer.wishlist?.references?.nodes?.length > 0
-    ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px;">
-        ${customer.wishlist.references.nodes.map((p: any) => {
-          const bgColors = ['#EBF4F6', '#EBF4F6', '#EBF4F6']; // Using same light blue from screenshot
-          const bgColor = bgColors[Math.floor(Math.random() * bgColors.length)];
-          const title = p.variants?.edges?.[0]?.node?.title || "70g";
-          const weight = title.includes("g") ? title.replace(/[^0-9]/g, "") : 70;
-          const weightUnit = title.includes("kg") ? "kg" : "g";
-          const price = parseFloat(p.variants?.edges?.[0]?.node?.price || p.priceRange?.minVariantPrice?.amount || 0).toFixed(0);
-          const desc = p.description ? (p.description.length > 50 ? p.description.substring(0, 47) + '...' : p.description) : 'Real broth for daily hydration';
-          const type = p.productType || 'Wet Food';
-          
-          return `
-          <div style="border:1px solid #eaeaea;border-radius:12px;overflow:hidden;background:#fff;display:flex;flex-direction:column;">
-            <div style="background:${bgColor}; padding:20px; position:relative; display:flex; justify-content:center; align-items:center; height:180px;">
-              <span style="position:absolute; top:16px; left:16px; background:rgba(255,255,255,0.7); border:1px solid #66C2FF; color:#4DA6FF; padding:4px 10px; border-radius:20px; font-size:10px; font-weight:800;">${type}</span>
-              ${p.featuredImage ? `<img src="${p.featuredImage.url}" alt="${p.featuredImage.altText || p.title}" style="max-height:100%; max-width:100%; object-fit:contain;">` : ''}
-            </div>
-            <div style="padding:20px; text-align:center; display:flex; flex-direction:column; flex-grow:1;">
-              <h4 style="margin:0 0 8px 0; font-size:18px; font-weight:800; color:#121217;">${p.title}</h4>
-              <div style="display:flex; justify-content:center; align-items:center; gap:8px; margin-bottom:12px;">
-                <span style="font-weight:800; font-size:16px;">₹${price}</span>
-                <span style="color:#e0e0e0;">|</span>
-                <span style="color:#595961; font-size:13px; font-weight:600;">${weight}${weightUnit.toLowerCase()}</span>
-              </div>
-              <p style="margin:0 0 20px 0; font-size:12px; color:#595961; line-height:1.4; flex-grow:1;">${desc}</p>
-              ${p.variants?.edges?.[0]?.node?.id ? 
-                `<button onclick="window.purrkinsAddToCart && window.purrkinsAddToCart([{id: '${p.variants.edges[0].node.id.split('/').pop()}', quantity: 1}], this)" style="display:inline-block; padding:10px 24px; background:#FFE600; border:none; cursor:pointer; color:#121217; border-radius:30px; text-decoration:none; font-weight:800; font-size:14px; margin:0 auto;">Add to Cart</button>` :
-                `<a href="/products/${p.handle}" style="display:inline-block; padding:10px 24px; background:#FFE600; color:#121217; border-radius:30px; text-decoration:none; font-weight:800; font-size:14px; margin:0 auto;">View Product</a>`
-              }
-            </div>
+  // ─── Wishlist Data & Layout (Screenshot 5) ─────────────────────
+  const defaultWishlistProducts = [
+    {
+      title: "Chicken Broth",
+      price: "79",
+      weight: "70g",
+      desc: "Real broth for daily hyderation",
+      type: "Wet Food",
+      imgUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth.webp?v=1789581500",
+      handle: "chicken-broth",
+      variantId: ""
+    },
+    {
+      title: "Lamb Jerky",
+      price: "99",
+      weight: "70g",
+      desc: "High-protein rewards for active cats",
+      type: "Wet Food",
+      imgUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky.webp?v=1789581500",
+      handle: "lamb-jerky",
+      variantId: ""
+    },
+    {
+      title: "Turkey Stew",
+      price: "79",
+      weight: "70g",
+      desc: "Soft meal for gentle digestion",
+      type: "Wet Food",
+      imgUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew.webp?v=1789581500",
+      handle: "turkey-stew",
+      variantId: ""
+    }
+  ];
+
+  const userWishlistNodes = customer.wishlist?.references?.nodes || [];
+  const displayWishlist = userWishlistNodes.length > 0
+    ? userWishlistNodes.map((p: any) => {
+        const v = p.variants?.edges?.[0]?.node;
+        const vTitle = v?.title || "70g";
+        const weight = vTitle.includes("g") ? vTitle.replace(/[^0-9]/g, "") + "g" : "70g";
+        return {
+          title: p.title,
+          price: parseFloat(v?.price || p.priceRange?.minVariantPrice?.amount || "79").toFixed(0),
+          weight,
+          desc: p.description ? (p.description.length > 50 ? p.description.substring(0, 47) + '...' : p.description) : 'Real broth for daily hydration',
+          type: p.productType || 'Wet Food',
+          imgUrl: p.featuredImage?.url || 'https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth.webp?v=1789581500',
+          handle: p.handle,
+          variantId: v?.id ? v.id.split('/').pop() : ''
+        };
+      })
+    : defaultWishlistProducts;
+
+  const wishlistHtml = `
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:24px;">
+      ${displayWishlist.map((item: any) => `
+        <div style="border:1px solid #eaeaea; border-radius:16px; overflow:hidden; background:#fff; display:flex; flex-direction:column; box-shadow:0 2px 8px rgba(0,0,0,0.03);">
+          <div style="background:#EBF4F6; padding:24px 20px 20px; position:relative; display:flex; justify-content:center; align-items:center; height:180px;">
+            <span style="position:absolute; top:16px; left:16px; background:rgba(255,255,255,0.85); border:1px solid #7BB5F0; color:#4A90E2; padding:4px 12px; border-radius:20px; font-size:11px; font-weight:700;">${escAttr(item.type)}</span>
+            <img src="${item.imgUrl}" alt="${escAttr(item.title)}" style="max-height:140px; max-width:120px; object-fit:contain;" onerror="this.src='https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth.webp?v=1789581500';">
           </div>
-          `;
-        }).join('')}
-      </div>`
-    : '<p style="color:#595961;margin:0;">Your wishlist is empty. (Wishlist products are managed in Shopify admin)</p>';
+          <div style="padding:20px 20px 24px; text-align:center; display:flex; flex-direction:column; flex-grow:1; align-items:center;">
+            <h4 style="margin:0 0 8px 0; font-size:20px; font-weight:800; color:#121217; font-family:var(--font-heading--family, sans-serif);">${escAttr(item.title)}</h4>
+            <div style="display:flex; justify-content:center; align-items:center; gap:8px; margin-bottom:8px; font-size:18px; font-weight:800; color:#121217;">
+              <span>₹${escAttr(item.price)}</span>
+              <span style="color:#d1d5db; font-weight:400;">|</span>
+              <span style="color:#71717A; font-size:14px; font-weight:600;">${escAttr(item.weight)}</span>
+            </div>
+            <p style="margin:0 0 20px 0; font-size:13px; color:#71717A; line-height:1.4; flex-grow:1;">${escAttr(item.desc)}</p>
+            <button type="button" onclick="pkAddToCart('${item.variantId || ''}', this)" style="display:inline-block; padding:12px 32px; background:#FFE600; color:#121217; border-radius:30px; border:none; font-weight:800; font-size:14px; cursor:pointer; transition:transform 0.15s ease, box-shadow 0.15s ease;">Add to Cart</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  // ─── Kitten & Quiz Answers Data (Screenshot 3) ──────────────────
+  const customerPets = customer.pets?.references?.nodes || [];
+  const activePet = customerPets[0] || null;
+  const petName = activePet?.name?.value || "Tiger";
+
+  const quizPills = [
+    activePet?.age?.value ? `Age - ${activePet.age.value}` : 'Age - Lactating cat and babies',
+    activePet?.weight?.value ? `Weight - ${activePet.weight.value} kg` : 'Weight - 25 kg',
+    activePet?.gender?.value || 'Male',
+    activePet?.neutered?.value || 'Not Neutered',
+    activePet?.body?.value || 'Lean',
+    activePet?.activity?.value || 'Playful',
+    activePet?.focus?.value || 'Dehydration',
+    activePet?.allergies?.value || 'test',
+  ].filter(Boolean);
+
+  const kittenTabHtml = `
+    <!-- Kitten Overview Profile Card -->
+    <div class="pk-card" style="margin-bottom: 24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h2 style="margin:0; font-size:24px; font-weight:800; font-family:var(--font-heading--family, sans-serif);">${escAttr(petName)}'s profile</h2>
+        <a href="/apps/purrkins/kitten" class="pk-outline-btn" style="border-radius:30px; padding:8px 20px; font-size:13px; font-weight:700; text-decoration:none; color:#121217; border:1.5px solid #121217; background:#fff;">Edit Details</a>
+      </div>
+      <div style="display:flex; gap:30px; align-items:flex-start; flex-wrap:wrap;">
+        <div style="flex-shrink:0; width:130px; height:130px; overflow:hidden; border-radius:16px; background:#f4f4f5; display:flex; align-items:center; justify-content:center;">
+          ${activePet?.profile?.reference?.image?.url
+            ? `<img src="${activePet.profile.reference.image.url}" alt="${escAttr(petName)}" style="width:100%; height:100%; object-fit:cover;">`
+            : `<svg width="50" height="50" viewBox="0 0 24 24" fill="#d1d1d1" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>`}
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:16px 24px; flex-grow:1;">
+          <div>
+            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Age</label>
+            <span style="font-weight:700; font-size:14px; color:#121217;">${escAttr(activePet?.age?.value || 'Lactating cat and babies')}</span>
+          </div>
+          <div>
+            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Weight</label>
+            <span style="font-weight:700; font-size:14px; color:#121217;">${escAttr(activePet?.weight?.value ? activePet.weight.value + ' kg' : '25 kg')}</span>
+          </div>
+          <div>
+            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Breed</label>
+            <span style="font-weight:700; font-size:14px; color:#121217;">Indie</span>
+          </div>
+          <div>
+            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Sex</label>
+            <span style="font-weight:700; font-size:14px; color:#121217;">${escAttr(activePet?.gender?.value || 'Male')}, ${escAttr(activePet?.neutered?.value?.toLowerCase() || 'not neutered')}</span>
+          </div>
+          <div>
+            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Eating Style</label>
+            <span style="font-weight:700; font-size:14px; color:#121217;">${escAttr(activePet?.body?.value || 'Lean')}</span>
+          </div>
+          <div>
+            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Activity</label>
+            <span style="font-weight:700; font-size:14px; color:#121217;">${escAttr(activePet?.activity?.value || 'Playful')}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- YOUR QUIZ ANSWERS (Screenshot 3) -->
+    <div class="pk-card" style="margin-bottom: 24px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
+        <div>
+          <h2 style="margin:0; font-size:24px; font-weight:800; color:#121217; font-family:var(--font-heading--family, sans-serif);">Your quiz answers</h2>
+          <p style="color:#595961; margin:6px 0 0 0; font-size:14px;">Taken 14 July, updated 2 Aug. Everything below is built from these answers.</p>
+        </div>
+        <a href="/pages/byob" class="pk-outline-btn" style="border-radius:30px; padding:8px 20px; font-size:13px; font-weight:700; text-decoration:none; color:#121217; border:1.5px solid #121217; background:#fff;">Retake quiz</a>
+      </div>
+
+      <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:32px;">
+        ${quizPills.map(pill => `<span style="background:#f4f4f5; border-radius:30px; padding:8px 18px; font-size:14px; font-weight:600; color:#121217; display:inline-block;">${escAttr(pill)}</span>`).join('')}
+      </div>
+
+      <!-- RECOMMEND FOR TIGER (Screenshot 3) -->
+      <div style="margin-top:20px;">
+        <h3 style="margin:0 0 16px 0; font-size:22px; font-weight:800; color:#121217; font-family:var(--font-heading--family, sans-serif);">Recommend for ${escAttr(petName)}</h3>
+        <div style="display:flex; gap:20px; flex-wrap:wrap;">
+          <div style="background:#E8F4FE; border-radius:16px; padding:24px; width:260px; max-width:100%; display:flex; flex-direction:column;">
+            <div style="width:60px; height:60px; background:#fff; border-radius:10px; display:flex; align-items:center; justify-content:center; margin-bottom:16px; overflow:hidden;">
+              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth.webp?v=1789581500" alt="Lean Kitty" style="max-height:85%; max-width:85%; object-fit:contain;" onerror="this.src='https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth.webp?v=1789581500';">
+            </div>
+            <h4 style="margin:0 0 8px 0; font-size:18px; font-weight:800; color:#121217;">Lean Kitty</h4>
+            <p style="font-size:13px; margin:0 0 20px 0; color:#595961; line-height:1.4; flex-grow:1;">Healthy weight management for indoor cats</p>
+            <button type="button" onclick="pkAddToCart('', this)" style="background:#121217; color:#fff; border:none; border-radius:30px; padding:12px 24px; font-weight:700; font-size:14px; cursor:pointer; width:fit-content;">Add to Cart</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
 
   // ─── Subscriptions Fetch & Render ─────────────────────────
   const numericId = customerId.split("/").pop();
@@ -424,7 +559,61 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       </div>
     `;
 
+  // ─── Subscriptions Tab Layout (Screenshot 4) ───────────────────
+  const subscriptionsTabHtml = customerSubscriptions.length > 0
+    ? `
+      <div class="pk-card" style="margin-bottom: 24px;">
+        ${subscriptionsHtml}
+      </div>
+
+      <!-- Vet Chat Card (Screenshot 4) -->
+      <div style="background:#121217; border-radius:16px; padding:32px 36px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:20px; color:#fff; margin-bottom:24px;">
+        <div>
+          <h3 style="margin:0 0 8px 0; font-size:22px; font-weight:800; color:#fff; font-family:var(--font-heading--family, sans-serif);">Something not right with your kitten?</h3>
+          <p style="margin:0; font-size:14px; color:#d1d5db; line-height:1.5;">Vet chat is included with your plan. Most questions get an answer in an hour.</p>
+        </div>
+        <a href="https://wa.me/918130578935" target="_blank" rel="noopener noreferrer" style="background:#FFE600; color:#121217; border:none; border-radius:30px; padding:14px 32px; font-weight:800; font-size:15px; cursor:pointer; text-decoration:none; display:inline-block;">Talk to a Vet</a>
+      </div>
+    `
+    : `
+      <!-- No active subscription (Screenshot 4) -->
+      <div class="pk-card" style="margin-bottom: 24px;">
+        <h2 style="margin:0 0 20px 0; font-size:24px; font-weight:800; font-family:var(--font-heading--family, sans-serif);">${escAttr(petName)}'s monthly plan</h2>
+        <div style="background:#f4f4f5; border-radius:16px; padding:48px 24px; text-align:center;">
+          <h3 style="margin:0 0 12px 0; font-size:20px; font-weight:800; color:#121217;">No active subscription</h3>
+          <p style="color:#595961; margin:0 0 28px 0; font-size:15px; max-width:460px; margin-left:auto; margin-right:auto; line-height:1.5;">${escAttr(petName)} doesn't have a monthly plan yet. Build a custom box tailored to their quiz results.</p>
+          <a href="/pages/byob" style="display:inline-block; padding:14px 36px; border-radius:30px; background:#121217; color:#fff; text-decoration:none; font-weight:700; font-size:15px; box-shadow:0 2px 6px rgba(0,0,0,0.1);">Build a Box</a>
+        </div>
+      </div>
+
+      <!-- Vet Chat Card (Screenshot 4) -->
+      <div style="background:#121217; border-radius:16px; padding:32px 36px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:20px; color:#fff; margin-bottom:24px;">
+        <div>
+          <h3 style="margin:0 0 8px 0; font-size:22px; font-weight:800; color:#fff; font-family:var(--font-heading--family, sans-serif);">Something not right with your kitten?</h3>
+          <p style="margin:0; font-size:14px; color:#d1d5db; line-height:1.5;">Vet chat is included with your plan. Most questions get an answer in an hour.</p>
+        </div>
+        <a href="https://wa.me/918130578935" target="_blank" rel="noopener noreferrer" style="background:#FFE600; color:#121217; border:none; border-radius:30px; padding:14px 32px; font-weight:800; font-size:15px; cursor:pointer; text-decoration:none; display:inline-block;">Talk to a Vet</a>
+      </div>
+    `;
+
   const liquidTemplate = `
+    <!-- Instant Session URL Sanitizer -->
+    <script>
+      (function() {
+        try {
+          var u = new URL(window.location.href);
+          if (u.searchParams.has('session')) {
+            var s = u.searchParams.get('session');
+            if (s) {
+              try { localStorage.setItem('pk_session', s); } catch(e){}
+              document.cookie = 'pk_session=' + s + '; path=/; max-age=604800; SameSite=Lax';
+            }
+            u.searchParams.delete('session');
+            window.history.replaceState({}, document.title, u.pathname + (u.search ? u.search : '') + u.hash);
+          }
+        } catch(e) {}
+      })();
+    </script>
     ${getLoaderHtml(true)}
     \n\n<style>\n
       .pk-dashboard-wrapper {
@@ -1309,27 +1498,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     
 
     <div class="pk-dashboard-wrapper">
-      <div class="pk-dashboard-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
-        <h1>Welcome back, ${customer.firstName || "Friend"}</h1>
-        <div class="pk-header-menu" style="background: #fff; border: 2px solid #595961; border-radius: 16px; padding: 12px 0; min-width: 160px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
-          <a href="/apps/purrkins/dashboard" style="display: block; padding: 10px 20px; color: #1a1a1a; text-decoration: none; font-size: 14px; font-weight: 800;">Profile</a>
-          <div style="border-bottom: 1px solid #eaeaea; margin: 0 16px 8px 16px;"></div>
-          <a href="#pk-tab-subscriptions" style="display: block; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 14px; font-weight: 800; margin-bottom: 4px;">Subscriptions (${customerSubscriptions.length})</a>
-          <a href="#pk-tab-reviews" style="display: block; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 14px; font-weight: 800; margin-bottom: 4px;">My Reviews (${customerReviews.length})</a>
-          <a href="#pk-tab-wishlist" style="display: block; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 14px; font-weight: 800; margin-bottom: 4px;">Wishlist</a>
-          <button onclick="localStorage.removeItem('pk_session'); localStorage.removeItem('pk_user_name'); localStorage.removeItem('pk_user_email'); localStorage.removeItem('pk_checkout_info'); document.cookie='pk_session=; path=/apps/purrkins; expires=Thu, 01 Jan 1970 00:00:00 GMT'; window.location.href='/apps/purrkins/login';" style="display: block; width: 100%; text-align: left; padding: 8px 20px; color: #1a1a1a; text-decoration: none; font-size: 14px; font-weight: 800; background: none; border: none; cursor: pointer;">Log out</button>
-        </div>
+      <div class="pk-dashboard-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+        <h1 style="margin: 0; font-family: var(--font-heading--family, sans-serif); font-size: 32px; font-weight: 800;">Welcome back, ${escAttr(customer.firstName || "Friend")}</h1>
       </div>
 
       <div class="pk-dashboard-layout">
         <!-- SIDEBAR -->
         <div class="pk-dashboard-sidebar">
           <div class="pk-sidebar-menu">
-            <a href="/apps/purrkins/dashboard" class="pk-menu-item active"><span class="pk-dot"></span> Overview</a>
-            <a href="/apps/purrkins/kitten" class="pk-menu-item"><span class="pk-dot"></span> Kitten's Profile</a>
-            <a href="#pk-tab-subscriptions" class="pk-menu-item"><span class="pk-dot"></span> Subscriptions <span class="pk-badge">${customerSubscriptions.length}</span></a>
-            <a href="#pk-tab-reviews" class="pk-menu-item"><span class="pk-dot"></span> My Reviews <span class="pk-badge">${customerReviews.length}</span></a>
-            <a href="#pk-tab-wishlist" class="pk-menu-item"><span class="pk-dot"></span> Wishlist <span class="pk-badge">${customer.wishlist?.references?.nodes?.length || '0'}</span></a>
+            <a href="#overview" data-tab="overview" onclick="switchDashboardTab('overview', event)" class="pk-menu-item active"><span class="pk-dot"></span> Overview</a>
+            <a href="#kitten" data-tab="kitten" onclick="switchDashboardTab('kitten', event)" class="pk-menu-item"><span class="pk-dot"></span> Kitten's Profile</a>
+            <a href="#subscriptions" data-tab="subscriptions" onclick="switchDashboardTab('subscriptions', event)" class="pk-menu-item"><span class="pk-dot"></span> Subscriptions <span class="pk-badge">${customerSubscriptions.length}</span></a>
+            <a href="#reviews" data-tab="reviews" onclick="switchDashboardTab('reviews', event)" class="pk-menu-item"><span class="pk-dot"></span> My Reviews <span class="pk-badge">${customerReviews.length}</span></a>
+            <a href="#wishlist" data-tab="wishlist" onclick="switchDashboardTab('wishlist', event)" class="pk-menu-item"><span class="pk-dot"></span> Wishlist <span class="pk-badge">${displayWishlist.length}</span></a>
           </div>
 
           <div class="pk-whatsapp-card">
@@ -1342,102 +1523,112 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <!-- MAIN CONTENT -->
         <div class="pk-dashboard-content">
           
-          <!-- Profile & Password -->
-          <div class="pk-card">
-            <div class="pk-profile-top">
-              <div class="pk-avatar">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <!-- TAB 1: OVERVIEW -->
+          <div id="pk-tab-overview" class="pk-tab-pane">
+            <!-- Profile & Billing Address -->
+            <div class="pk-card" style="margin-bottom: 24px;">
+              <div class="pk-profile-top">
+                <div class="pk-avatar">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </div>
+                <div class="pk-form-row">
+                  <div class="pk-input-group">
+                    <label>Username *</label>
+                    <input type="text" id="pk-username" value="${escAttr(customer.firstName)}">
+                  </div>
+                  <div class="pk-input-group">
+                    <label>Change Password</label>
+                    <input type="password" id="pk-password" placeholder="Enter New Password">
+                  </div>
+                  <div class="pk-input-group">
+                    <label>Confirm Password *</label>
+                    <input type="password" id="pk-password-confirm" placeholder="Confirm Your New Password">
+                  </div>
+                </div>
               </div>
-              <div class="pk-form-row">
-                <div class="pk-input-group">
-                  <label>Username *</label>
-                  <input type="text" id="pk-username" value="${escAttr(customer.firstName)}">
-                </div>
-                <div class="pk-input-group">
-                  <label>Change Password</label>
-                  <input type="password" id="pk-password" placeholder="Enter New Password">
-                </div>
-                <div class="pk-input-group">
-                  <label>Confirm Password *</label>
-                  <input type="password" id="pk-password-confirm" placeholder="Confirm Your New Password">
-                </div>
+
+              <!-- Billing Address -->
+              <h3 class="pk-section-title">Customer Billing Address</h3>
+              <div class="pk-form-grid">
+                <input type="text" id="pk-bill-firstName" placeholder="First Name" value="${escAttr(defaultAddress.firstName)}">
+                <input type="text" id="pk-bill-lastName" placeholder="Last Name" value="${escAttr(defaultAddress.lastName)}">
+                <input type="email" placeholder="Email" value="${escAttr(customer.email)}" readonly>
+                
+                <input type="text" id="pk-bill-country" placeholder="Country/Region" value="${escAttr(defaultAddress.country || "India")}">
+                <select id="pk-bill-province" style="appearance: none; background: url('data:image/svg+xml;utf8,<svg width=\\'12\\' height=\\'12\\' fill=\\'none\\' stroke=\\'%238c8c9a\\' stroke-width=\\'2\\' stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' viewBox=\\'0 0 24 24\\' xmlns=\\'http://www.w3.org/2000/svg\\'><path d=\\'m6 9 6 6 6-6\\'/></svg>') no-repeat right 16px center; background-color: #fff;">
+                  <option value="" disabled ${!defaultAddress.province ? 'selected' : ''}>State</option>
+                  <option value="Tamil Nadu" ${defaultAddress.province === 'Tamil Nadu' ? 'selected' : ''}>Tamil Nadu</option>
+                  <option value="Karnataka" ${defaultAddress.province === 'Karnataka' ? 'selected' : ''}>Karnataka</option>
+                  <option value="Maharashtra" ${defaultAddress.province === 'Maharashtra' ? 'selected' : ''}>Maharashtra</option>
+                  <option value="Delhi" ${defaultAddress.province === 'Delhi' ? 'selected' : ''}>Delhi</option>
+                  <option value="${escAttr(defaultAddress.province)}" ${defaultAddress.province && !['Tamil Nadu','Karnataka','Maharashtra','Delhi'].includes(defaultAddress.province) ? 'selected' : ''}>${escAttr(defaultAddress.province)}</option>
+                </select>
+                <input type="text" id="pk-bill-phone" placeholder="Phone (optional)" value="${escAttr(customer.phone)}">
+                
+                <input type="text" id="pk-bill-zip" placeholder="Pin Code" value="${escAttr(defaultAddress.zip)}">
+                <input type="text" id="pk-bill-address1" placeholder="Apartment, suite, etc. (optional)" value="${escAttr(defaultAddress.address1)}" style="grid-column: span 2;">
+                <input type="hidden" id="pk-bill-address2" value="">
+                
+                <input type="text" id="pk-bill-city" placeholder="City" value="${escAttr(defaultAddress.city)}">
+              </div>
+              <div id="pk-profile-msg" style="display:none;margin-top:16px;font-size:14px;font-weight:600;"></div>
+              <div class="pk-form-actions">
+                <a href="#" id="pk-update-btn" class="pk-link-btn" onclick="submitProfile(event)">Update</a>
               </div>
             </div>
 
-            <!-- Billing Address -->
-            <h3 class="pk-section-title">Customer Billing Address</h3>
-            <div class="pk-form-grid">
-              <input type="text" id="pk-bill-firstName" placeholder="First Name" value="${escAttr(defaultAddress.firstName)}">
-              <input type="text" id="pk-bill-lastName" placeholder="Last Name" value="${escAttr(defaultAddress.lastName)}">
-              <input type="email" placeholder="Email" value="${escAttr(customer.email)}" readonly>
-              
-              <input type="text" id="pk-bill-country" placeholder="Country/Region" value="${escAttr(defaultAddress.country || "India")}">
-              <select id="pk-bill-province" style="appearance: none; background: url('data:image/svg+xml;utf8,<svg width=\\'12\\' height=\\'12\\' fill=\\'none\\' stroke=\\'%238c8c9a\\' stroke-width=\\'2\\' stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' viewBox=\\'0 0 24 24\\' xmlns=\\'http://www.w3.org/2000/svg\\'><path d=\\'m6 9 6 6 6-6\\'/></svg>') no-repeat right 16px center; background-color: #fff;">
-                <option value="" disabled ${!defaultAddress.province ? 'selected' : ''}>State</option>
-                <option value="Tamil Nadu" ${defaultAddress.province === 'Tamil Nadu' ? 'selected' : ''}>Tamil Nadu</option>
-                <option value="Karnataka" ${defaultAddress.province === 'Karnataka' ? 'selected' : ''}>Karnataka</option>
-                <option value="Maharashtra" ${defaultAddress.province === 'Maharashtra' ? 'selected' : ''}>Maharashtra</option>
-                <option value="Delhi" ${defaultAddress.province === 'Delhi' ? 'selected' : ''}>Delhi</option>
-                <option value="${escAttr(defaultAddress.province)}" ${defaultAddress.province && !['Tamil Nadu','Karnataka','Maharashtra','Delhi'].includes(defaultAddress.province) ? 'selected' : ''}>${escAttr(defaultAddress.province)}</option>
-              </select>
-              <input type="text" id="pk-bill-phone" placeholder="Phone (optional)" value="${escAttr(customer.phone)}">
-              
-              <input type="text" id="pk-bill-zip" placeholder="Pin Code" value="${escAttr(defaultAddress.zip)}">
-              <input type="text" id="pk-bill-address1" placeholder="Apartment, suite, etc. (optional)" value="${escAttr(defaultAddress.address1)}" style="grid-column: span 2;">
-              <input type="hidden" id="pk-bill-address2" value="">
-              
-              <input type="text" id="pk-bill-city" placeholder="City" value="${escAttr(defaultAddress.city)}">
+            <!-- Orders -->
+            <div class="pk-card" style="margin-bottom: 24px;">
+              <h3 class="pk-section-title">Orders</h3>
+              <div class="pk-orders-table">
+                <div class="pk-tr pk-th">
+                  <div>ORDER</div>
+                  <div>DATE</div>
+                  <div>STATUS</div>
+                  <div>TOTAL</div>
+                  <div></div>
+                </div>
+                ${ordersHtml}
+              </div>
+              <div style="margin-top: 15px;">
+                <a href="#" class="pk-outline-btn">View all orders</a>
+              </div>
             </div>
-            <div id="pk-profile-msg" style="display:none;margin-top:16px;font-size:14px;font-weight:600;"></div>
-            <div class="pk-form-actions">
-              <a href="#" id="pk-update-btn" class="pk-link-btn" onclick="submitProfile(event)">Update</a>
+
+            <!-- Delivery Addresses -->
+            <div class="pk-card">
+              <div class="pk-address-header">
+                <h3 class="pk-section-title">Delivery addresses</h3>
+                <button onclick="document.getElementById('addr-modal').style.display='flex'" class="pk-outline-btn" style="cursor:pointer;background:none;">+ Add address</button>
+              </div>
+              <div class="pk-address-grid">
+                ${addressesHtml}
+              </div>
             </div>
           </div>
 
-          <!-- Subscriptions -->
-          <div id="pk-tab-subscriptions" class="pk-card pk-subscriptions-card">
-            ${subscriptionsHtml}
+          <!-- TAB 2: KITTEN'S PROFILE (Screenshot 3) -->
+          <div id="pk-tab-kitten" class="pk-tab-pane" style="display: none;">
+            ${kittenTabHtml}
           </div>
 
-          <!-- Product Reviews -->
-          <div id="pk-tab-reviews" class="pk-card pk-reviews-card">
-            ${reviewsHtml}
+          <!-- TAB 3: SUBSCRIPTIONS INDIVIDUAL (Screenshot 4) -->
+          <div id="pk-tab-subscriptions" class="pk-tab-pane" style="display: none;">
+            ${subscriptionsTabHtml}
           </div>
 
-          <!-- Wishlist -->
-          <div id="pk-tab-wishlist" class="pk-card pk-wishlist-card">
-            <h3 class="pk-section-title">Your Wishlist</h3>
-            <div class="pk-wishlist-grid" style="display:block;">
+          <!-- TAB 4: MY REVIEWS -->
+          <div id="pk-tab-reviews" class="pk-tab-pane" style="display: none;">
+            <div class="pk-card">
+              ${reviewsHtml}
+            </div>
+          </div>
+
+          <!-- TAB 5: WISHLIST (Screenshot 5) -->
+          <div id="pk-tab-wishlist" class="pk-tab-pane" style="display: none;">
+            <div class="pk-card">
+              <h3 class="pk-section-title" style="margin-bottom: 24px;">Your Wishlist</h3>
               ${wishlistHtml}
-            </div>
-          </div>
-
-          <!-- Orders -->
-          <div class="pk-card">
-            <h3 class="pk-section-title">Orders</h3>
-            <div class="pk-orders-table">
-              <div class="pk-tr pk-th">
-                <div>ORDER</div>
-                <div>DATE</div>
-                <div>STATUS</div>
-                <div>TOTAL</div>
-                <div></div>
-              </div>
-              ${ordersHtml}
-            </div>
-            <div style="margin-top: 15px;">
-              <a href="#" class="pk-outline-btn">View all orders</a>
-            </div>
-          </div>
-
-          <!-- Delivery Addresses -->
-          <div class="pk-card">
-            <div class="pk-address-header">
-              <h3 class="pk-section-title">Delivery addresses</h3>
-              <button onclick="document.getElementById('addr-modal').style.display='flex'" class="pk-outline-btn" style="cursor:pointer;background:none;">+ Add address</button>
-            </div>
-            <div class="pk-address-grid">
-              ${addressesHtml}
             </div>
           </div>
 
@@ -1445,17 +1636,103 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       </div>
     </div>
 
-    
-
     <script>
-      // Hide session from URL
-      (function hideSessionUrl() {
-        if (window.history.replaceState) {
-          var url = new URL(window.location.href);
-          if (url.searchParams.has('session')) {
-            url.searchParams.delete('session');
-            window.history.replaceState(null, '', url.toString());
+      // Global Add to Cart helper for Wishlist and Recommendations
+      window.pkAddToCart = function(variantId, btn) {
+        if (!variantId) {
+          // If no variantId, open BYOB / Collections page
+          window.location.href = '/collections/all';
+          return;
+        }
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = 'Adding...';
+        }
+        fetch('/cart/add.js', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: [{ id: variantId, quantity: 1 }] })
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Added ✓';
+            setTimeout(function() { btn.textContent = 'Add to Cart'; }, 1500);
           }
+          var cartBubble = document.getElementById('cart-icon-bubble');
+          if (cartBubble) cartBubble.click();
+          document.dispatchEvent(new CustomEvent('cart:refresh'));
+        })
+        .catch(function(err) {
+          console.error('Add to cart error', err);
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Add to Cart';
+          }
+        });
+      };
+
+      // Tab switcher function
+      window.switchDashboardTab = function(tabId, ev) {
+        if (ev) ev.preventDefault();
+        if (!tabId) tabId = 'overview';
+        if (tabId.indexOf('#') === 0) tabId = tabId.substring(1);
+        if (tabId.indexOf('pk-tab-') === 0) tabId = tabId.replace('pk-tab-', '');
+        if (tabId === 'profile') tabId = 'kitten';
+
+        var validTabs = ['overview', 'kitten', 'subscriptions', 'reviews', 'wishlist'];
+        if (validTabs.indexOf(tabId) === -1) tabId = 'overview';
+
+        // Hide all panes
+        document.querySelectorAll('.pk-tab-pane').forEach(function(p) {
+          p.style.display = 'none';
+        });
+
+        // Show selected pane
+        var target = document.getElementById('pk-tab-' + tabId);
+        if (target) {
+          target.style.display = 'block';
+        }
+
+        // Update active class on sidebar links
+        document.querySelectorAll('.pk-sidebar-menu .pk-menu-item').forEach(function(item) {
+          if (item.getAttribute('data-tab') === tabId) {
+            item.classList.add('active');
+          } else {
+            item.classList.remove('active');
+          }
+        });
+
+        // Update URL hash
+        if (window.history.replaceState) {
+          var u = new URL(window.location.href);
+          u.hash = tabId;
+          window.history.replaceState(null, '', u.toString());
+        }
+
+        // Update counts in header user dropdown
+        try {
+          var sc = document.getElementById('pk-header-sub-count');
+          if (sc) sc.textContent = '${customerSubscriptions.length}';
+          var rc = document.getElementById('pk-header-rev-count');
+          if (rc) rc.textContent = '${customerReviews.length}';
+          localStorage.setItem('pk_sub_count', '${customerSubscriptions.length}');
+          localStorage.setItem('pk_rev_count', '${customerReviews.length}');
+        } catch(e) {}
+      };
+
+      // Initialize active tab from hash or query
+      (function initDashboardTab() {
+        var hash = window.location.hash ? window.location.hash.replace('#', '') : '';
+        if (!hash) {
+          var params = new URLSearchParams(window.location.search);
+          hash = params.get('tab') || '';
+        }
+        if (hash) {
+          window.switchDashboardTab(hash);
+        } else {
+          window.switchDashboardTab('overview');
         }
       })();
 
@@ -1786,6 +2063,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           if (typeof pkHideLoader === 'function') pkHideLoader();
           alert('Request failed. Please check your internet connection.');
         });
+      }
+
       function pkOpenOrderReview(productTitle, productId) {
         var el = document.getElementById('cr-prod-title');
         if (el) el.innerText = productTitle || 'Purrkins Meal';
@@ -1944,7 +2223,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return new Response(liquidTemplate, {
     headers: {
       "Content-Type": "application/liquid",
-      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+      ...(token ? { "Set-Cookie": `pk_session=${token}; Path=/; Max-Age=604800; SameSite=Lax` } : {})
     },
   });
   } catch (err: any) {
