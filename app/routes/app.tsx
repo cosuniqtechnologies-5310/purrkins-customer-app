@@ -24,7 +24,6 @@ export default function App() {
         <s-link href="/app/subscriptions/plans">Plans</s-link>
         <s-link href="/app/subscriptions/settings">Delivery Rules</s-link>
         <s-link href="/app/reviews">Reviews</s-link>
-        <s-link href="/app/additional">Additional page</s-link>
       </s-app-nav>
       <Outlet />
     </AppProvider>
