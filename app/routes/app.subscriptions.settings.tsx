@@ -416,9 +416,9 @@ export default function SubscriptionSettings() {
 const cardStyle: React.CSSProperties = {
   background: "#fff",
   borderRadius: "10px",
-  border: "1.5px solid #000",
+  border: "none",
   padding: "24px",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
 };
 
 const cardTitleStyle: React.CSSProperties = {
@@ -448,7 +448,7 @@ const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "10px 12px",
   borderRadius: "6px",
-  border: "1.5px solid #000",
+  border: "1px solid #d1d5db",
   fontSize: "14px",
   color: "#000",
   fontWeight: "600",

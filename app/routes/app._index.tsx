@@ -501,17 +501,17 @@ export default function HomeDashboard() {
 const cardStyle: React.CSSProperties = {
   background: "#fff",
   borderRadius: "10px",
-  border: "1.5px solid #000",
+  border: "none",
   padding: "20px",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
 };
 
 const kpiCardStyle: React.CSSProperties = {
   background: "#fff",
   padding: "20px",
   borderRadius: "10px",
-  border: "1.5px solid #000",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+  border: "none",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(77, 76, 76, 0.04)",
 };
 
 const kpiLabelStyle: React.CSSProperties = {

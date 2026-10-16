@@ -180,14 +180,14 @@ export default function SubscriptionDetail() {
           style={{
             background: "#fff",
             borderRadius: "12px",
-            border: "1.5px solid #000000",
+            border: "none",
             padding: "24px",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
             flexWrap: "wrap",
             gap: "16px",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
           }}
         >
           <div>
@@ -297,9 +297,10 @@ export default function SubscriptionDetail() {
             style={{
               background: "#fff",
               borderRadius: "12px",
-              border: "1.5px solid #000000",
+              border: "none",
               borderLeft: "6px solid #000000",
               padding: "20px",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
             }}
           >
             <div style={{ fontSize: "12px", fontWeight: "800", color: "#000000", textTransform: "uppercase", letterSpacing: "0.5px" }}>
@@ -342,8 +343,9 @@ export default function SubscriptionDetail() {
             style={{
               background: "#fff",
               borderRadius: "12px",
-              border: "1.5px solid #000000",
+              border: "none",
               padding: "20px",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
             }}
           >
             <div style={{ fontSize: "12px", fontWeight: "800", color: "#000000", textTransform: "uppercase", letterSpacing: "0.5px" }}>
@@ -371,7 +373,7 @@ export default function SubscriptionDetail() {
         </div>
 
         {/* Subscribed Products */}
-        <div style={{ background: "#fff", borderRadius: "12px", border: "1.5px solid #000000", padding: "20px" }}>
+        <div style={{ background: "#fff", borderRadius: "12px", border: "none", boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)", padding: "20px" }}>
           <h3 style={{ fontSize: "16px", fontWeight: "800", margin: "0 0 16px 0", color: "#000000" }}>
             Subscribed Line Items
           </h3>
@@ -381,7 +383,7 @@ export default function SubscriptionDetail() {
             <div style={{ width: "100%" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
                 <thead>
-                  <tr style={{ borderBottom: "1.5px solid #000000", textAlign: "left", color: "#000000", fontSize: "12px", fontWeight: "800" }}>
+                  <tr style={{ borderBottom: "1px solid #e1e3e5", textAlign: "left", color: "#000000", fontSize: "12px", fontWeight: "800" }}>
                     <th style={{ padding: "10px 8px" }}>PRODUCT</th>
                     <th style={{ padding: "10px 8px" }}>VARIANT</th>
                     <th style={{ padding: "10px 8px", textAlign: "center" }}>QUANTITY</th>
@@ -409,7 +411,7 @@ export default function SubscriptionDetail() {
 
         {/* Projected Future Deliveries */}
         {upcoming.length > 0 && (
-          <div style={{ background: "#fff", borderRadius: "12px", border: "1.5px solid #000000", padding: "20px" }}>
+          <div style={{ background: "#fff", borderRadius: "12px", border: "none", boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)", padding: "20px" }}>
             <h3 style={{ fontSize: "16px", fontWeight: "800", margin: "0 0 8px 0", color: "#000000" }}>
               Projected Upcoming Delivery Calendar (Next 3 Cycles)
             </h3>
@@ -424,7 +426,7 @@ export default function SubscriptionDetail() {
                     padding: "16px",
                     borderRadius: "8px",
                     background: "#ffffff",
-                    border: "1.5px solid #000000",
+                    border: "1px solid #e1e3e5",
                   }}
                 >
                   <div style={{ fontSize: "12px", color: "#000000", fontWeight: "700" }}>Cycle +{i + 1}</div>
@@ -445,7 +447,7 @@ export default function SubscriptionDetail() {
         )}
 
         {/* Cycle History Ledger */}
-        <div style={{ background: "#fff", borderRadius: "12px", border: "1.5px solid #000000", padding: "20px" }}>
+        <div style={{ background: "#fff", borderRadius: "12px", border: "none", boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)", padding: "20px" }}>
           <h3 style={{ fontSize: "16px", fontWeight: "800", margin: "0 0 16px 0", color: "#000000" }}>
             Delivery & Billing Ledger History
           </h3>

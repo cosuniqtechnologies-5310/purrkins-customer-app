@@ -73,7 +73,7 @@ export default function SubscriptionsIndex() {
       <s-stack direction="block" gap="base">
         {/* KPI Metrics row */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
-          <div style={{ background: "#fff", padding: "20px", borderRadius: "10px", border: "1.5px solid #000", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+          <div style={{ background: "#fff", padding: "20px", borderRadius: "10px", border: "none", boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)" }}>
             <div style={{ fontSize: "13px", fontWeight: "800", color: "#000", textTransform: "uppercase", letterSpacing: "0.5px" }}>Active Subscribers</div>
             <div style={{ fontSize: "32px", fontWeight: "900", color: "#000", marginTop: "8px", lineHeight: "1" }}>
               {stats.counts["ACTIVE"] || 0}
@@ -83,7 +83,7 @@ export default function SubscriptionsIndex() {
             </div>
           </div>
 
-          <div style={{ background: "#fff", padding: "20px", borderRadius: "10px", border: "1.5px solid #000", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+          <div style={{ background: "#fff", padding: "20px", borderRadius: "10px", border: "none", boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)" }}>
             <div style={{ fontSize: "13px", fontWeight: "800", color: "#000", textTransform: "uppercase", letterSpacing: "0.5px" }}>Estimated MRR</div>
             <div style={{ fontSize: "32px", fontWeight: "900", color: "#000", marginTop: "8px", lineHeight: "1" }}>
               ₹{Math.round(stats.mrr).toLocaleString("en-IN")}
@@ -93,7 +93,7 @@ export default function SubscriptionsIndex() {
             </div>
           </div>
 
-          <div style={{ background: "#fff", padding: "20px", borderRadius: "10px", border: "1.5px solid #000", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+          <div style={{ background: "#fff", padding: "20px", borderRadius: "10px", border: "none", boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)" }}>
             <div style={{ fontSize: "13px", fontWeight: "800", color: "#000", textTransform: "uppercase", letterSpacing: "0.5px" }}>Next 7 Days Deliveries</div>
             <div style={{ fontSize: "32px", fontWeight: "900", color: "#000", marginTop: "8px", lineHeight: "1" }}>
               {stats.billingNext7Days}
@@ -103,7 +103,7 @@ export default function SubscriptionsIndex() {
             </div>
           </div>
 
-          <div style={{ background: "#fff", padding: "20px", borderRadius: "10px", border: "1.5px solid #000", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+          <div style={{ background: "#fff", padding: "20px", borderRadius: "10px", border: "none", boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)" }}>
             <div style={{ fontSize: "13px", fontWeight: "800", color: "#000", textTransform: "uppercase", letterSpacing: "0.5px" }}>Payment Retries</div>
             <div style={{ fontSize: "32px", fontWeight: "900", color: "#000", marginTop: "8px", lineHeight: "1" }}>
               {stats.retrying}
@@ -115,7 +115,7 @@ export default function SubscriptionsIndex() {
         </div>
 
         {/* Quick links banner */}
-        <div style={{ background: "#f8f9fa", border: "1.5px solid #000", borderRadius: "8px", padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+        <div style={{ background: "#f8f9fa", border: "none", borderRadius: "10px", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
           <div style={{ display: "flex", gap: "16px", alignItems: "center", flexWrap: "wrap" }}>
             <span style={{ fontWeight: "800", fontSize: "14px", color: "#000" }}>Subscription Management:</span>
             <Link to="/app/subscriptions/calendar" style={{ color: "#000", textDecoration: "underline", fontWeight: "700", fontSize: "13px" }}>📅 Monthly Delivery Calendar</Link>
@@ -129,9 +129,9 @@ export default function SubscriptionsIndex() {
 
         {/* Subscriptions Table Section */}
         <s-section heading="All Subscriptions">
-          <div style={{ background: "#fff", borderRadius: "10px", border: "1.5px solid #000", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+          <div style={{ background: "#fff", borderRadius: "10px", border: "none", boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)" }}>
             {/* Filter bar */}
-            <div style={{ padding: "16px 20px", borderBottom: "1.5px solid #000", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid #f1f2f3", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
               {/* Status tabs */}
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                 {["ALL", "ACTIVE", "PAUSED", "CANCELLED", "FAILED"].map((tab) => {
@@ -146,9 +146,9 @@ export default function SubscriptionsIndex() {
                         fontSize: "13px",
                         fontWeight: "800",
                         textDecoration: "none",
-                        background: isActive ? "#000" : "#fff",
+                        background: isActive ? "#000" : "#f4f4f5",
                         color: isActive ? "#fff" : "#000",
-                        border: "1.5px solid #000",
+                        border: "none",
                         transition: "0.15s",
                       }}
                     >
@@ -168,7 +168,7 @@ export default function SubscriptionsIndex() {
                   defaultValue={q}
                   style={{
                     padding: "8px 14px",
-                    border: "1.5px solid #000",
+                    border: "1px solid #d1d5db",
                     borderRadius: "6px",
                     fontSize: "13px",
                     color: "#000",
@@ -182,7 +182,7 @@ export default function SubscriptionsIndex() {
                     padding: "8px 18px",
                     background: "#000",
                     color: "#fff",
-                    border: "1.5px solid #000",
+                    border: "none",
                     borderRadius: "6px",
                     fontSize: "13px",
                     fontWeight: "700",
@@ -207,7 +207,7 @@ export default function SubscriptionsIndex() {
               <div style={{ width: "100%" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
                   <thead>
-                    <tr style={{ backgroundColor: "#f9fafb", borderBottom: "1.5px solid #000" }}>
+                    <tr style={{ backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
                       <th style={{ padding: "14px 16px", fontSize: "12px", color: "#000", fontWeight: "900", textTransform: "uppercase" }}>Subscriber</th>
                       <th style={{ padding: "14px 16px", fontSize: "12px", color: "#000", fontWeight: "900", textTransform: "uppercase" }}>Items & Recurring Total</th>
                       <th style={{ padding: "14px 16px", fontSize: "12px", color: "#000", fontWeight: "900", textTransform: "uppercase" }}>Plan Frequency</th>
@@ -250,7 +250,7 @@ export default function SubscriptionsIndex() {
                           </td>
 
                           <td style={{ padding: "14px 16px", fontSize: "14px" }}>
-                            <span style={{ background: "#fff", border: "1.5px solid #000", color: "#000", padding: "4px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "700" }}>
+                            <span style={{ background: "#f4f4f5", color: "#000", padding: "4px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "700" }}>
                               {sub.planName || describeFrequency(sub.interval, sub.intervalCount)}
                             </span>
                           </td>
@@ -277,7 +277,7 @@ export default function SubscriptionsIndex() {
                           </td>
 
                           <td style={{ padding: "14px 16px" }}>
-                            <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: "800", border: "1.5px solid #000", color: "#000", background: "#fff" }}>
+                            <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: "800", color: "#000", background: "#f4f4f5" }}>
                               {sub.status}
                             </span>
                           </td>
@@ -289,7 +289,7 @@ export default function SubscriptionsIndex() {
                                 display: "inline-block",
                                 padding: "6px 14px",
                                 background: "#000",
-                                border: "1.5px solid #000",
+                                border: "none",
                                 borderRadius: "6px",
                                 color: "#fff",
                                 fontSize: "13px",
@@ -310,13 +310,13 @@ export default function SubscriptionsIndex() {
 
             {/* Pagination */}
             {list.pages > 1 && (
-              <div style={{ padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1.5px solid #000", fontSize: "13px", color: "#000", fontWeight: "700" }}>
+              <div style={{ padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e5e7eb", fontSize: "13px", color: "#000", fontWeight: "700" }}>
                 <div>Page {list.page} of {list.pages} ({list.total} total subscriptions)</div>
                 <div style={{ display: "flex", gap: "8px" }}>
                   {list.page > 1 && (
                     <Link
                       to={`?status=${status}&q=${encodeURIComponent(q)}&page=${list.page - 1}`}
-                      style={{ padding: "6px 14px", background: "#fff", border: "1.5px solid #000", borderRadius: "4px", textDecoration: "none", color: "#000", fontWeight: "700" }}
+                      style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "4px", textDecoration: "none", color: "#000", fontWeight: "700" }}
                     >
                       ← Previous
                     </Link>
@@ -324,7 +324,7 @@ export default function SubscriptionsIndex() {
                   {list.page < list.pages && (
                     <Link
                       to={`?status=${status}&q=${encodeURIComponent(q)}&page=${list.page + 1}`}
-                      style={{ padding: "6px 14px", background: "#000", border: "1.5px solid #000", borderRadius: "4px", textDecoration: "none", color: "#fff", fontWeight: "700" }}
+                      style={{ padding: "6px 14px", background: "#000", border: "none", borderRadius: "4px", textDecoration: "none", color: "#fff", fontWeight: "700" }}
                     >
                       Next →
                     </Link>

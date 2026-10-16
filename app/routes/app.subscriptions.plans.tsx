@@ -304,7 +304,8 @@ export default function SubscriptionPlans() {
         <div
           style={{
             background: "#fff",
-            border: "1.5px solid #000",
+            border: "none",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
             borderRadius: "10px",
             padding: "18px 22px",
             display: "flex",
@@ -338,7 +339,7 @@ export default function SubscriptionPlans() {
                 color: "#fff",
                 padding: "6px 14px",
                 borderRadius: "20px",
-                border: "1.5px solid #000",
+                border: "none",
               }}
             >
               {plans.filter((p) => p.active).length} Active Plans Synced
@@ -347,7 +348,7 @@ export default function SubscriptionPlans() {
         </div>
 
         {/* Plans Table Card (No Horizontal Scroll) */}
-        <div style={{ background: "#fff", borderRadius: "10px", border: "1.5px solid #000", padding: "22px" }}>
+        <div style={{ background: "#fff", borderRadius: "10px", border: "none", boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)", padding: "22px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
             <h3 style={{ fontSize: "16px", fontWeight: "900", margin: 0, color: "#000" }}>
               Configured Plans
@@ -492,7 +493,7 @@ export default function SubscriptionPlans() {
         </div>
 
         {/* Eligible Products Section: Scope Selector (ALL products by default) */}
-        <div style={{ background: "#fff", borderRadius: "10px", border: "1.5px solid #000", padding: "22px" }}>
+        <div style={{ background: "#fff", borderRadius: "10px", border: "none", boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)", padding: "22px" }}>
           <div style={{ marginBottom: "16px" }}>
             <h3 style={{ fontSize: "16px", fontWeight: "900", margin: "0 0 4px 0", color: "#000" }}>
               Product Eligibility for Subscriptions
@@ -803,7 +804,7 @@ export default function SubscriptionPlans() {
                 style={{
                   background: "#000",
                   color: "#fff",
-                  border: "1.5px solid #000",
+                  border: "none",
                   borderRadius: "6px",
                   padding: "10px 22px",
                   fontSize: "14px",

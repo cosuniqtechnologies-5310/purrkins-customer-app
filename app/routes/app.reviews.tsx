@@ -337,17 +337,17 @@ export default function ReviewsManagement() {
 const cardStyle: React.CSSProperties = {
   background: "#fff",
   borderRadius: "12px",
-  border: "1.5px solid #000000",
+  border: "none",
   padding: "20px",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
 };
 
 const kpiBoxStyle: React.CSSProperties = {
   background: "#fff",
   padding: "20px",
   borderRadius: "10px",
-  border: "1.5px solid #000000",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+  border: "none",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
 };
 
 const kpiLabelStyle: React.CSSProperties = {
@@ -384,7 +384,7 @@ const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "10px 12px",
   borderRadius: "8px",
-  border: "1.5px solid #000000",
+  border: "1px solid #d1d5db",
   fontSize: "14px",
   boxSizing: "border-box",
   color: "#000000",
@@ -407,7 +407,7 @@ const modalOverlayStyle: React.CSSProperties = {
 const modalBoxStyle: React.CSSProperties = {
   background: "#fff",
   borderRadius: "12px",
-  border: "1.5px solid #000000",
+  border: "none",
   padding: "24px",
   maxWidth: "500px",
   width: "100%",

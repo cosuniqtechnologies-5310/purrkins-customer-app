@@ -100,7 +100,8 @@ export default function SubscriptionsCalendar() {
           style={{
             background: "#fff",
             borderRadius: "10px",
-            border: "1.5px solid #000",
+            border: "none",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
             padding: "16px",
             display: "flex",
             justifyContent: "space-between",
@@ -119,7 +120,7 @@ export default function SubscriptionsCalendar() {
                 width: "100%",
                 padding: "8px 12px",
                 borderRadius: "6px",
-                border: "1.5px solid #000",
+                border: "1px solid #d1d5db",
                 fontSize: "14px",
                 color: "#000",
                 outline: "none",
@@ -323,8 +324,8 @@ const kpiCardStyle: React.CSSProperties = {
   background: "#fff",
   padding: "20px",
   borderRadius: "10px",
-  border: "1.5px solid #000",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+  border: "none",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
 };
 
 const kpiLabelStyle: React.CSSProperties = {
@@ -350,7 +351,7 @@ const kpiSubStyle: React.CSSProperties = {
 };
 
 const pillButtonStyle: React.CSSProperties = {
-  border: "1.5px solid #000",
+  border: "none",
   borderRadius: "16px",
   padding: "6px 14px",
   fontSize: "12px",
