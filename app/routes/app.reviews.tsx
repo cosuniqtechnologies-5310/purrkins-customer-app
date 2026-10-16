@@ -127,21 +127,19 @@ export default function ReviewsManagement() {
 
           <div style={kpiBoxStyle}>
             <div style={kpiLabelStyle}>Average Rating</div>
-            <div style={{ ...kpiValueStyle, color: "#d97706" }}>★ {avgRating}</div>
+            <div style={kpiValueStyle}>★ {avgRating}</div>
             <div style={kpiSubStyle}>Out of 5 stars</div>
           </div>
 
           <div style={kpiBoxStyle}>
             <div style={kpiLabelStyle}>Published</div>
-            <div style={{ ...kpiValueStyle, color: "#008060" }}>{publishedCount}</div>
+            <div style={kpiValueStyle}>{publishedCount}</div>
             <div style={kpiSubStyle}>Visible on storefront</div>
           </div>
 
           <div style={kpiBoxStyle}>
             <div style={kpiLabelStyle}>Pending Moderation</div>
-            <div style={{ ...kpiValueStyle, color: pendingCount > 0 ? "#bf0711" : "#6d7175" }}>
-              {pendingCount}
-            </div>
+            <div style={kpiValueStyle}>{pendingCount}</div>
             <div style={kpiSubStyle}>Awaiting review</div>
           </div>
         </div>
@@ -150,8 +148,8 @@ export default function ReviewsManagement() {
         <div style={cardStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
             <div>
-              <strong style={{ fontSize: "15px", color: "#202223" }}>Automatic Review Publishing</strong>
-              <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#6d7175" }}>
+              <strong style={{ fontSize: "15px", color: "#000000", fontWeight: "800" }}>Automatic Review Publishing</strong>
+              <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#000000" }}>
                 When enabled, new customer reviews submitted from product pages are immediately published without manual approval.
               </p>
             </div>
@@ -169,19 +167,19 @@ export default function ReviewsManagement() {
 
         {/* Reviews Table Card */}
         <div style={cardStyle}>
-          <h3 style={{ fontSize: "16px", fontWeight: "700", margin: "0 0 16px 0", color: "#202223" }}>
+          <h3 style={{ fontSize: "16px", fontWeight: "800", margin: "0 0 16px 0", color: "#000000" }}>
             Customer Reviews ({reviews.length})
           </h3>
 
           {reviews.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "40px 16px", color: "#6d7175" }}>
+            <div style={{ textAlign: "center", padding: "40px 16px", color: "#000000" }}>
               No reviews received yet. Reviews submitted by customers or added manually will appear here.
             </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
+            <div style={{ width: "100%" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                 <thead>
-                  <tr style={{ borderBottom: "2px solid #e1e3e5", textAlign: "left", color: "#5c5f62", fontSize: "12px" }}>
+                  <tr style={{ borderBottom: "2px solid #000000", textAlign: "left", color: "#000000", fontSize: "12px", fontWeight: "800" }}>
                     <th style={{ padding: "10px 8px" }}>RATING</th>
                     <th style={{ padding: "10px 8px" }}>AUTHOR</th>
                     <th style={{ padding: "10px 8px" }}>TITLE & FEEDBACK</th>
@@ -192,24 +190,24 @@ export default function ReviewsManagement() {
                 </thead>
                 <tbody>
                   {reviews.map((r) => (
-                    <tr key={r.id} style={{ borderBottom: "1px solid #f1f2f3" }}>
+                    <tr key={r.id} style={{ borderBottom: "1px solid #e1e3e5" }}>
                       <td style={{ padding: "12px 8px", whiteSpace: "nowrap" }}>
-                        <span style={{ color: "#d97706", fontWeight: "700" }}>
+                        <span style={{ color: "#000000", fontWeight: "800", fontSize: "14px" }}>
                           {"★".repeat(r.rating)}
                           {"☆".repeat(Math.max(0, 5 - r.rating))}
                         </span>
                       </td>
-                      <td style={{ padding: "12px 8px", fontWeight: "600", color: "#202223" }}>
+                      <td style={{ padding: "12px 8px", fontWeight: "700", color: "#000000" }}>
                         {r.author}
                         {r.isVerified && (
-                          <div style={{ fontSize: "11px", color: "#008060", fontWeight: "700" }}>✓ Verified Buyer</div>
+                          <div style={{ fontSize: "11px", color: "#000000", fontWeight: "800" }}>✓ Verified Buyer</div>
                         )}
                       </td>
                       <td style={{ padding: "12px 8px", maxWidth: "320px" }}>
-                        <div style={{ fontWeight: "700", color: "#202223" }}>{r.title}</div>
-                        <div style={{ color: "#6d7175", fontSize: "12px", marginTop: "2px" }}>{r.body}</div>
+                        <div style={{ fontWeight: "800", color: "#000000" }}>{r.title}</div>
+                        <div style={{ color: "#000000", fontSize: "12px", marginTop: "2px" }}>{r.body}</div>
                       </td>
-                      <td style={{ padding: "12px 8px", color: "#6d7175", whiteSpace: "nowrap" }}>
+                      <td style={{ padding: "12px 8px", color: "#000000", whiteSpace: "nowrap" }}>
                         {new Date(r.createdAt).toLocaleDateString("en-IN", {
                           month: "short",
                           day: "numeric",
@@ -219,12 +217,13 @@ export default function ReviewsManagement() {
                       <td style={{ padding: "12px 8px", textAlign: "center" }}>
                         <span
                           style={{
-                            background: r.status === "published" ? "#e3f1df" : "#fef3d6",
-                            color: r.status === "published" ? "#108043" : "#916a00",
-                            padding: "3px 8px",
-                            borderRadius: "10px",
+                            background: r.status === "published" ? "#000000" : "#ffffff",
+                            color: r.status === "published" ? "#ffffff" : "#000000",
+                            border: "1px solid #000000",
+                            padding: "3px 10px",
+                            borderRadius: "12px",
                             fontSize: "11px",
-                            fontWeight: "700",
+                            fontWeight: "800",
                             textTransform: "uppercase",
                           }}
                         >
@@ -267,7 +266,7 @@ export default function ReviewsManagement() {
       {isAddModalOpen && (
         <div style={modalOverlayStyle}>
           <div style={modalBoxStyle}>
-            <h3 style={{ margin: "0 0 16px 0", fontSize: "18px" }}>Add Customer Review</h3>
+            <h3 style={{ margin: "0 0 16px 0", fontSize: "18px", fontWeight: "800", color: "#000000" }}>Add Customer Review</h3>
             <fetcher.Form method="post">
               <input type="hidden" name="actionType" value="add_review" />
 
@@ -338,54 +337,57 @@ export default function ReviewsManagement() {
 const cardStyle: React.CSSProperties = {
   background: "#fff",
   borderRadius: "12px",
-  border: "1px solid #e1e3e5",
+  border: "1.5px solid #000000",
   padding: "20px",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
 };
 
 const kpiBoxStyle: React.CSSProperties = {
   background: "#fff",
   padding: "20px",
   borderRadius: "10px",
-  border: "1px solid #e1e3e5",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+  border: "1.5px solid #000000",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
 };
 
 const kpiLabelStyle: React.CSSProperties = {
   fontSize: "12px",
-  fontWeight: "600",
-  color: "#5c5f62",
+  fontWeight: "800",
+  color: "#000000",
   textTransform: "uppercase",
+  letterSpacing: "0.5px",
 };
 
 const kpiValueStyle: React.CSSProperties = {
   fontSize: "26px",
-  fontWeight: "800",
-  color: "#202223",
+  fontWeight: "900",
+  color: "#000000",
   marginTop: "6px",
 };
 
 const kpiSubStyle: React.CSSProperties = {
   fontSize: "12px",
-  color: "#6d7175",
+  color: "#000000",
   marginTop: "4px",
+  fontWeight: "500",
 };
 
 const labelStyle: React.CSSProperties = {
   display: "block",
   fontSize: "13px",
-  fontWeight: "600",
+  fontWeight: "700",
   marginBottom: "4px",
-  color: "#202223",
+  color: "#000000",
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "10px 12px",
   borderRadius: "8px",
-  border: "1px solid #c9cccf",
+  border: "1.5px solid #000000",
   fontSize: "14px",
   boxSizing: "border-box",
+  color: "#000000",
 };
 
 const modalOverlayStyle: React.CSSProperties = {
@@ -405,6 +407,7 @@ const modalOverlayStyle: React.CSSProperties = {
 const modalBoxStyle: React.CSSProperties = {
   background: "#fff",
   borderRadius: "12px",
+  border: "1.5px solid #000000",
   padding: "24px",
   maxWidth: "500px",
   width: "100%",

@@ -80,7 +80,7 @@ export default function SubscriptionsCalendar() {
           </div>
           <div style={kpiCardStyle}>
             <div style={kpiLabelStyle}>Viewing Horizon</div>
-            <div style={{ ...kpiValueStyle, color: "#2c6ecb" }}>{days} Days</div>
+            <div style={{ ...kpiValueStyle, color: "#000" }}>{days} Days</div>
             <div style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
               <s-button href="?days=14" variant={days === 14 ? "primary" : "secondary"}>
                 14d
@@ -100,7 +100,7 @@ export default function SubscriptionsCalendar() {
           style={{
             background: "#fff",
             borderRadius: "10px",
-            border: "1px solid #e1e3e5",
+            border: "1.5px solid #000",
             padding: "16px",
             display: "flex",
             justifyContent: "space-between",
@@ -109,7 +109,7 @@ export default function SubscriptionsCalendar() {
             gap: "12px",
           }}
         >
-          <div style={{ display: "flex", gap: "8px", alignItems: "center", flex: 1, minWidth: "260px" }}>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center", flex: 1, minWidth: "240px" }}>
             <input
               type="text"
               placeholder="Search by customer name, item or plan..."
@@ -118,21 +118,24 @@ export default function SubscriptionsCalendar() {
               style={{
                 width: "100%",
                 padding: "8px 12px",
-                borderRadius: "8px",
-                border: "1px solid #c9cccf",
+                borderRadius: "6px",
+                border: "1.5px solid #000",
                 fontSize: "14px",
+                color: "#000",
+                outline: "none",
               }}
             />
           </div>
 
-          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-            <span style={{ fontSize: "13px", fontWeight: "600", color: "#5c5f62" }}>Filter:</span>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "13px", fontWeight: "800", color: "#000" }}>Filter:</span>
             <button
               onClick={() => setFilterType("all")}
               style={{
                 ...pillButtonStyle,
-                background: filterType === "all" ? "#008060" : "#f1f2f3",
-                color: filterType === "all" ? "#fff" : "#202223",
+                background: filterType === "all" ? "#000" : "#fff",
+                color: filterType === "all" ? "#fff" : "#000",
+                border: "1.5px solid #000",
               }}
             >
               All Deliveries
@@ -141,8 +144,9 @@ export default function SubscriptionsCalendar() {
               onClick={() => setFilterType("confirmed")}
               style={{
                 ...pillButtonStyle,
-                background: filterType === "confirmed" ? "#008060" : "#f1f2f3",
-                color: filterType === "confirmed" ? "#fff" : "#202223",
+                background: filterType === "confirmed" ? "#000" : "#fff",
+                color: filterType === "confirmed" ? "#fff" : "#000",
+                border: "1.5px solid #000",
               }}
             >
               Next Scheduled Cycle Only
@@ -151,8 +155,9 @@ export default function SubscriptionsCalendar() {
               onClick={() => setFilterType("projected")}
               style={{
                 ...pillButtonStyle,
-                background: filterType === "projected" ? "#008060" : "#f1f2f3",
-                color: filterType === "projected" ? "#fff" : "#202223",
+                background: filterType === "projected" ? "#000" : "#fff",
+                color: filterType === "projected" ? "#fff" : "#000",
+                border: "1.5px solid #000",
               }}
             >
               Projected Cycles Only
@@ -318,36 +323,38 @@ const kpiCardStyle: React.CSSProperties = {
   background: "#fff",
   padding: "20px",
   borderRadius: "10px",
-  border: "1px solid #e1e3e5",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+  border: "1.5px solid #000",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
 };
 
 const kpiLabelStyle: React.CSSProperties = {
   fontSize: "13px",
-  fontWeight: "600",
-  color: "#5c5f62",
+  fontWeight: "800",
+  color: "#000",
   textTransform: "uppercase",
+  letterSpacing: "0.5px",
 };
 
 const kpiValueStyle: React.CSSProperties = {
   fontSize: "28px",
-  fontWeight: "800",
-  color: "#202223",
+  fontWeight: "900",
+  color: "#000",
   marginTop: "8px",
 };
 
 const kpiSubStyle: React.CSSProperties = {
   fontSize: "12px",
-  color: "#6d7175",
+  color: "#000",
   marginTop: "4px",
+  fontWeight: "500",
 };
 
 const pillButtonStyle: React.CSSProperties = {
-  border: "none",
+  border: "1.5px solid #000",
   borderRadius: "16px",
-  padding: "6px 12px",
+  padding: "6px 14px",
   fontSize: "12px",
-  fontWeight: "600",
+  fontWeight: "800",
   cursor: "pointer",
   transition: "all 0.15s ease",
 };

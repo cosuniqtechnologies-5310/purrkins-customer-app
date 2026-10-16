@@ -159,8 +159,8 @@ export default function SubscriptionSettings() {
                       gap: "8px",
                       padding: "10px 14px",
                       borderRadius: "8px",
-                      background: checked ? "#f0fdf4" : "#f9fafb",
-                      border: `1.5px solid ${checked ? "#22c55e" : "#e5e7eb"}`,
+                      background: checked ? "#f9fafb" : "#fff",
+                      border: `1.5px solid ${checked ? "#000" : "#d1d5db"}`,
                       cursor: "pointer",
                       userSelect: "none",
                     }}
@@ -171,8 +171,9 @@ export default function SubscriptionSettings() {
                       value={idx}
                       checked={checked}
                       onChange={() => toggleWeekday(idx)}
+                      style={{ accentColor: "#000" }}
                     />
-                    <span style={{ fontSize: "14px", fontWeight: checked ? "700" : "500", color: "#202223" }}>
+                    <span style={{ fontSize: "14px", fontWeight: checked ? "800" : "500", color: "#000" }}>
                       {name}
                     </span>
                   </label>
@@ -414,45 +415,50 @@ export default function SubscriptionSettings() {
 
 const cardStyle: React.CSSProperties = {
   background: "#fff",
-  borderRadius: "12px",
-  border: "1px solid #e1e3e5",
+  borderRadius: "10px",
+  border: "1.5px solid #000",
   padding: "24px",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
 };
 
 const cardTitleStyle: React.CSSProperties = {
   fontSize: "16px",
-  fontWeight: "700",
+  fontWeight: "900",
   margin: "0 0 6px 0",
-  color: "#202223",
+  color: "#000",
 };
 
 const cardSubtitleStyle: React.CSSProperties = {
   fontSize: "13px",
-  color: "#6d7175",
+  color: "#000",
   margin: 0,
   lineHeight: "1.5",
+  fontWeight: "500",
 };
 
 const labelStyle: React.CSSProperties = {
   display: "block",
   fontSize: "13px",
-  fontWeight: "600",
+  fontWeight: "800",
   marginBottom: "6px",
-  color: "#202223",
+  color: "#000",
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "10px 12px",
-  borderRadius: "8px",
-  border: "1px solid #c9cccf",
+  borderRadius: "6px",
+  border: "1.5px solid #000",
   fontSize: "14px",
+  color: "#000",
+  fontWeight: "600",
+  outline: "none",
 };
 
 const hintStyle: React.CSSProperties = {
   display: "block",
   fontSize: "12px",
-  color: "#6d7175",
+  color: "#000",
   marginTop: "4px",
+  fontWeight: "500",
 };

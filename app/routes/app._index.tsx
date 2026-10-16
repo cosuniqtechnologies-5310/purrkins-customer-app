@@ -171,13 +171,13 @@ export default function HomeDashboard() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "16px" }}>
           <div style={kpiCardStyle}>
             <div style={kpiLabelStyle}>Active Subscribers</div>
-            <div style={{ ...kpiValueStyle, color: "#008060" }}>{subStats.counts["ACTIVE"] || 0}</div>
+            <div style={{ ...kpiValueStyle, color: "#000" }}>{subStats.counts["ACTIVE"] || 0}</div>
             <div style={kpiSubStyle}>Total subscriptions: {subStats.total}</div>
           </div>
 
           <div style={kpiCardStyle}>
             <div style={kpiLabelStyle}>Estimated MRR</div>
-            <div style={{ ...kpiValueStyle, color: "#202223" }}>
+            <div style={{ ...kpiValueStyle, color: "#000" }}>
               ₹{Math.round(subStats.mrr).toLocaleString("en-IN")}
             </div>
             <div style={kpiSubStyle}>Monthly recurring revenue</div>
@@ -185,13 +185,13 @@ export default function HomeDashboard() {
 
           <div style={kpiCardStyle}>
             <div style={kpiLabelStyle}>14-Day Deliveries</div>
-            <div style={{ ...kpiValueStyle, color: "#2c6ecb" }}>{upcomingDeliveriesCount}</div>
+            <div style={{ ...kpiValueStyle, color: "#000" }}>{upcomingDeliveriesCount}</div>
             <div style={kpiSubStyle}>Scheduled dispatches</div>
           </div>
 
           <div style={kpiCardStyle}>
             <div style={kpiLabelStyle}>Customer Reviews</div>
-            <div style={{ ...kpiValueStyle, color: "#d97706" }}>★ {avgRating}</div>
+            <div style={{ ...kpiValueStyle, color: "#000" }}>★ {avgRating}</div>
             <div style={kpiSubStyle}>
               {allReviewsCount} total ({publishedReviewsCount} published, {pendingReviewsCount} pending)
             </div>
@@ -500,65 +500,70 @@ export default function HomeDashboard() {
 
 const cardStyle: React.CSSProperties = {
   background: "#fff",
-  borderRadius: "12px",
-  border: "1px solid #e1e3e5",
+  borderRadius: "10px",
+  border: "1.5px solid #000",
   padding: "20px",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
 };
 
 const kpiCardStyle: React.CSSProperties = {
   background: "#fff",
   padding: "20px",
   borderRadius: "10px",
-  border: "1px solid #e1e3e5",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+  border: "1.5px solid #000",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
 };
 
 const kpiLabelStyle: React.CSSProperties = {
   fontSize: "12px",
-  fontWeight: "600",
-  color: "#5c5f62",
+  fontWeight: "800",
+  color: "#000",
   textTransform: "uppercase",
+  letterSpacing: "0.5px",
 };
 
 const kpiValueStyle: React.CSSProperties = {
-  fontSize: "26px",
-  fontWeight: "800",
-  color: "#202223",
+  fontSize: "28px",
+  fontWeight: "900",
+  color: "#000",
   marginTop: "6px",
 };
 
 const kpiSubStyle: React.CSSProperties = {
   fontSize: "12px",
-  color: "#6d7175",
+  color: "#000",
   marginTop: "4px",
+  fontWeight: "500",
 };
 
 const statusPillStyle: React.CSSProperties = {
   padding: "4px 12px",
   borderRadius: "16px",
   fontSize: "12px",
-  fontWeight: "700",
+  fontWeight: "800",
   display: "inline-flex",
   alignItems: "center",
   gap: "6px",
+  border: "1.5px solid #000",
 };
 
 const labelStyle: React.CSSProperties = {
   display: "block",
   fontSize: "13px",
-  fontWeight: "600",
+  fontWeight: "800",
   marginBottom: "4px",
-  color: "#202223",
+  color: "#000",
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "10px 12px",
-  borderRadius: "8px",
-  border: "1px solid #c9cccf",
+  borderRadius: "6px",
+  border: "1.5px solid #000",
   fontSize: "14px",
+  color: "#000",
   boxSizing: "border-box",
+  outline: "none",
 };
 
 const modalOverlayStyle: React.CSSProperties = {

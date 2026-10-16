@@ -269,16 +269,34 @@ export async function syncSellingPlans(shop: string): Promise<{ groupId: string 
 }
 
 export async function setEligibleProducts(shop: string, productIds: string[]) {
-  await getSettings(shop);
-  await prisma.subscriptionSetting.update({
-    where: { shop },
-    data: { eligibleProductIds: [...new Set(productIds)] },
+  return setEligibleScope(shop, {
+    productSelectionType: "PRODUCTS",
+    productIds,
   });
-  const settings = await prisma.subscriptionSetting.findUnique({ where: { shop } });
-  if (settings?.sellingPlanGroupId) {
-    const admin = await getAdmin(shop);
-    await syncGroupProducts(admin, settings.sellingPlanGroupId, productIds);
+}
+
+export async function setEligibleScope(
+  shop: string,
+  scope: {
+    productSelectionType: "ALL" | "COLLECTIONS" | "PRODUCTS";
+    productIds: string[];
+    collectionIds?: string[];
   }
+) {
+  await getSettings(shop);
+  const updated = await prisma.subscriptionSetting.update({
+    where: { shop },
+    data: {
+      productSelectionType: scope.productSelectionType,
+      eligibleProductIds: [...new Set(scope.productIds)],
+      eligibleCollectionIds: [...new Set(scope.collectionIds || [])],
+    },
+  });
+  if (updated.sellingPlanGroupId) {
+    const admin = await getAdmin(shop);
+    await syncGroupProducts(admin, updated.sellingPlanGroupId, scope.productIds);
+  }
+  return updated;
 }
 
 /* ───────────────────────── cycle bookkeeping ───────────────────────── */

@@ -147,10 +147,10 @@ export default function SubscriptionDetail() {
     : [];
 
   const statusColors: Record<string, { bg: string; text: string; border: string }> = {
-    ACTIVE: { bg: "#e3f1df", text: "#108043", border: "#aee9d1" },
-    PAUSED: { bg: "#fef3d6", text: "#916a00", border: "#fbd88f" },
-    CANCELLED: { bg: "#f1f2f3", text: "#6d7175", border: "#d2d5d8" },
-    FAILED: { bg: "#fedcd9", text: "#bf0711", border: "#fca39d" },
+    ACTIVE: { bg: "#000000", text: "#ffffff", border: "#000000" },
+    PAUSED: { bg: "#f4f4f5", text: "#000000", border: "#000000" },
+    CANCELLED: { bg: "#ffffff", text: "#000000", border: "#000000" },
+    FAILED: { bg: "#000000", text: "#ffffff", border: "#000000" },
   };
   const statusStyle = statusColors[sub.status] || statusColors.ACTIVE;
 
@@ -180,30 +180,30 @@ export default function SubscriptionDetail() {
           style={{
             background: "#fff",
             borderRadius: "12px",
-            border: "1px solid #e1e3e5",
+            border: "1.5px solid #000000",
             padding: "24px",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
             flexWrap: "wrap",
             gap: "16px",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
           }}
         >
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
-              <h2 style={{ fontSize: "20px", fontWeight: "700", margin: 0, color: "#202223" }}>
+              <h2 style={{ fontSize: "20px", fontWeight: "800", margin: 0, color: "#000000" }}>
                 {sub.customerName || "Customer"}
               </h2>
               <span
                 style={{
                   background: statusStyle.bg,
                   color: statusStyle.text,
-                  border: `1px solid ${statusStyle.border}`,
-                  padding: "3px 10px",
-                  borderRadius: "14px",
+                  border: `1.5px solid ${statusStyle.border}`,
+                  padding: "4px 12px",
+                  borderRadius: "16px",
                   fontSize: "12px",
-                  fontWeight: "700",
+                  fontWeight: "800",
                   textTransform: "uppercase",
                   letterSpacing: "0.5px",
                 }}
@@ -211,7 +211,7 @@ export default function SubscriptionDetail() {
                 {sub.status}
               </span>
             </div>
-            <div style={{ fontSize: "14px", color: "#6d7175", display: "flex", gap: "16px", flexWrap: "wrap" }}>
+            <div style={{ fontSize: "14px", color: "#000000", display: "flex", gap: "16px", flexWrap: "wrap" }}>
               <span>
                 <strong>Email:</strong> {sub.customerEmail || "N/A"}
               </span>
@@ -297,23 +297,23 @@ export default function SubscriptionDetail() {
             style={{
               background: "#fff",
               borderRadius: "12px",
-              border: "1px solid #e1e3e5",
+              border: "1.5px solid #000000",
+              borderLeft: "6px solid #000000",
               padding: "20px",
-              borderLeft: "5px solid #008060",
             }}
           >
-            <div style={{ fontSize: "12px", fontWeight: "700", color: "#5c5f62", textTransform: "uppercase" }}>
+            <div style={{ fontSize: "12px", fontWeight: "800", color: "#000000", textTransform: "uppercase", letterSpacing: "0.5px" }}>
               Next Scheduled Delivery
             </div>
             {pending ? (
               <>
-                <div style={{ fontSize: "24px", fontWeight: "800", color: "#202223", marginTop: "8px" }}>
+                <div style={{ fontSize: "26px", fontWeight: "900", color: "#000000", marginTop: "8px" }}>
                   {pending.deliveryDate}
                 </div>
-                <div style={{ fontSize: "14px", color: "#008060", fontWeight: "600", marginTop: "2px" }}>
+                <div style={{ fontSize: "14px", color: "#000000", fontWeight: "700", marginTop: "2px" }}>
                   {WEEKDAY_NAMES[weekdayOf(pending.deliveryDate)]} (Cycle #{pending.cycleNumber})
                 </div>
-                <div style={{ marginTop: "12px", fontSize: "13px", color: "#6d7175", lineHeight: "1.6" }}>
+                <div style={{ marginTop: "12px", fontSize: "13px", color: "#000000", lineHeight: "1.6" }}>
                   <div>
                     <strong>Billing Scheduled:</strong> {new Date(pending.billingAt).toLocaleString("en-IN")}
                   </div>
@@ -324,14 +324,14 @@ export default function SubscriptionDetail() {
                     <strong>Lead Time:</strong> {cfg.leadTimeDays} days before delivery
                   </div>
                   {pending.attempts > 0 && (
-                    <div style={{ color: "#d72c0d", fontWeight: "600" }}>
+                    <div style={{ color: "#000000", fontWeight: "700" }}>
                       Attempts: {pending.attempts} (Last error: {pending.error || "Payment failed"})
                     </div>
                   )}
                 </div>
               </>
             ) : (
-              <div style={{ marginTop: "12px", color: "#6d7175", fontSize: "14px" }}>
+              <div style={{ marginTop: "12px", color: "#000000", fontSize: "14px" }}>
                 No active pending cycle ({sub.status.toLowerCase()}).
               </div>
             )}
@@ -342,14 +342,14 @@ export default function SubscriptionDetail() {
             style={{
               background: "#fff",
               borderRadius: "12px",
-              border: "1px solid #e1e3e5",
+              border: "1.5px solid #000000",
               padding: "20px",
             }}
           >
-            <div style={{ fontSize: "12px", fontWeight: "700", color: "#5c5f62", textTransform: "uppercase" }}>
+            <div style={{ fontSize: "12px", fontWeight: "800", color: "#000000", textTransform: "uppercase", letterSpacing: "0.5px" }}>
               Subscription Cadence & Anchors
             </div>
-            <div style={{ marginTop: "12px", fontSize: "13px", color: "#202223", lineHeight: "1.8" }}>
+            <div style={{ marginTop: "12px", fontSize: "13px", color: "#000000", lineHeight: "1.8" }}>
               <div>
                 <strong>Frequency Plan:</strong> {describeFrequency(sub.interval, sub.intervalCount)}
               </div>
@@ -371,17 +371,17 @@ export default function SubscriptionDetail() {
         </div>
 
         {/* Subscribed Products */}
-        <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e1e3e5", padding: "20px" }}>
-          <h3 style={{ fontSize: "16px", fontWeight: "700", margin: "0 0 16px 0", color: "#202223" }}>
+        <div style={{ background: "#fff", borderRadius: "12px", border: "1.5px solid #000000", padding: "20px" }}>
+          <h3 style={{ fontSize: "16px", fontWeight: "800", margin: "0 0 16px 0", color: "#000000" }}>
             Subscribed Line Items
           </h3>
           {lines.length === 0 ? (
-            <div style={{ color: "#6d7175", fontSize: "14px" }}>No line item details saved.</div>
+            <div style={{ color: "#000000", fontSize: "14px" }}>No line item details saved.</div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
+            <div style={{ width: "100%" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
                 <thead>
-                  <tr style={{ borderBottom: "1px solid #e1e3e5", textAlign: "left", color: "#5c5f62", fontSize: "12px" }}>
+                  <tr style={{ borderBottom: "1.5px solid #000000", textAlign: "left", color: "#000000", fontSize: "12px", fontWeight: "800" }}>
                     <th style={{ padding: "10px 8px" }}>PRODUCT</th>
                     <th style={{ padding: "10px 8px" }}>VARIANT</th>
                     <th style={{ padding: "10px 8px", textAlign: "center" }}>QUANTITY</th>
@@ -390,13 +390,13 @@ export default function SubscriptionDetail() {
                 </thead>
                 <tbody>
                   {lines.map((item, idx) => (
-                    <tr key={idx} style={{ borderBottom: "1px solid #f1f2f3" }}>
-                      <td style={{ padding: "12px 8px", fontWeight: "600", color: "#202223" }}>
+                    <tr key={idx} style={{ borderBottom: "1px solid #e1e3e5" }}>
+                      <td style={{ padding: "12px 8px", fontWeight: "700", color: "#000000" }}>
                         {item.title || "Custom Subscription Item"}
                       </td>
-                      <td style={{ padding: "12px 8px", color: "#6d7175" }}>{item.variantTitle || "Default"}</td>
-                      <td style={{ padding: "12px 8px", textAlign: "center", fontWeight: "600" }}>{item.quantity || 1}</td>
-                      <td style={{ padding: "12px 8px", textAlign: "right", fontWeight: "700", color: "#008060" }}>
+                      <td style={{ padding: "12px 8px", color: "#000000" }}>{item.variantTitle || "Default"}</td>
+                      <td style={{ padding: "12px 8px", textAlign: "center", fontWeight: "700", color: "#000000" }}>{item.quantity || 1}</td>
+                      <td style={{ padding: "12px 8px", textAlign: "right", fontWeight: "800", color: "#000000" }}>
                         {item.price ? `₹${parseFloat(item.price).toFixed(2)}` : "—"}
                       </td>
                     </tr>
@@ -409,11 +409,11 @@ export default function SubscriptionDetail() {
 
         {/* Projected Future Deliveries */}
         {upcoming.length > 0 && (
-          <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e1e3e5", padding: "20px" }}>
-            <h3 style={{ fontSize: "16px", fontWeight: "700", margin: "0 0 8px 0", color: "#202223" }}>
+          <div style={{ background: "#fff", borderRadius: "12px", border: "1.5px solid #000000", padding: "20px" }}>
+            <h3 style={{ fontSize: "16px", fontWeight: "800", margin: "0 0 8px 0", color: "#000000" }}>
               Projected Upcoming Delivery Calendar (Next 3 Cycles)
             </h3>
-            <p style={{ fontSize: "13px", color: "#6d7175", margin: "0 0 16px 0" }}>
+            <p style={{ fontSize: "13px", color: "#000000", margin: "0 0 16px 0" }}>
               Calculated using Purrkins perfect-delivery engine with anchor drift prevention, preferred weekday rules, and courier cutoff.
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px" }}>
@@ -423,18 +423,18 @@ export default function SubscriptionDetail() {
                   style={{
                     padding: "16px",
                     borderRadius: "8px",
-                    background: "#f9fafb",
-                    border: "1px solid #e1e3e5",
+                    background: "#ffffff",
+                    border: "1.5px solid #000000",
                   }}
                 >
-                  <div style={{ fontSize: "12px", color: "#6d7175", fontWeight: "600" }}>Cycle +{i + 1}</div>
-                  <div style={{ fontSize: "18px", fontWeight: "700", color: "#202223", marginTop: "4px" }}>
+                  <div style={{ fontSize: "12px", color: "#000000", fontWeight: "700" }}>Cycle +{i + 1}</div>
+                  <div style={{ fontSize: "20px", fontWeight: "900", color: "#000000", marginTop: "4px" }}>
                     {u.deliveryDate}
                   </div>
-                  <div style={{ fontSize: "13px", color: "#008060", fontWeight: "600" }}>
+                  <div style={{ fontSize: "13px", color: "#000000", fontWeight: "700" }}>
                     {WEEKDAY_NAMES[weekdayOf(u.deliveryDate)]}
                   </div>
-                  <div style={{ fontSize: "12px", color: "#6d7175", marginTop: "8px" }}>
+                  <div style={{ fontSize: "12px", color: "#000000", marginTop: "8px" }}>
                     Billing: {new Date(u.billingAt).toLocaleDateString("en-IN", { month: "short", day: "numeric" })} at{" "}
                     {new Date(u.billingAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
                   </div>
@@ -445,14 +445,14 @@ export default function SubscriptionDetail() {
         )}
 
         {/* Cycle History Ledger */}
-        <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #e1e3e5", padding: "20px" }}>
-          <h3 style={{ fontSize: "16px", fontWeight: "700", margin: "0 0 16px 0", color: "#202223" }}>
+        <div style={{ background: "#fff", borderRadius: "12px", border: "1.5px solid #000000", padding: "20px" }}>
+          <h3 style={{ fontSize: "16px", fontWeight: "800", margin: "0 0 16px 0", color: "#000000" }}>
             Delivery & Billing Ledger History
           </h3>
-          <div style={{ overflowX: "auto" }}>
+          <div style={{ width: "100%" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
               <thead>
-                <tr style={{ borderBottom: "2px solid #e1e3e5", textAlign: "left", color: "#5c5f62", fontSize: "12px" }}>
+                <tr style={{ borderBottom: "2px solid #000000", textAlign: "left", color: "#000000", fontSize: "12px", fontWeight: "800" }}>
                   <th style={{ padding: "10px 8px" }}>CYCLE</th>
                   <th style={{ padding: "10px 8px" }}>DELIVERY DATE</th>
                   <th style={{ padding: "10px 8px" }}>BILLING TIME</th>
@@ -463,21 +463,14 @@ export default function SubscriptionDetail() {
               </thead>
               <tbody>
                 {sub.cycles.map((c) => {
-                  const cycleStatusColors: Record<string, string> = {
-                    SCHEDULED: "#008060",
-                    PROCESSING: "#2c6ecb",
-                    BILLED: "#108043",
-                    FAILED: "#d72c0d",
-                    SKIPPED: "#6d7175",
-                  };
                   return (
-                    <tr key={c.id} style={{ borderBottom: "1px solid #f1f2f3" }}>
-                      <td style={{ padding: "12px 8px", fontWeight: "700" }}>#{c.cycleNumber}</td>
-                      <td style={{ padding: "12px 8px" }}>
-                        <div style={{ fontWeight: "600" }}>{c.deliveryDate}</div>
-                        <div style={{ fontSize: "11px", color: "#6d7175" }}>{WEEKDAY_NAMES[weekdayOf(c.deliveryDate)]}</div>
+                    <tr key={c.id} style={{ borderBottom: "1px solid #e1e3e5" }}>
+                      <td style={{ padding: "12px 8px", fontWeight: "800", color: "#000000" }}>#{c.cycleNumber}</td>
+                      <td style={{ padding: "12px 8px", color: "#000000" }}>
+                        <div style={{ fontWeight: "700" }}>{c.deliveryDate}</div>
+                        <div style={{ fontSize: "11px", color: "#000000" }}>{WEEKDAY_NAMES[weekdayOf(c.deliveryDate)]}</div>
                       </td>
-                      <td style={{ padding: "12px 8px", color: "#6d7175" }}>
+                      <td style={{ padding: "12px 8px", color: "#000000" }}>
                         {new Date(c.billingAt).toLocaleString("en-IN", {
                           month: "short",
                           day: "numeric",
@@ -488,22 +481,26 @@ export default function SubscriptionDetail() {
                       <td style={{ padding: "12px 8px" }}>
                         <span
                           style={{
-                            fontWeight: "700",
+                            fontWeight: "800",
                             fontSize: "12px",
-                            color: cycleStatusColors[c.status] || "#202223",
+                            color: "#000000",
+                            border: "1px solid #000000",
+                            padding: "2px 8px",
+                            borderRadius: "10px",
+                            background: "#f4f4f5",
                           }}
                         >
                           {c.status}
                         </span>
                       </td>
-                      <td style={{ padding: "12px 8px" }}>{c.attempts > 0 ? `${c.attempts}` : "0"}</td>
-                      <td style={{ padding: "12px 8px" }}>
+                      <td style={{ padding: "12px 8px", fontWeight: "700", color: "#000000" }}>{c.attempts > 0 ? `${c.attempts}` : "0"}</td>
+                      <td style={{ padding: "12px 8px", color: "#000000" }}>
                         {c.orderName ? (
-                          <span style={{ fontWeight: "700", color: "#2c6ecb" }}>{c.orderName}</span>
+                          <span style={{ fontWeight: "800", color: "#000000" }}>{c.orderName}</span>
                         ) : c.error ? (
-                          <span style={{ color: "#d72c0d", fontSize: "12px" }}>{c.error}</span>
+                          <span style={{ color: "#000000", fontSize: "12px", fontWeight: "600" }}>{c.error}</span>
                         ) : (
-                          <span style={{ color: "#8c9196" }}>—</span>
+                          <span style={{ color: "#000000" }}>—</span>
                         )}
                       </td>
                     </tr>
@@ -521,11 +518,11 @@ export default function SubscriptionDetail() {
       {activeModal === "reschedule" && (
         <div style={modalOverlayStyle}>
           <div style={modalBoxStyle}>
-            <h3 style={{ margin: "0 0 16px 0" }}>Reschedule Next Delivery</h3>
+            <h3 style={{ margin: "0 0 16px 0", color: "#000000", fontWeight: "800" }}>Reschedule Next Delivery</h3>
             <Form method="post">
               <input type="hidden" name="intent" value="reschedule" />
               <div style={{ marginBottom: "16px" }}>
-                <label htmlFor="reschedule-delivery-date" style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "6px" }}>
+                <label htmlFor="reschedule-delivery-date" style={{ display: "block", fontSize: "13px", fontWeight: "700", marginBottom: "6px", color: "#000000" }}>
                   New Delivery Date (YYYY-MM-DD):
                 </label>
                 <input
@@ -534,15 +531,15 @@ export default function SubscriptionDetail() {
                   name="deliveryDate"
                   value={rescheduleDate}
                   onChange={(e) => setRescheduleDate(e.target.value)}
-                  style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #c9cccf" }}
+                  style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1.5px solid #000000", color: "#000000" }}
                   required
                 />
-                <div style={{ fontSize: "12px", color: "#6d7175", marginTop: "6px" }}>
+                <div style={{ fontSize: "12px", color: "#000000", marginTop: "6px" }}>
                   Allowed days: {cfg.deliveryWeekdays.map((d: number) => WEEKDAY_NAMES[d]).join(", ")}. Date must be in the future.
                 </div>
               </div>
               <div style={{ marginBottom: "20px" }}>
-                <label htmlFor="reschedule-apply-future" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", cursor: "pointer" }}>
+                <label htmlFor="reschedule-apply-future" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", cursor: "pointer", color: "#000000" }}>
                   <input
                     id="reschedule-apply-future"
                     type="checkbox"
@@ -571,8 +568,8 @@ export default function SubscriptionDetail() {
       {activeModal === "skip" && (
         <div style={modalOverlayStyle}>
           <div style={modalBoxStyle}>
-            <h3 style={{ margin: "0 0 16px 0" }}>Skip Next Delivery</h3>
-            <p style={{ fontSize: "14px", color: "#5c5f62", lineHeight: "1.5" }}>
+            <h3 style={{ margin: "0 0 16px 0", color: "#000000", fontWeight: "800" }}>Skip Next Delivery</h3>
+            <p style={{ fontSize: "14px", color: "#000000", lineHeight: "1.5" }}>
               Are you sure you want to skip delivery for cycle <strong>#{pending?.cycleNumber}</strong> ({pending?.deliveryDate})?
               The subscription will immediately advance to the next frequency interval. No charges will be made for this skipped cycle.
             </p>
@@ -595,11 +592,11 @@ export default function SubscriptionDetail() {
       {activeModal === "plan" && (
         <div style={modalOverlayStyle}>
           <div style={modalBoxStyle}>
-            <h3 style={{ margin: "0 0 16px 0" }}>Change Subscription Frequency</h3>
+            <h3 style={{ margin: "0 0 16px 0", color: "#000000", fontWeight: "800" }}>Change Subscription Frequency</h3>
             <Form method="post">
               <input type="hidden" name="intent" value="change_plan" />
               <div style={{ marginBottom: "20px" }}>
-                <label htmlFor="change-plan-select" style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "6px" }}>
+                <label htmlFor="change-plan-select" style={{ display: "block", fontSize: "13px", fontWeight: "700", marginBottom: "6px", color: "#000000" }}>
                   Select New Frequency Plan:
                 </label>
                 <select
@@ -607,7 +604,7 @@ export default function SubscriptionDetail() {
                   name="planId"
                   value={selectedPlanId}
                   onChange={(e) => setSelectedPlanId(e.target.value)}
-                  style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #c9cccf" }}
+                  style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1.5px solid #000000", color: "#000000" }}
                 >
                   {plans.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -615,7 +612,7 @@ export default function SubscriptionDetail() {
                     </option>
                   ))}
                 </select>
-                <div style={{ fontSize: "12px", color: "#6d7175", marginTop: "6px" }}>
+                <div style={{ fontSize: "12px", color: "#000000", marginTop: "6px" }}>
                   The new frequency will apply to all subsequent cycles starting immediately.
                 </div>
               </div>
@@ -636,11 +633,11 @@ export default function SubscriptionDetail() {
       {activeModal === "weekday" && (
         <div style={modalOverlayStyle}>
           <div style={modalBoxStyle}>
-            <h3 style={{ margin: "0 0 16px 0" }}>Set Preferred Delivery Weekday</h3>
+            <h3 style={{ margin: "0 0 16px 0", color: "#000000", fontWeight: "800" }}>Set Preferred Delivery Weekday</h3>
             <Form method="post">
               <input type="hidden" name="intent" value="set_weekday" />
               <div style={{ marginBottom: "20px" }}>
-                <label htmlFor="set-weekday-select" style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "6px" }}>
+                <label htmlFor="set-weekday-select" style={{ display: "block", fontSize: "13px", fontWeight: "700", marginBottom: "6px", color: "#000000" }}>
                   Preferred Delivery Day:
                 </label>
                 <select
@@ -648,7 +645,7 @@ export default function SubscriptionDetail() {
                   name="weekday"
                   value={selectedWeekday}
                   onChange={(e) => setSelectedWeekday(e.target.value)}
-                  style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #c9cccf" }}
+                  style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1.5px solid #000000", color: "#000000" }}
                 >
                   <option value="null">No Preference (Any deliverable day)</option>
                   {cfg.deliveryWeekdays.map((d: number) => (
@@ -657,7 +654,7 @@ export default function SubscriptionDetail() {
                     </option>
                   ))}
                 </select>
-                <div style={{ fontSize: "12px", color: "#6d7175", marginTop: "6px" }}>
+                <div style={{ fontSize: "12px", color: "#000000", marginTop: "6px" }}>
                   Deliveries will automatically snap to this day of the week while respecting the interval cadence.
                 </div>
               </div>
@@ -678,8 +675,8 @@ export default function SubscriptionDetail() {
       {activeModal === "bill_now" && (
         <div style={modalOverlayStyle}>
           <div style={modalBoxStyle}>
-            <h3 style={{ margin: "0 0 16px 0" }}>Trigger Billing Attempt Now</h3>
-            <p style={{ fontSize: "14px", color: "#5c5f62", lineHeight: "1.5" }}>
+            <h3 style={{ margin: "0 0 16px 0", color: "#000000", fontWeight: "800" }}>Trigger Billing Attempt Now</h3>
+            <p style={{ fontSize: "14px", color: "#000000", lineHeight: "1.5" }}>
               This will immediately submit a <strong>subscriptionBillingAttemptCreate</strong> call to Shopify for cycle{" "}
               <strong>#{pending?.cycleNumber}</strong>. If successful, Shopify creates the fulfillment order and advances to the next cycle.
             </p>
@@ -702,11 +699,11 @@ export default function SubscriptionDetail() {
       {activeModal === "pause" && (
         <div style={modalOverlayStyle}>
           <div style={modalBoxStyle}>
-            <h3 style={{ margin: "0 0 16px 0" }}>Pause Subscription</h3>
+            <h3 style={{ margin: "0 0 16px 0", color: "#000000", fontWeight: "800" }}>Pause Subscription</h3>
             <Form method="post">
               <input type="hidden" name="intent" value="pause" />
               <div style={{ marginBottom: "20px" }}>
-                <label htmlFor="pause-until-date" style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "6px" }}>
+                <label htmlFor="pause-until-date" style={{ display: "block", fontSize: "13px", fontWeight: "700", marginBottom: "6px", color: "#000000" }}>
                   Pause Until Date (Optional):
                 </label>
                 <input
@@ -715,9 +712,9 @@ export default function SubscriptionDetail() {
                   name="pauseUntil"
                   value={pauseUntil}
                   onChange={(e) => setPauseUntil(e.target.value)}
-                  style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #c9cccf" }}
+                  style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1.5px solid #000000", color: "#000000" }}
                 />
-                <div style={{ fontSize: "12px", color: "#6d7175", marginTop: "6px" }}>
+                <div style={{ fontSize: "12px", color: "#000000", marginTop: "6px" }}>
                   Leave blank to pause indefinitely until manually resumed.
                 </div>
               </div>
@@ -738,14 +735,14 @@ export default function SubscriptionDetail() {
       {activeModal === "cancel" && (
         <div style={modalOverlayStyle}>
           <div style={modalBoxStyle}>
-            <h3 style={{ margin: "0 0 16px 0", color: "#d72c0d" }}>Cancel Subscription</h3>
-            <p style={{ fontSize: "14px", color: "#5c5f62" }}>
+            <h3 style={{ margin: "0 0 16px 0", color: "#000000", fontWeight: "800" }}>Cancel Subscription</h3>
+            <p style={{ fontSize: "14px", color: "#000000" }}>
               Are you sure you want to cancel this subscription? This will cancel the contract in Shopify and stop all future billings.
             </p>
             <Form method="post">
               <input type="hidden" name="intent" value="cancel" />
               <div style={{ marginBottom: "20px" }}>
-                <label htmlFor="cancel-reason-input" style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "6px" }}>
+                <label htmlFor="cancel-reason-input" style={{ display: "block", fontSize: "13px", fontWeight: "700", marginBottom: "6px", color: "#000000" }}>
                   Cancellation Reason:
                 </label>
                 <input
@@ -755,7 +752,7 @@ export default function SubscriptionDetail() {
                   placeholder="e.g. Customer moved / requested cancellation"
                   value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)}
-                  style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #c9cccf" }}
+                  style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1.5px solid #000000", color: "#000000" }}
                 />
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>

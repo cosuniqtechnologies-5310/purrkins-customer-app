@@ -81,6 +81,8 @@ model SubscriptionSetting {
   retryIntervalDays  Int      @default(2)
   sellingPlanGroupId String?
   eligibleProductIds String[] @default([])
+  productSelectionType String @default("ALL")
+  eligibleCollectionIds String[] @default([])
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }
