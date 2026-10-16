@@ -437,13 +437,13 @@ export default function SubscriptionPlans() {
           </div>
         </div>
 
-        {/* Plans Table Card - Borderless, clean shadows, crisp solid black titles, reduced opacity descriptions */}
+        {/* Plans Table Card */}
         <div
           style={{
             background: "#fff",
-            borderRadius: "12px",
+            borderRadius: "16px",
             border: "none",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
             padding: "24px",
           }}
         >
@@ -458,51 +458,63 @@ export default function SubscriptionPlans() {
             }}
           >
             <div>
-              <h3 style={{ fontSize: "16px", fontWeight: "800", margin: "0 0 4px 0", color: "#000" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: "700", margin: "0 0 4px 0", color: "#0F172A" }}>
                 Configured Plans
               </h3>
-              <p style={{ fontSize: "13px", color: "rgba(0, 0, 0, 0.55)", margin: 0, fontWeight: "400" }}>
+              <p style={{ fontSize: "13px", color: "#64748B", margin: 0, fontWeight: "400" }}>
                 Recurring intervals and discount offers displayed in cart drawer and checkout.
               </p>
             </div>
           </div>
 
-          <div style={{ width: "100%", overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
+          <div style={{ width: "100%", overflowX: "auto", borderRadius: "10px", border: "1px solid #E2E8F0" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #f3f4f6", textAlign: "left", backgroundColor: "#fafafa" }}>
-                  <th style={{ padding: "12px 14px", fontWeight: "800", fontSize: "11px", color: "#000", textTransform: "uppercase", letterSpacing: "0.5px" }}>PLAN NAME</th>
-                  <th style={{ padding: "12px 14px", fontWeight: "800", fontSize: "11px", color: "#000", textTransform: "uppercase", letterSpacing: "0.5px" }}>FREQUENCY</th>
-                  <th style={{ padding: "12px 14px", fontWeight: "800", fontSize: "11px", color: "#000", textTransform: "uppercase", letterSpacing: "0.5px" }}>DISCOUNT</th>
-                  <th style={{ padding: "12px 14px", fontWeight: "800", fontSize: "11px", color: "#000", textTransform: "uppercase", letterSpacing: "0.5px" }}>SHOPIFY SELLING PLAN</th>
-                  <th style={{ padding: "12px 14px", textAlign: "center", fontWeight: "800", fontSize: "11px", color: "#000", textTransform: "uppercase", letterSpacing: "0.5px" }}>STATUS</th>
-                  <th style={{ padding: "12px 14px", textAlign: "right", fontWeight: "800", fontSize: "11px", color: "#000", textTransform: "uppercase", letterSpacing: "0.5px" }}>ACTIONS</th>
+                <tr style={{ backgroundColor: "#F8FAFC", borderBottom: "1px solid #E2E8F0", textAlign: "left" }}>
+                  <th style={{ padding: "12px 14px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>PLAN NAME</th>
+                  <th style={{ padding: "12px 14px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>FREQUENCY</th>
+                  <th style={{ padding: "12px 14px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>DISCOUNT</th>
+                  <th style={{ padding: "12px 14px", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>SHOPIFY SELLING PLAN</th>
+                  <th style={{ padding: "12px 14px", textAlign: "center", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>STATUS</th>
+                  <th style={{ padding: "12px 14px", textAlign: "right", fontWeight: "700", fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
                 {plans.map((p) => (
-                  <tr key={p.id} style={{ borderBottom: "1px solid #f9fafb" }}>
-                    <td style={{ padding: "16px 14px", color: "#000" }}>
-                      <div style={{ fontWeight: "800", fontSize: "14px", color: "#000" }}>
+                  <tr
+                    key={p.id}
+                    style={{ borderBottom: "1px solid #F1F5F9", transition: "background 0.15s ease" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#F8FAFC")}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                  >
+                    <td style={{ padding: "16px 14px" }}>
+                      <div style={{ fontWeight: "700", fontSize: "14px", color: "#0F172A" }}>
                         {p.name}
                       </div>
-                      <div style={{ fontSize: "12px", fontWeight: "400", color: "rgba(0, 0, 0, 0.5)", marginTop: "2px" }}>
+                      <div style={{ fontSize: "12px", fontWeight: "400", color: "#64748B", marginTop: "2px" }}>
                         Storefront label: &ldquo;{p.label}&rdquo;
                       </div>
                     </td>
-                    <td style={{ padding: "16px 14px", color: "#000", fontWeight: "700", fontSize: "13px" }}>
+                    <td style={{ padding: "16px 14px", color: "#1E293B", fontWeight: "600", fontSize: "13px" }}>
                       {describeFrequency(p.interval, p.intervalCount)}
                     </td>
-                    <td style={{ padding: "16px 14px", fontWeight: "800", color: "#000", fontSize: "13px" }}>
-                      {p.discountPercent > 0 ? `${p.discountPercent}% OFF (Default)` : "No Discount"}
+                    <td style={{ padding: "16px 14px", fontSize: "13px" }}>
+                      {p.discountPercent > 0 ? (
+                        <span>
+                          <strong style={{ color: "#0F172A", fontWeight: "700" }}>{p.discountPercent}% OFF</strong>{" "}
+                          <span style={{ color: "#64748B", fontSize: "12px" }}>(Default)</span>
+                        </span>
+                      ) : (
+                        <span style={{ color: "#94A3B8" }}>No Discount</span>
+                      )}
                     </td>
                     <td style={{ padding: "16px 14px", fontSize: "12px" }}>
                       {p.sellingPlanId ? (
-                        <span style={{ background: "#f3f4f6", color: "#374151", padding: "4px 8px", borderRadius: "6px", fontWeight: "600" }}>
+                        <span style={{ background: "#F1F5F9", color: "#334155", border: "1px solid #E2E8F0", padding: "4px 8px", borderRadius: "6px", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "12px", fontWeight: "600" }}>
                           #{p.sellingPlanId.split("/").pop()}
                         </span>
                       ) : (
-                        <span style={{ fontWeight: "400", color: "rgba(0, 0, 0, 0.5)" }}>Pending Sync</span>
+                        <span style={{ fontWeight: "400", color: "#94A3B8" }}>Pending Sync</span>
                       )}
                     </td>
                     <td style={{ padding: "16px 14px", textAlign: "center" }}>
@@ -514,14 +526,15 @@ export default function SubscriptionPlans() {
                           type="submit"
                           disabled={isBusy}
                           style={{
-                            background: p.active ? "#e6f7ee" : "#f3f4f6",
-                            color: p.active ? "#0d6832" : "rgba(0, 0, 0, 0.55)",
-                            border: "none",
-                            padding: "4px 14px",
-                            borderRadius: "20px",
-                            fontSize: "12px",
+                            background: p.active ? "#ECFDF5" : "#F1F5F9",
+                            color: p.active ? "#065F46" : "#64748B",
+                            border: p.active ? "1px solid #A7F3D0" : "1px solid #CBD5E1",
+                            padding: "4px 12px",
+                            borderRadius: "12px",
+                            fontSize: "11px",
                             fontWeight: "700",
                             cursor: "pointer",
+                            transition: "all 0.15s ease",
                           }}
                         >
                           {p.active ? "Active" : "Disabled"}
@@ -534,14 +547,16 @@ export default function SubscriptionPlans() {
                           type="button"
                           onClick={() => openEditModal(p)}
                           style={{
-                            background: "#f4f4f5",
-                            color: "#000",
-                            border: "none",
+                            background: "#FFFFFF",
+                            color: "#1E293B",
+                            border: "1px solid #E2E8F0",
                             borderRadius: "6px",
                             padding: "6px 12px",
                             fontSize: "12px",
-                            fontWeight: "700",
+                            fontWeight: "600",
                             cursor: "pointer",
+                            transition: "all 0.15s ease",
+                            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
                           }}
                         >
                           Edit
@@ -553,14 +568,15 @@ export default function SubscriptionPlans() {
                             type="submit"
                             disabled={isBusy}
                             style={{
-                              background: "#fee2e2",
-                              color: "#b91c1c",
-                              border: "none",
+                              background: "#FEF2F2",
+                              color: "#DC2626",
+                              border: "1px solid #FECACA",
                               borderRadius: "6px",
                               padding: "6px 12px",
                               fontSize: "12px",
-                              fontWeight: "700",
+                              fontWeight: "600",
                               cursor: "pointer",
+                              transition: "all 0.15s ease",
                             }}
                           >
                             Delete
@@ -579,18 +595,18 @@ export default function SubscriptionPlans() {
         <div
           style={{
             background: "#fff",
-            borderRadius: "12px",
+            borderRadius: "16px",
             border: "none",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
             padding: "24px",
           }}
         >
           <div style={{ marginBottom: "20px" }}>
-            <h3 style={{ fontSize: "16px", fontWeight: "800", margin: "0 0 4px 0", color: "#000" }}>
+            <h3 style={{ fontSize: "16px", fontWeight: "700", margin: "0 0 4px 0", color: "#0F172A" }}>
               Product Eligibility for Subscriptions
             </h3>
-            <p style={{ fontSize: "13px", color: "rgba(0, 0, 0, 0.55)", margin: 0, fontWeight: "400" }}>
-              Control which products are enabled for Subscribe &amp; Save recurring deliveries. Default is <strong style={{ color: "#000", fontWeight: "700" }}>All Products</strong>.
+            <p style={{ fontSize: "13px", color: "#64748B", margin: 0, fontWeight: "400" }}>
+              Control which products are enabled for Subscribe &amp; Save recurring deliveries. Default is <strong style={{ color: "#0F172A", fontWeight: "600" }}>All Products</strong>.
             </p>
           </div>
 
@@ -606,36 +622,36 @@ export default function SubscriptionPlans() {
               <input key={`coll-p-${id}`} type="hidden" name="collectionProductIds" value={id} />
             ))}
 
-            {/* Mode selection cards - completely borderless, differentiated by soft background & depth */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+            {/* Mode selection cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "14px", marginBottom: "20px" }}>
               <button
                 type="button"
                 onClick={() => setSelectionType("ALL")}
                 style={{
-                  border: "none",
-                  background: selectionType === "ALL" ? "#f4f4f5" : "#fafafa",
-                  boxShadow: selectionType === "ALL" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
-                  borderRadius: "10px",
+                  border: selectionType === "ALL" ? "1.5px solid #10B981" : "1px solid #E2E8F0",
+                  background: selectionType === "ALL" ? "#F0FDF4" : "#FFFFFF",
+                  boxShadow: selectionType === "ALL" ? "0 2px 8px rgba(16, 185, 129, 0.12)" : "none",
+                  borderRadius: "12px",
                   padding: "16px 18px",
                   cursor: "pointer",
                   textAlign: "left",
                   width: "100%",
-                  transition: "background 0.15s ease",
+                  transition: "all 0.15s ease",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
                   <input
                     type="radio"
                     name="scope_radio"
                     checked={selectionType === "ALL"}
                     onChange={() => setSelectionType("ALL")}
-                    style={{ accentColor: "#000", width: "18px", height: "18px" }}
+                    style={{ accentColor: "#10B981", width: "18px", height: "18px", marginTop: "2px", cursor: "pointer" }}
                   />
                   <div>
-                    <div style={{ fontWeight: "800", fontSize: "14px", color: "#000" }}>
+                    <div style={{ fontWeight: "700", fontSize: "14px", color: selectionType === "ALL" ? "#0F172A" : "#334155" }}>
                       All Products (Default)
                     </div>
-                    <div style={{ fontSize: "12px", color: "rgba(0, 0, 0, 0.55)", marginTop: "3px", fontWeight: "400" }}>
+                    <div style={{ fontSize: "12px", color: selectionType === "ALL" ? "#047857" : "#64748B", marginTop: "4px", fontWeight: "400", lineHeight: "1.4" }}>
                       Every product in your catalog automatically gets subscription enabled.
                     </div>
                   </div>
@@ -646,30 +662,30 @@ export default function SubscriptionPlans() {
                 type="button"
                 onClick={() => setSelectionType("COLLECTIONS")}
                 style={{
-                  border: "none",
-                  background: selectionType === "COLLECTIONS" ? "#f4f4f5" : "#fafafa",
-                  boxShadow: selectionType === "COLLECTIONS" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
-                  borderRadius: "10px",
+                  border: selectionType === "COLLECTIONS" ? "1.5px solid #10B981" : "1px solid #E2E8F0",
+                  background: selectionType === "COLLECTIONS" ? "#F0FDF4" : "#FFFFFF",
+                  boxShadow: selectionType === "COLLECTIONS" ? "0 2px 8px rgba(16, 185, 129, 0.12)" : "none",
+                  borderRadius: "12px",
                   padding: "16px 18px",
                   cursor: "pointer",
                   textAlign: "left",
                   width: "100%",
-                  transition: "background 0.15s ease",
+                  transition: "all 0.15s ease",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
                   <input
                     type="radio"
                     name="scope_radio"
                     checked={selectionType === "COLLECTIONS"}
                     onChange={() => setSelectionType("COLLECTIONS")}
-                    style={{ accentColor: "#000", width: "18px", height: "18px" }}
+                    style={{ accentColor: "#10B981", width: "18px", height: "18px", marginTop: "2px", cursor: "pointer" }}
                   />
                   <div>
-                    <div style={{ fontWeight: "800", fontSize: "14px", color: "#000" }}>
+                    <div style={{ fontWeight: "700", fontSize: "14px", color: selectionType === "COLLECTIONS" ? "#0F172A" : "#334155" }}>
                       Specific Collections
                     </div>
-                    <div style={{ fontSize: "12px", color: "rgba(0, 0, 0, 0.55)", marginTop: "3px", fontWeight: "400" }}>
+                    <div style={{ fontSize: "12px", color: selectionType === "COLLECTIONS" ? "#047857" : "#64748B", marginTop: "4px", fontWeight: "400", lineHeight: "1.4" }}>
                       Enable subscriptions for all products in chosen collections.
                     </div>
                   </div>
@@ -680,30 +696,30 @@ export default function SubscriptionPlans() {
                 type="button"
                 onClick={() => setSelectionType("PRODUCTS")}
                 style={{
-                  border: "none",
-                  background: selectionType === "PRODUCTS" ? "#f4f4f5" : "#fafafa",
-                  boxShadow: selectionType === "PRODUCTS" ? "0 2px 6px rgba(0,0,0,0.06)" : "none",
-                  borderRadius: "10px",
+                  border: selectionType === "PRODUCTS" ? "1.5px solid #10B981" : "1px solid #E2E8F0",
+                  background: selectionType === "PRODUCTS" ? "#F0FDF4" : "#FFFFFF",
+                  boxShadow: selectionType === "PRODUCTS" ? "0 2px 8px rgba(16, 185, 129, 0.12)" : "none",
+                  borderRadius: "12px",
                   padding: "16px 18px",
                   cursor: "pointer",
                   textAlign: "left",
                   width: "100%",
-                  transition: "background 0.15s ease",
+                  transition: "all 0.15s ease",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
                   <input
                     type="radio"
                     name="scope_radio"
                     checked={selectionType === "PRODUCTS"}
                     onChange={() => setSelectionType("PRODUCTS")}
-                    style={{ accentColor: "#000", width: "18px", height: "18px" }}
+                    style={{ accentColor: "#10B981", width: "18px", height: "18px", marginTop: "2px", cursor: "pointer" }}
                   />
                   <div>
-                    <div style={{ fontWeight: "800", fontSize: "14px", color: "#000" }}>
+                    <div style={{ fontWeight: "700", fontSize: "14px", color: selectionType === "PRODUCTS" ? "#0F172A" : "#334155" }}>
                       Specific Products
                     </div>
-                    <div style={{ fontSize: "12px", color: "rgba(0, 0, 0, 0.55)", marginTop: "3px", fontWeight: "400" }}>
+                    <div style={{ fontSize: "12px", color: selectionType === "PRODUCTS" ? "#047857" : "#64748B", marginTop: "4px", fontWeight: "400", lineHeight: "1.4" }}>
                       Manually check individual products one by one.
                     </div>
                   </div>
@@ -711,24 +727,24 @@ export default function SubscriptionPlans() {
               </button>
             </div>
 
-            {/* Sub-view: ALL products info box - borderless */}
+            {/* Sub-view: ALL products info box - warm amber card */}
             {selectionType === "ALL" && (
               <div
                 style={{
                   padding: "18px 20px",
-                  background: "#fafafa",
-                  border: "none",
-                  borderRadius: "10px",
+                  background: "#FFFBEB",
+                  border: "1px solid #FDE68A",
+                  borderRadius: "12px",
                   marginBottom: "20px",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <span style={{ fontSize: "22px" }}>🌟</span>
+                <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                  <span style={{ fontSize: "24px" }}>🌟</span>
                   <div>
-                    <strong style={{ fontSize: "14px", color: "#000", fontWeight: "800" }}>
+                    <strong style={{ fontSize: "14px", color: "#92400E", fontWeight: "700" }}>
                       All {products.length} Products in Store Included
                     </strong>
-                    <div style={{ fontSize: "13px", color: "rgba(0, 0, 0, 0.55)", marginTop: "4px", fontWeight: "400" }}>
+                    <div style={{ fontSize: "13px", color: "#78350F", marginTop: "4px", fontWeight: "400", lineHeight: "1.4" }}>
                       All existing products and future products will automatically offer recurring subscription delivery with the configured discount offer.
                     </div>
                   </div>
@@ -739,7 +755,7 @@ export default function SubscriptionPlans() {
             {/* Sub-view: COLLECTIONS selection - borderless items */}
             {selectionType === "COLLECTIONS" && (
               <div style={{ marginBottom: "20px" }}>
-                <div style={{ marginBottom: "12px", fontSize: "13px", color: "rgba(0, 0, 0, 0.55)", fontWeight: "500" }}>
+                <div style={{ marginBottom: "12px", fontSize: "13px", color: "#64748B", fontWeight: "500" }}>
                   Select collections to include ({selectedCollectionIds.length} collections selected, {collectionProductIds.length} products total):
                 </div>
                 <div
@@ -761,12 +777,13 @@ export default function SubscriptionPlans() {
                           alignItems: "center",
                           gap: "10px",
                           padding: "12px 14px",
-                          borderRadius: "8px",
-                          background: isChecked ? "#f4f4f5" : "#fafafa",
-                          border: "none",
-                          boxShadow: isChecked ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                          borderRadius: "10px",
+                          background: isChecked ? "#F0FDF4" : "#F8FAFC",
+                          border: isChecked ? "1px solid #A7F3D0" : "1px solid #E2E8F0",
+                          boxShadow: isChecked ? "0 1px 3px rgba(16, 185, 129, 0.08)" : "none",
                           cursor: "pointer",
                           userSelect: "none",
+                          transition: "all 0.15s ease",
                         }}
                       >
                         <input
@@ -777,13 +794,13 @@ export default function SubscriptionPlans() {
                           checked={isChecked}
                           onChange={() => toggleCollection(c.id)}
                           aria-label={c.title}
-                          style={{ accentColor: "#000" }}
+                          style={{ accentColor: "#10B981", width: "16px", height: "16px", cursor: "pointer" }}
                         />
                         <span>
-                          <span style={{ fontSize: "13px", fontWeight: "800", color: "#000", display: "block" }}>
+                          <span style={{ fontSize: "13px", fontWeight: "700", color: isChecked ? "#065F46" : "#0F172A", display: "block" }}>
                             {c.title}
                           </span>
-                          <span style={{ fontSize: "11px", color: "rgba(0, 0, 0, 0.55)", fontWeight: "400", display: "block" }}>
+                          <span style={{ fontSize: "11px", color: "#64748B", fontWeight: "400", display: "block", marginTop: "2px" }}>
                             {c.count} products
                           </span>
                         </span>
@@ -806,11 +823,11 @@ export default function SubscriptionPlans() {
                     style={{
                       padding: "9px 14px",
                       borderRadius: "8px",
-                      border: "1px solid #e5e7eb",
-                      background: "#fff",
+                      border: "1px solid #CBD5E1",
+                      background: "#FFFFFF",
                       fontSize: "13px",
                       minWidth: "240px",
-                      color: "#000",
+                      color: "#0F172A",
                       outline: "none",
                     }}
                   />
@@ -818,14 +835,14 @@ export default function SubscriptionPlans() {
                     <button
                       type="button"
                       onClick={selectAllProducts}
-                      style={{ ...pillButtonStyle, background: "#f4f4f5", border: "none", color: "#000" }}
+                      style={{ ...pillButtonStyle, background: "#F1F5F9", border: "1px solid #E2E8F0", color: "#334155" }}
                     >
                       Select All
                     </button>
                     <button
                       type="button"
                       onClick={clearAllProducts}
-                      style={{ ...pillButtonStyle, background: "#f4f4f5", border: "none", color: "#000" }}
+                      style={{ ...pillButtonStyle, background: "#F1F5F9", border: "1px solid #E2E8F0", color: "#334155" }}
                     >
                       Clear All
                     </button>
@@ -836,9 +853,9 @@ export default function SubscriptionPlans() {
                   style={{
                     maxHeight: "360px",
                     overflowY: "auto",
-                    border: "none",
-                    background: "#fafafa",
-                    borderRadius: "8px",
+                    border: "1px solid #E2E8F0",
+                    background: "#F8FAFC",
+                    borderRadius: "10px",
                     padding: "12px",
                     display: "grid",
                     gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
@@ -858,11 +875,12 @@ export default function SubscriptionPlans() {
                           gap: "10px",
                           padding: "10px 12px",
                           borderRadius: "8px",
-                          background: isSelected ? "#fff" : "#f4f4f5",
-                          border: "none",
-                          boxShadow: isSelected ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                          background: isSelected ? "#F0FDF4" : "#FFFFFF",
+                          border: isSelected ? "1px solid #A7F3D0" : "1px solid #E2E8F0",
+                          boxShadow: isSelected ? "0 1px 3px rgba(16, 185, 129, 0.08)" : "none",
                           cursor: "pointer",
                           userSelect: "none",
+                          transition: "all 0.15s ease",
                         }}
                       >
                         <input
@@ -872,7 +890,7 @@ export default function SubscriptionPlans() {
                           value={p.id}
                           checked={isSelected}
                           onChange={() => toggleProduct(p.id)}
-                          style={{ accentColor: "#000" }}
+                          style={{ accentColor: "#10B981", width: "16px", height: "16px", cursor: "pointer" }}
                         />
                         {p.imageUrl ? (
                           <img
@@ -885,7 +903,7 @@ export default function SubscriptionPlans() {
                             style={{
                               width: "36px",
                               height: "36px",
-                              background: "#e5e7eb",
+                              background: "#E2E8F0",
                               borderRadius: "6px",
                               display: "flex",
                               alignItems: "center",
@@ -896,7 +914,7 @@ export default function SubscriptionPlans() {
                             📦
                           </div>
                         )}
-                        <span style={{ fontSize: "13px", fontWeight: isSelected ? "800" : "500", color: "#000" }}>
+                        <span style={{ fontSize: "13px", fontWeight: isSelected ? "700" : "500", color: isSelected ? "#065F46" : "#0F172A" }}>
                           {p.title}
                         </span>
                       </label>
@@ -911,15 +929,16 @@ export default function SubscriptionPlans() {
                 type="submit"
                 disabled={isBusy}
                 style={{
-                  background: "#000",
-                  color: "#fff",
+                  background: "#0F172A",
+                  color: "#FFFFFF",
                   border: "none",
                   borderRadius: "8px",
                   padding: "11px 24px",
                   fontSize: "13px",
-                  fontWeight: "800",
+                  fontWeight: "700",
                   cursor: "pointer",
-                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                  boxShadow: "0 2px 6px rgba(15, 23, 42, 0.2)",
+                  transition: "all 0.15s ease",
                 }}
               >
                 {selectionType === "ALL"
@@ -937,7 +956,7 @@ export default function SubscriptionPlans() {
       {modalOpen && (
         <div style={modalOverlayStyle}>
           <div style={modalBoxStyle}>
-            <h3 style={{ margin: "0 0 16px 0", fontSize: "18px", fontWeight: "800", color: "#000" }}>
+            <h3 style={{ margin: "0 0 16px 0", fontSize: "18px", fontWeight: "700", color: "#0F172A" }}>
               {editingPlan ? "Edit Subscription Plan" : "Create New Subscription Plan (With Discount)"}
             </h3>
             <Form method="post">
@@ -945,7 +964,7 @@ export default function SubscriptionPlans() {
               {editingPlan && <input type="hidden" name="id" value={editingPlan.id} />}
 
               <div style={{ marginBottom: "16px" }}>
-                <label htmlFor="plan-name-input" style={{ display: "block", fontSize: "13px", fontWeight: "700", marginBottom: "6px", color: "#000" }}>
+                <label htmlFor="plan-name-input" style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "6px", color: "#0F172A" }}>
                   Plan Name (shown to merchant and customer):
                 </label>
                 <input
@@ -955,14 +974,14 @@ export default function SubscriptionPlans() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Delivered every 30 days (Save 15%)"
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e5e7eb", background: "#fafafa", color: "#000" }}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", background: "#FFFFFF", color: "#0F172A", fontSize: "14px", boxSizing: "border-box" }}
                   required
                 />
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
                 <div>
-                  <label htmlFor="plan-interval-select" style={{ display: "block", fontSize: "13px", fontWeight: "700", marginBottom: "6px", color: "#000" }}>
+                  <label htmlFor="plan-interval-select" style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "6px", color: "#0F172A" }}>
                     Interval Unit:
                   </label>
                   <select
@@ -970,7 +989,7 @@ export default function SubscriptionPlans() {
                     name="interval"
                     value={interval}
                     onChange={(e) => setInterval(e.target.value as "DAY" | "WEEK" | "MONTH")}
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e5e7eb", background: "#fafafa", color: "#000" }}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", background: "#FFFFFF", color: "#0F172A", fontSize: "14px", boxSizing: "border-box" }}
                   >
                     <option value="DAY">Day(s)</option>
                     <option value="WEEK">Week(s)</option>
@@ -979,7 +998,7 @@ export default function SubscriptionPlans() {
                 </div>
 
                 <div>
-                  <label htmlFor="plan-interval-count-input" style={{ display: "block", fontSize: "13px", fontWeight: "700", marginBottom: "6px", color: "#000" }}>
+                  <label htmlFor="plan-interval-count-input" style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "6px", color: "#0F172A" }}>
                     Interval Count:
                   </label>
                   <input
@@ -990,14 +1009,14 @@ export default function SubscriptionPlans() {
                     max="365"
                     value={intervalCount}
                     onChange={(e) => setIntervalCount(parseInt(e.target.value, 10) || 1)}
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e5e7eb", background: "#fafafa", color: "#000" }}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", background: "#FFFFFF", color: "#0F172A", fontSize: "14px", boxSizing: "border-box" }}
                     required
                   />
                 </div>
               </div>
 
               <div style={{ marginBottom: "20px" }}>
-                <label htmlFor="plan-discount-input" style={{ display: "block", fontSize: "13px", fontWeight: "700", marginBottom: "6px", color: "#000" }}>
+                <label htmlFor="plan-discount-input" style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "6px", color: "#0F172A" }}>
                   Discount Offer Percentage (%):
                 </label>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -1010,10 +1029,10 @@ export default function SubscriptionPlans() {
                     step="0.5"
                     value={discountPercent}
                     onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)}
-                    style={{ width: "120px", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e5e7eb", background: "#fafafa", color: "#000", fontWeight: "700" }}
+                    style={{ width: "120px", padding: "10px 12px", borderRadius: "8px", border: "1px solid #CBD5E1", background: "#FFFFFF", color: "#0F172A", fontWeight: "700", fontSize: "14px", boxSizing: "border-box" }}
                     required
                   />
-                  <span style={{ fontSize: "13px", fontWeight: "500", color: "rgba(0, 0, 0, 0.55)" }}>
+                  <span style={{ fontSize: "13px", fontWeight: "500", color: "#64748B" }}>
                     {discountPercent > 0 ? `Subscribers save ${discountPercent}% every recurring order` : "No discount"}
                   </span>
                 </div>
@@ -1024,12 +1043,13 @@ export default function SubscriptionPlans() {
                   type="button"
                   onClick={() => setModalOpen(false)}
                   style={{
-                    padding: "8px 16px",
-                    background: "#f4f4f5",
-                    border: "none",
+                    padding: "9px 16px",
+                    background: "#F1F5F9",
+                    border: "1px solid #E2E8F0",
                     borderRadius: "8px",
-                    color: "#000",
+                    color: "#334155",
                     fontWeight: "600",
+                    fontSize: "13px",
                     cursor: "pointer",
                   }}
                 >
@@ -1039,13 +1059,15 @@ export default function SubscriptionPlans() {
                   type="submit"
                   disabled={isBusy}
                   style={{
-                    padding: "8px 18px",
-                    background: "#000",
+                    padding: "9px 20px",
+                    background: "#0F172A",
                     border: "none",
                     borderRadius: "8px",
-                    color: "#fff",
-                    fontWeight: "800",
+                    color: "#FFFFFF",
+                    fontWeight: "700",
+                    fontSize: "13px",
                     cursor: "pointer",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
                   }}
                 >
                   {editingPlan ? "Update Plan" : "Create Plan"}

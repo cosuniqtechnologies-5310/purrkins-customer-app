@@ -148,8 +148,8 @@ export default function ReviewsManagement() {
         <div style={cardStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
             <div>
-              <strong style={{ fontSize: "15px", color: "#000000", fontWeight: "800" }}>Automatic Review Publishing</strong>
-              <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#000000" }}>
+              <strong style={{ fontSize: "15px", color: "#0F172A", fontWeight: "700" }}>Automatic Review Publishing</strong>
+              <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#64748B" }}>
                 When enabled, new customer reviews submitted from product pages are immediately published without manual approval.
               </p>
             </div>
@@ -167,71 +167,99 @@ export default function ReviewsManagement() {
 
         {/* Reviews Table Card */}
         <div style={cardStyle}>
-          <h3 style={{ fontSize: "16px", fontWeight: "800", margin: "0 0 16px 0", color: "#000000" }}>
-            Customer Reviews ({reviews.length})
-          </h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
+            <h3 style={{ fontSize: "16px", fontWeight: "700", margin: 0, color: "#0F172A" }}>
+              Customer Reviews ({reviews.length})
+            </h3>
+          </div>
 
           {reviews.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "40px 16px", color: "#000000" }}>
-              No reviews received yet. Reviews submitted by customers or added manually will appear here.
+            <div style={{ textAlign: "center", padding: "48px 16px", color: "#64748B" }}>
+              <div style={{ fontSize: "32px", marginBottom: "8px" }}>💬</div>
+              <div style={{ fontWeight: "600", fontSize: "14px", color: "#0F172A" }}>No reviews received yet</div>
+              <div style={{ fontSize: "13px", marginTop: "4px" }}>Reviews submitted by customers or added manually will appear here.</div>
             </div>
           ) : (
-            <div style={{ width: "100%" }}>
+            <div style={{ width: "100%", overflowX: "auto", borderRadius: "10px", border: "1px solid #E2E8F0" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                 <thead>
-                  <tr style={{ borderBottom: "2px solid #000000", textAlign: "left", color: "#000000", fontSize: "12px", fontWeight: "800" }}>
-                    <th style={{ padding: "10px 8px" }}>RATING</th>
-                    <th style={{ padding: "10px 8px" }}>AUTHOR</th>
-                    <th style={{ padding: "10px 8px" }}>TITLE & FEEDBACK</th>
-                    <th style={{ padding: "10px 8px" }}>DATE</th>
-                    <th style={{ padding: "10px 8px", textAlign: "center" }}>STATUS</th>
-                    <th style={{ padding: "10px 8px", textAlign: "right" }}>ACTIONS</th>
+                  <tr style={{ backgroundColor: "#F8FAFC", borderBottom: "1px solid #E2E8F0", textAlign: "left" }}>
+                    <th style={{ padding: "12px 14px", color: "#64748B", fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em" }}>RATING</th>
+                    <th style={{ padding: "12px 14px", color: "#64748B", fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em" }}>AUTHOR</th>
+                    <th style={{ padding: "12px 14px", color: "#64748B", fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em" }}>TITLE &amp; FEEDBACK</th>
+                    <th style={{ padding: "12px 14px", color: "#64748B", fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em" }}>DATE</th>
+                    <th style={{ padding: "12px 14px", color: "#64748B", fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "center" }}>STATUS</th>
+                    <th style={{ padding: "12px 14px", color: "#64748B", fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "right" }}>ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody>
                   {reviews.map((r) => (
-                    <tr key={r.id} style={{ borderBottom: "1px solid #e1e3e5" }}>
-                      <td style={{ padding: "12px 8px", whiteSpace: "nowrap" }}>
-                        <span style={{ color: "#000000", fontWeight: "800", fontSize: "14px" }}>
+                    <tr
+                      key={r.id}
+                      style={{ borderBottom: "1px solid #F1F5F9", transition: "background 0.15s ease" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#F8FAFC")}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                    >
+                      <td style={{ padding: "14px 14px", whiteSpace: "nowrap" }}>
+                        <span style={{ color: "#F59E0B", fontWeight: "700", fontSize: "14px", letterSpacing: "2px" }}>
                           {"★".repeat(r.rating)}
+                        </span>
+                        <span style={{ color: "#CBD5E1", fontSize: "14px", letterSpacing: "2px" }}>
                           {"☆".repeat(Math.max(0, 5 - r.rating))}
                         </span>
                       </td>
-                      <td style={{ padding: "12px 8px", fontWeight: "700", color: "#000000" }}>
-                        {r.author}
+                      <td style={{ padding: "14px 14px", fontWeight: "600", color: "#0F172A" }}>
+                        <div>{r.author}</div>
                         {r.isVerified && (
-                          <div style={{ fontSize: "11px", color: "#000000", fontWeight: "800" }}>✓ Verified Buyer</div>
+                          <div
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              background: "#ECFDF5",
+                              color: "#059669",
+                              padding: "2px 8px",
+                              borderRadius: "6px",
+                              fontSize: "11px",
+                              fontWeight: "600",
+                              marginTop: "4px",
+                            }}
+                          >
+                            ✓ Verified Buyer
+                          </div>
                         )}
                       </td>
-                      <td style={{ padding: "12px 8px", maxWidth: "320px" }}>
-                        <div style={{ fontWeight: "800", color: "#000000" }}>{r.title}</div>
-                        <div style={{ color: "#000000", fontSize: "12px", marginTop: "2px" }}>{r.body}</div>
+                      <td style={{ padding: "14px 14px", maxWidth: "340px" }}>
+                        <div style={{ fontWeight: "700", color: "#0F172A", fontSize: "13px" }}>{r.title}</div>
+                        <div style={{ color: "#64748B", fontSize: "12px", marginTop: "3px", lineHeight: "1.4" }}>{r.body}</div>
                       </td>
-                      <td style={{ padding: "12px 8px", color: "#000000", whiteSpace: "nowrap" }}>
+                      <td style={{ padding: "14px 14px", color: "#64748B", whiteSpace: "nowrap", fontSize: "13px" }}>
                         {new Date(r.createdAt).toLocaleDateString("en-IN", {
                           month: "short",
                           day: "numeric",
                           year: "numeric",
                         })}
                       </td>
-                      <td style={{ padding: "12px 8px", textAlign: "center" }}>
+                      <td style={{ padding: "14px 14px", textAlign: "center" }}>
                         <span
                           style={{
-                            background: r.status === "published" ? "#000000" : "#ffffff",
-                            color: r.status === "published" ? "#ffffff" : "#000000",
-                            border: "1px solid #000000",
-                            padding: "3px 10px",
+                            background: r.status === "published" ? "#ECFDF5" : "#FFFBEB",
+                            color: r.status === "published" ? "#065F46" : "#92400E",
+                            border: r.status === "published" ? "1px solid #A7F3D0" : "1px solid #FDE68A",
+                            padding: "4px 10px",
                             borderRadius: "12px",
                             fontSize: "11px",
-                            fontWeight: "800",
+                            fontWeight: "700",
+                            letterSpacing: "0.03em",
                             textTransform: "uppercase",
+                            display: "inline-block",
                           }}
                         >
                           {r.status}
                         </span>
                       </td>
-                      <td style={{ padding: "12px 8px", textAlign: "right", whiteSpace: "nowrap" }}>
-                        <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                      <td style={{ padding: "14px 14px", textAlign: "right", whiteSpace: "nowrap" }}>
+                        <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
                           <fetcher.Form method="post" style={{ margin: 0 }}>
                             <input
                               type="hidden"
@@ -239,17 +267,46 @@ export default function ReviewsManagement() {
                               value={r.status === "published" ? "unapprove_review" : "approve_review"}
                             />
                             <input type="hidden" name="id" value={r.id} />
-                            <s-button type="submit" variant="secondary" loading={isBusy}>
+                            <button
+                              type="submit"
+                              disabled={isBusy}
+                              style={{
+                                background: "#FFFFFF",
+                                color: "#1E293B",
+                                border: "1px solid #E2E8F0",
+                                borderRadius: "6px",
+                                padding: "6px 12px",
+                                fontSize: "12px",
+                                fontWeight: "600",
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
+                                boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                              }}
+                            >
                               {r.status === "published" ? "Unpublish" : "Publish"}
-                            </s-button>
+                            </button>
                           </fetcher.Form>
 
                           <fetcher.Form method="post" style={{ margin: 0 }}>
                             <input type="hidden" name="actionType" value="delete_review" />
                             <input type="hidden" name="id" value={r.id} />
-                            <s-button type="submit" tone="critical" loading={isBusy}>
+                            <button
+                              type="submit"
+                              disabled={isBusy}
+                              style={{
+                                background: "#FEF2F2",
+                                color: "#DC2626",
+                                border: "1px solid #FECACA",
+                                borderRadius: "6px",
+                                padding: "6px 12px",
+                                fontSize: "12px",
+                                fontWeight: "600",
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
+                              }}
+                            >
                               Delete
-                            </s-button>
+                            </button>
                           </fetcher.Form>
                         </div>
                       </td>
@@ -336,38 +393,38 @@ export default function ReviewsManagement() {
 
 const cardStyle: React.CSSProperties = {
   background: "#fff",
-  borderRadius: "12px",
+  borderRadius: "16px",
   border: "none",
-  padding: "20px",
+  padding: "24px",
   boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
 };
 
 const kpiBoxStyle: React.CSSProperties = {
   background: "#fff",
-  padding: "20px",
-  borderRadius: "10px",
+  padding: "20px 24px",
+  borderRadius: "14px",
   border: "none",
   boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
 };
 
 const kpiLabelStyle: React.CSSProperties = {
   fontSize: "12px",
-  fontWeight: "800",
-  color: "#000000",
+  fontWeight: "700",
+  color: "#64748B",
   textTransform: "uppercase",
-  letterSpacing: "0.5px",
+  letterSpacing: "0.05em",
 };
 
 const kpiValueStyle: React.CSSProperties = {
-  fontSize: "26px",
-  fontWeight: "900",
-  color: "#000000",
+  fontSize: "28px",
+  fontWeight: "800",
+  color: "#0F172A",
   marginTop: "6px",
 };
 
 const kpiSubStyle: React.CSSProperties = {
   fontSize: "12px",
-  color: "#000000",
+  color: "#94A3B8",
   marginTop: "4px",
   fontWeight: "500",
 };
@@ -376,18 +433,19 @@ const labelStyle: React.CSSProperties = {
   display: "block",
   fontSize: "13px",
   fontWeight: "700",
-  marginBottom: "4px",
-  color: "#000000",
+  marginBottom: "6px",
+  color: "#0F172A",
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "10px 12px",
   borderRadius: "8px",
-  border: "1px solid #d1d5db",
+  border: "1px solid #D1D5DB",
   fontSize: "14px",
   boxSizing: "border-box",
-  color: "#000000",
+  color: "#0F172A",
+  outline: "none",
 };
 
 const modalOverlayStyle: React.CSSProperties = {

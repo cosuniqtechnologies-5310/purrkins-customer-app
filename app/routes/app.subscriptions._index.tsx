@@ -203,16 +203,16 @@ export default function SubscriptionsIndex() {
                 </div>
               </div>
             ) : (
-              <div style={{ width: "100%", overflowX: "auto" }}>
+              <div style={{ width: "100%", overflowX: "auto", borderRadius: "10px", border: "1px solid #E2E8F0" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
                   <thead>
-                    <tr style={{ backgroundColor: "#fafafa", borderBottom: "1px solid #f3f4f6" }}>
-                      <th style={{ padding: "14px 16px", fontSize: "11px", color: "#000", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.5px" }}>Subscriber</th>
-                      <th style={{ padding: "14px 16px", fontSize: "11px", color: "#000", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.5px" }}>Items &amp; Recurring Total</th>
-                      <th style={{ padding: "14px 16px", fontSize: "11px", color: "#000", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.5px" }}>Plan Frequency</th>
-                      <th style={{ padding: "14px 16px", fontSize: "11px", color: "#000", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.5px" }}>Next Renewal Billing</th>
-                      <th style={{ padding: "14px 16px", fontSize: "11px", color: "#000", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.5px" }}>Status</th>
-                      <th style={{ padding: "14px 16px", fontSize: "11px", color: "#000", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.5px", textAlign: "right" }}>Actions</th>
+                    <tr style={{ backgroundColor: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
+                      <th style={{ padding: "12px 16px", fontSize: "11px", color: "#64748B", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em" }}>Subscriber</th>
+                      <th style={{ padding: "12px 16px", fontSize: "11px", color: "#64748B", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em" }}>Items &amp; Recurring Total</th>
+                      <th style={{ padding: "12px 16px", fontSize: "11px", color: "#64748B", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em" }}>Plan Frequency</th>
+                      <th style={{ padding: "12px 16px", fontSize: "11px", color: "#64748B", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em" }}>Next Renewal Billing</th>
+                      <th style={{ padding: "12px 16px", fontSize: "11px", color: "#64748B", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em" }}>Status</th>
+                      <th style={{ padding: "12px 16px", fontSize: "11px", color: "#64748B", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "right" }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -221,54 +221,65 @@ export default function SubscriptionsIndex() {
                       return (
                         <tr
                           key={sub.id}
-                          style={{ borderBottom: "1px solid #f9fafb", transition: "background 0.15s" }}
-                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#fafafa")}
+                          style={{ borderBottom: "1px solid #F1F5F9", transition: "background 0.15s ease" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#F8FAFC")}
                           onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                         >
                           <td style={{ padding: "14px 16px", fontSize: "14px" }}>
-                            <div style={{ fontWeight: "800", color: "#000" }}>
+                            <div style={{ fontWeight: "700", color: "#0F172A" }}>
                               {sub.customerName || "Customer"}
                             </div>
-                            <div style={{ color: "rgba(0, 0, 0, 0.5)", fontSize: "12px", marginTop: "2px", fontWeight: "400" }}>
+                            <div style={{ color: "#64748B", fontSize: "12px", marginTop: "2px", fontWeight: "400" }}>
                               {sub.customerEmail || sub.originOrderName || "Online Order"}
                             </div>
                           </td>
 
                           <td style={{ padding: "14px 16px", fontSize: "14px" }}>
-                            <div style={{ fontWeight: "700", color: "#000" }}>
+                            <div style={{ fontWeight: "600", color: "#0F172A" }}>
                               {lines.map((l) => `${l.quantity}× ${l.title}`).join(", ") || "Subscription Item"}
                             </div>
-                            <div style={{ color: "#000", fontSize: "13px", fontWeight: "800", marginTop: "2px" }}>
+                            <div style={{ color: "#0F172A", fontSize: "13px", fontWeight: "700", marginTop: "2px" }}>
                               ₹{(sub.recurringTotal + sub.deliveryPrice).toLocaleString("en-IN")}
-                              <span style={{ fontSize: "11px", color: "rgba(0, 0, 0, 0.5)", fontWeight: "400", marginLeft: "4px" }}>
+                              <span style={{ fontSize: "11px", color: "#64748B", fontWeight: "400", marginLeft: "4px" }}>
                                 ({sub.ordersBilled} cycles billed)
                               </span>
                             </div>
                           </td>
 
                           <td style={{ padding: "14px 16px", fontSize: "14px" }}>
-                            <span style={{ background: "#f4f4f5", color: "#000", padding: "4px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "700" }}>
+                            <span style={{ background: "#F1F5F9", color: "#334155", border: "1px solid #E2E8F0", padding: "4px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "600" }}>
                               {sub.planName || describeFrequency(sub.interval, sub.intervalCount)}
                             </span>
                           </td>
 
-                          <td style={{ padding: "14px 16px", fontSize: "13px", color: "#000" }}>
+                          <td style={{ padding: "14px 16px", fontSize: "13px", color: "#0F172A" }}>
                             {sub.nextBillingAt ? (
                               <div>
-                                <div style={{ fontWeight: "800" }}>
+                                <div style={{ fontWeight: "700", color: "#0F172A" }}>
                                   {new Date(sub.nextBillingAt).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}
                                 </div>
-                                <div style={{ fontSize: "11px", color: "rgba(0, 0, 0, 0.5)", fontWeight: "400" }}>
+                                <div style={{ fontSize: "11px", color: "#64748B", fontWeight: "400" }}>
                                   Auto-bills to Shopify order
                                 </div>
                               </div>
                             ) : (
-                              "—"
+                              <span style={{ color: "#94A3B8" }}>—</span>
                             )}
                           </td>
 
                           <td style={{ padding: "14px 16px" }}>
-                            <span style={{ display: "inline-block", padding: "4px 12px", borderRadius: "12px", fontSize: "11px", fontWeight: "800", color: sub.status === "ACTIVE" ? "#0d6832" : "rgba(0, 0, 0, 0.6)", background: sub.status === "ACTIVE" ? "#e6f7ee" : "#f4f4f5" }}>
+                            <span
+                              style={{
+                                display: "inline-block",
+                                padding: "4px 12px",
+                                borderRadius: "12px",
+                                fontSize: "11px",
+                                fontWeight: "700",
+                                color: sub.status === "ACTIVE" ? "#065F46" : "#92400E",
+                                background: sub.status === "ACTIVE" ? "#ECFDF5" : "#FFFBEB",
+                                border: sub.status === "ACTIVE" ? "1px solid #A7F3D0" : "1px solid #FDE68A",
+                              }}
+                            >
                               {sub.status}
                             </span>
                           </td>
@@ -279,13 +290,15 @@ export default function SubscriptionsIndex() {
                               style={{
                                 display: "inline-block",
                                 padding: "6px 14px",
-                                background: "#000",
+                                background: "#0F172A",
                                 border: "none",
                                 borderRadius: "6px",
                                 color: "#fff",
                                 fontSize: "12px",
-                                fontWeight: "800",
+                                fontWeight: "600",
                                 textDecoration: "none",
+                                boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                                transition: "all 0.15s ease",
                               }}
                             >
                               Manage →
