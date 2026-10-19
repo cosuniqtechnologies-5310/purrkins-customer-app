@@ -2168,9 +2168,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <div class="pk-sidebar-menu">
             <a href="#overview" data-tab="overview" onclick="switchDashboardTab('overview', event); return false;" class="pk-menu-item active"><span class="pk-dot"></span> Overview</a>
             <a href="#kitten" data-tab="kitten" onclick="switchDashboardTab('kitten', event); return false;" class="pk-menu-item"><span class="pk-dot"></span> Kitten's Profile</a>
-            <div id="pk-kitten-subnav" style="display: none; padding-left: 14px; margin-top: -4px; margin-bottom: 6px; flex-direction: column; gap: 4px;">
-              <a href="#quiz-answers" onclick="pkScrollToQuiz(event); return false;" class="pk-menu-subitem" style="font-size: 13.5px; color: #555B64; text-decoration: none; padding: 6px 12px; border-radius: 8px; font-weight: 700;">• Your Quiz Answers</a>
-            </div>
+            <a href="#quiz-answers" data-tab="quiz-answers" onclick="switchDashboardTab('quiz-answers', event); return false;" class="pk-menu-item"><span class="pk-dot"></span> Your Quiz Answers</a>
             <a href="#subscriptions" data-tab="subscriptions" onclick="switchDashboardTab('subscriptions', event); return false;" class="pk-menu-item"><span class="pk-dot"></span> Subscriptions <span class="pk-badge">${customerSubscriptions.length || 1}</span></a>
             <a href="#vet" onclick="pkOpenVetModal(event); return false;" class="pk-menu-item"><span class="pk-dot"></span> Talk to a Vet</a>
           </div>
@@ -2387,11 +2385,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       // Scroll to quiz answers
       window.pkScrollToQuiz = function(ev) {
         if (ev && ev.preventDefault) ev.preventDefault();
-        window.switchDashboardTab('kitten');
-        setTimeout(function() {
-          var el = document.getElementById('pk-pet-quiz-card');
-          if (el) el.scrollIntoView({ behavior: 'smooth' });
-        }, 60);
+        window.switchDashboardTab('quiz-answers');
       };
 
       // Instant 0ms Tab switcher
@@ -2408,6 +2402,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           shouldScrollWishlist = true;
         }
 
+        var shouldScrollQuiz = false;
+        if (tabId === 'quiz-answers' || tabId === 'quiz') {
+          tabId = 'kitten';
+          shouldScrollQuiz = true;
+        }
+
         var validTabs = ['overview', 'kitten', 'subscriptions', 'reviews'];
         if (validTabs.indexOf(tabId) === -1) tabId = 'overview';
 
@@ -2421,19 +2421,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
 
         // Update active class on sidebar menu items
+        var activeTabKey = shouldScrollQuiz ? 'quiz-answers' : (shouldScrollWishlist ? 'overview' : tabId);
         document.querySelectorAll('.pk-sidebar-menu .pk-menu-item').forEach(function(item) {
-          if (item.getAttribute('data-tab') === tabId) {
+          if (item.getAttribute('data-tab') === activeTabKey) {
             item.classList.add('active');
           } else {
             item.classList.remove('active');
           }
         });
-
-        // Toggle kitten subnav visibility
-        var subnav = document.getElementById('pk-kitten-subnav');
-        if (subnav) {
-          subnav.style.display = (tabId === 'kitten') ? 'flex' : 'none';
-        }
 
         // Scroll to Wishlist if requested
         if (shouldScrollWishlist) {
@@ -2443,10 +2438,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           }, 60);
         }
 
+        // Scroll to Quiz if requested
+        if (shouldScrollQuiz) {
+          setTimeout(function() {
+            var q = document.getElementById('pk-pet-quiz-card');
+            if (q) q.scrollIntoView({ behavior: 'smooth' });
+          }, 60);
+        }
+
         // Update URL hash without reload or fetch
         if (window.history && window.history.replaceState) {
           var u = new URL(window.location.href);
-          u.hash = shouldScrollWishlist ? 'wishlist' : tabId;
+          u.hash = shouldScrollWishlist ? 'wishlist' : (shouldScrollQuiz ? 'quiz-answers' : tabId);
           window.history.replaceState(null, '', u.toString());
         }
 
