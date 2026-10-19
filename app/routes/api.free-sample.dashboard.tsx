@@ -783,7 +783,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     <div class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
       <!-- Header -->
       <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-        <h2 style="margin: 0; font-size: 26px; font-weight: 800; color: #121217; font-family: var(--font-heading--family, sans-serif);">${escAttr(petName)}'s monthly plan</h2>
+        <h2 style="margin: 0; font-size: 26px; font-weight: 800; color: #121217; font-family: var(--font-heading--family, sans-serif);">Monthly plan</h2>
         <span style="background: #FEF9C3; border: 1.5px solid #CA8A04; color: #854D0E; border-radius: 20px; padding: 3px 14px; font-size: 12px; font-weight: 800;">Active</span>
       </div>
 
@@ -1338,11 +1338,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         background: #FFE600;
         border-radius: 16px;
         padding: 18px 24px;
-        display: grid;
-        grid-template-columns: repeat(5, 1fr);
-        gap: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 20px;
         margin: 20px 0;
         color: #121217;
+        flex-wrap: wrap;
+      }
+      .pk-sub-summary-bar > div {
+        flex: 0 0 auto;
       }
       .pk-sub-col-label {
         font-size: 11px;
@@ -1351,11 +1356,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         text-transform: uppercase;
         letter-spacing: 0.5px;
         margin-bottom: 4px;
+        white-space: nowrap;
       }
       .pk-sub-col-val {
         font-size: 15px;
         font-weight: 800;
         color: #121217;
+        white-space: nowrap;
       }
       .pk-sub-box-card {
         border: 1.5px solid #e5e7eb;
@@ -2429,6 +2436,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         if (typeof pkHideLoader === 'function') pkHideLoader();
         var loader = document.getElementById('pk-cat-loader-overlay');
         if (loader) loader.style.display = 'none';
+
+        // Migrate any session wishlist items to customer storage if present
+        try {
+          var pendingWl = JSON.parse(localStorage.getItem('pk_session_wishlist') || sessionStorage.getItem('pk_session_wishlist') || '[]');
+          var token = localStorage.getItem('pk_session') || '';
+          if (Array.isArray(pendingWl) && pendingWl.length > 0) {
+            fetch('/apps/purrkins/wishlist' + (token ? '?session=' + encodeURIComponent(token) : ''), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'merge', product_ids: pendingWl })
+            }).then(function() {
+              try {
+                localStorage.removeItem('pk_session_wishlist');
+                sessionStorage.removeItem('pk_session_wishlist');
+              } catch(e) {}
+            }).catch(function(e){});
+          }
+        } catch(e) {}
       })();
 
       // Global Add to Cart helper for Wishlist and Recommendations
@@ -2629,7 +2654,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
       document.addEventListener('click', function(e) {
         var a = e.target && e.target.closest ? e.target.closest('a') : null;
-        if (a && a.href && (a.href.indexOf('/apps/purrkins') !== -1 || a.href.indexOf('/account') !== -1)) {
+        if (!a) return;
+        var rawHref = a.getAttribute('href') || '';
+        if (rawHref.startsWith('#') || rawHref.startsWith('javascript:')) return;
+        if (a.hasAttribute('onclick') && !rawHref.startsWith('/')) return;
+        if (a.href && (a.href.indexOf('/apps/purrkins') !== -1 || a.href.indexOf('/account') !== -1)) {
+          if (a.pathname === window.location.pathname) return;
           if (!a.target || a.target === '_self') {
             if (typeof pkShowLoader === 'function') pkShowLoader();
           }
@@ -2775,7 +2805,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
 
       // ─── Vet Modal & Booking (Screenshot 5) ─────────────────────
-      window.pkOpenVetModal = function() {
+      window.pkOpenVetModal = function(ev) {
+        if (ev) {
+          if (ev.preventDefault) ev.preventDefault();
+          if (ev.stopPropagation) ev.stopPropagation();
+          if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+        }
+        if (typeof pkHideLoader === 'function') pkHideLoader();
         var modal = document.getElementById('pk-vet-modal');
         if (modal) modal.style.display = 'flex';
       };
@@ -2783,6 +2819,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       window.pkCloseVetModal = function() {
         var modal = document.getElementById('pk-vet-modal');
         if (modal) modal.style.display = 'none';
+        if (typeof pkHideLoader === 'function') pkHideLoader();
       };
 
       window.pkToggleVetPill = function(el) {

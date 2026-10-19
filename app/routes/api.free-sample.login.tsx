@@ -568,13 +568,41 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   lastName: data.customer.lastName || ''
                 }));
               }
-              if (typeof isPopup !== 'undefined' && isPopup) {
-                document.getElementById('otp-verify-form').innerHTML = '<h2 class="pk-otp-title" style="text-align: center; margin-top: 20px;">Login Successful!</h2><p style="text-align: center; color: #595961;">Please wait...</p>';
+              function finishLogin() {
+                if (typeof isPopup !== 'undefined' && isPopup) {
+                  document.getElementById('otp-verify-form').innerHTML = '<h2 class="pk-otp-title" style="text-align: center; margin-top: 20px;">Login Successful!</h2><p style="text-align: center; color: #595961;">Please wait...</p>';
+                } else {
+                  // The backend already sets the HttpOnly cookie, but we can set JS cookie as fallback
+                  document.cookie = "pk_session=" + data.token + "; path=/apps/purrkins; max-age=" + (7*24*60*60);
+                  if (typeof pkShowLoader === 'function') pkShowLoader();
+                  window.location.href = data.redirect || "/apps/purrkins/dashboard";
+                }
+              }
+
+              // Pass session wishlist to customer storage after login
+              var pendingWl = [];
+              try {
+                pendingWl = JSON.parse(localStorage.getItem('pk_session_wishlist') || sessionStorage.getItem('pk_session_wishlist') || '[]');
+              } catch (e) {}
+
+              if (Array.isArray(pendingWl) && pendingWl.length > 0) {
+                fetch('/apps/purrkins/wishlist?session=' + encodeURIComponent(data.token), {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action: 'merge', product_ids: pendingWl })
+                })
+                  .then(function () {
+                    try {
+                      localStorage.removeItem('pk_session_wishlist');
+                      sessionStorage.removeItem('pk_session_wishlist');
+                    } catch (e) {}
+                    finishLogin();
+                  })
+                  .catch(function () {
+                    finishLogin();
+                  });
               } else {
-                // The backend already sets the HttpOnly cookie, but we can set JS cookie as fallback
-                document.cookie = "pk_session=" + data.token + "; path=/apps/purrkins; max-age=" + (7*24*60*60);
-                if (typeof pkShowLoader === 'function') pkShowLoader();
-                window.location.href = data.redirect || "/apps/purrkins/dashboard";
+                finishLogin();
               }
             } else {
               resetOtpForm(data.error || 'Invalid code');

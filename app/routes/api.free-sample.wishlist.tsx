@@ -18,7 +18,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     if (!customerIdStr) {
-      return Response.json({ success: false, wishlist: [] }, { status: 401 });
+      // Guest mode: return empty wishlist with isGuest flag
+      return Response.json({ success: true, wishlist: [], isGuest: true });
     }
 
     const customerGid = customerIdStr.includes("gid://shopify/Customer/") 
@@ -49,8 +50,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (metafield?.value) {
       try {
         currentWishlist = JSON.parse(metafield.value);
+        if (!Array.isArray(currentWishlist)) currentWishlist = [];
       } catch (e) {
-        // failed to parse
+        currentWishlist = [];
       }
     }
 
@@ -80,32 +82,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
+    const body = await request.json().catch(() => ({}));
+    const { product_id, product_ids, action: wishlistAction } = body;
+
+    // If guest attempts to post without session, acknowledge success so client keeps in session
     if (!customerIdStr) {
-      return Response.json({ success: false, message: "Customer must be logged in" }, { status: 401 });
+      return Response.json({
+        success: true,
+        session: true,
+        message: "Saved in session storage",
+        wishlist: Array.isArray(product_ids) ? product_ids : product_id ? [product_id] : []
+      });
     }
 
     const customerGid = customerIdStr.includes("gid://shopify/Customer/") 
       ? customerIdStr 
       : `gid://shopify/Customer/${customerIdStr}`;
 
-    const body = await request.json();
-    const { product_id, action } = body;
-
-    if (!product_id) {
-      return Response.json({ success: false, message: "Product ID is required" }, { status: 400 });
-    }
-
-    const productGid = product_id.includes("gid://shopify/Product/") 
-      ? product_id 
-      : `gid://shopify/Product/${product_id}`;
-
     const { admin } = await unauthenticated.admin("purrkins-mhrlfymw.myshopify.com");
-
     if (!admin) {
       return Response.json({ success: false, message: "Shop admin access denied" }, { status: 500 });
     }
 
-    // 1. Fetch current wishlist
+    // 1. Fetch current customer wishlist
     const getMetafieldResponse = await admin.graphql(
       `#graphql
       query getCustomerWishlist($id: ID!) {
@@ -132,17 +131,85 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
-    // 2. Modify wishlist array
+    // Handle Merge/Sync of session wishlist items into customer storage
+    if (wishlistAction === "merge" || wishlistAction === "sync") {
+      const idsToAdd: string[] = Array.isArray(product_ids)
+        ? product_ids
+        : product_id
+        ? [product_id]
+        : [];
+
+      let changed = false;
+      for (const rawId of idsToAdd) {
+        if (!rawId) continue;
+        const gid = String(rawId).includes("gid://shopify/Product/")
+          ? String(rawId)
+          : `gid://shopify/Product/${rawId}`;
+        if (!wishlist.includes(gid)) {
+          wishlist.push(gid);
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        const setMetafieldResponse = await admin.graphql(
+          `#graphql
+          mutation setCustomerMetafield($metafields: [MetafieldsSetInput!]!) {
+            metafieldsSet(metafields: $metafields) {
+              metafields {
+                id
+                value
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }`,
+          {
+            variables: {
+              metafields: [
+                {
+                  ownerId: customerGid,
+                  namespace: "custom",
+                  key: "wishlist",
+                  type: "list.product_reference",
+                  value: JSON.stringify(wishlist),
+                }
+              ]
+            }
+          }
+        );
+
+        const setMetafieldData = await setMetafieldResponse.json();
+        if (setMetafieldData.data?.metafieldsSet?.userErrors?.length > 0) {
+          console.error("[Wishlist] User errors on merge:", setMetafieldData.data.metafieldsSet.userErrors);
+          return Response.json({ success: false, message: "Failed to update wishlist" }, { status: 500 });
+        }
+      }
+
+      return Response.json({ success: true, action: "merge", wishlist });
+    }
+
+    // Handle single product add/remove
+    if (!product_id) {
+      return Response.json({ success: false, message: "Product ID is required" }, { status: 400 });
+    }
+
+    const productGid = product_id.includes("gid://shopify/Product/") 
+      ? product_id 
+      : `gid://shopify/Product/${product_id}`;
+
     const exists = wishlist.includes(productGid);
-    if (action === "add" && !exists) {
+    if (wishlistAction === "add" && !exists) {
       wishlist.push(productGid);
-    } else if (action === "remove" && exists) {
+    } else if (wishlistAction === "remove" && exists) {
       wishlist = wishlist.filter(id => id !== productGid);
     } else {
       return Response.json({ success: true, action: "none", wishlist });
     }
 
-    // 3. Save wishlist back to metafield
+    // Save wishlist back to metafield
     const setMetafieldResponse = await admin.graphql(
       `#graphql
       mutation setCustomerMetafield($metafields: [MetafieldsSetInput!]!) {
@@ -178,7 +245,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return Response.json({ success: false, message: "Failed to update wishlist" }, { status: 500 });
     }
 
-    return Response.json({ success: true, action, wishlist });
+    return Response.json({ success: true, action: wishlistAction, wishlist });
 
   } catch (error: any) {
     console.error("[Wishlist] Error updating wishlist:", error);
