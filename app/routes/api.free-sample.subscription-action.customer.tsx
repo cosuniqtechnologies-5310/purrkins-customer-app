@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import jwt from "jsonwebtoken";
 import prisma from "../db.server";
+import { appCache } from "../cache.server";
 import {
   cancelSubscription,
   changeFrequency,
@@ -115,6 +116,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     switch (actionType) {
       case "skip": {
         await skipNextDelivery(shop, sub.id);
+        appCache.delPrefix("customer:");
         return Response.json({ success: true, message: "Next delivery skipped successfully." });
       }
 
@@ -123,6 +125,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           return Response.json({ success: false, message: "Delivery date is required." }, { status: 400 });
         }
         await rescheduleDelivery(shop, sub.id, deliveryDate, Boolean(applyToFuture));
+        appCache.delPrefix("customer:");
         return Response.json({ success: true, message: "Delivery date updated successfully." });
       }
 
@@ -131,27 +134,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           return Response.json({ success: false, message: "Plan is required." }, { status: 400 });
         }
         await changeFrequency(shop, sub.id, planId);
+        appCache.delPrefix("customer:");
         return Response.json({ success: true, message: "Subscription delivery frequency updated." });
       }
 
       case "set_weekday": {
         const day = preferredWeekday === null || preferredWeekday === undefined || preferredWeekday === "" ? null : Number(preferredWeekday);
         await setPreferredWeekday(shop, sub.id, day);
+        appCache.delPrefix("customer:");
         return Response.json({ success: true, message: "Preferred delivery day updated." });
       }
 
       case "pause": {
         await pauseSubscription(shop, sub.id, reason || "CUSTOMER");
+        appCache.delPrefix("customer:");
         return Response.json({ success: true, message: "Subscription paused. You can resume anytime." });
       }
 
       case "resume": {
         await resumeSubscription(shop, sub.id);
+        appCache.delPrefix("customer:");
         return Response.json({ success: true, message: "Subscription resumed successfully!" });
       }
 
       case "cancel": {
         await cancelSubscription(shop, sub.id, reason || "Customer requested cancellation");
+        appCache.delPrefix("customer:");
         return Response.json({ success: true, message: "Subscription cancelled." });
       }
 

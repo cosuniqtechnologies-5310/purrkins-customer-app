@@ -192,9 +192,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 return; // Parent window handles the redirect
               }
               if (typeof pkShowLoader === 'function') pkShowLoader();
-              // Set the cookie on the client side just in case, then redirect without token in URL
-              document.cookie = "pk_session=" + t + "; path=/apps/purrkins; max-age=" + (7*24*60*60);
-              window.location.replace('/apps/purrkins/dashboard');
+              document.cookie = "pk_session=" + t + "; path=/; max-age=" + (7*24*60*60);
+              window.location.replace('/apps/purrkins/dashboard?session=' + encodeURIComponent(t));
               return;
             } else {
               // Token expired, clear it
@@ -572,10 +571,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 if (typeof isPopup !== 'undefined' && isPopup) {
                   document.getElementById('otp-verify-form').innerHTML = '<h2 class="pk-otp-title" style="text-align: center; margin-top: 20px;">Login Successful!</h2><p style="text-align: center; color: #595961;">Please wait...</p>';
                 } else {
-                  // The backend already sets the HttpOnly cookie, but we can set JS cookie as fallback
-                  document.cookie = "pk_session=" + data.token + "; path=/apps/purrkins; max-age=" + (7*24*60*60);
+                  document.cookie = "pk_session=" + data.token + "; path=/; max-age=" + (7*24*60*60);
                   if (typeof pkShowLoader === 'function') pkShowLoader();
-                  window.location.href = data.redirect || "/apps/purrkins/dashboard";
+                  var targetDest = data.redirect || "/apps/purrkins/dashboard";
+                  if (targetDest.indexOf('/apps/purrkins/dashboard') !== -1 && targetDest.indexOf('session=') === -1) {
+                    targetDest += (targetDest.indexOf('?') === -1 ? '?' : '&') + 'session=' + encodeURIComponent(data.token);
+                  }
+                  window.location.href = targetDest;
                 }
               }
 

@@ -59,10 +59,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         if (localToken) {
           var currentUrl = new URL(window.location.href);
           currentUrl.searchParams.set('session', localToken);
-          window.location.href = currentUrl.toString();
+          window.location.replace(currentUrl.toString());
         } else {
           // No token anywhere, go to login.
-          window.location.href = '/apps/purrkins/login';
+          window.location.replace('/apps/purrkins/login');
         }
       </script>
     `, {
@@ -73,16 +73,32 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
 
+  const numericId = customerId.split("/").pop();
   const dashboardCacheKey = `customer:dashboard:${customerId}`;
-  let customer = appCache.get<any>(dashboardCacheKey);
+  const subsCacheKey = `customer:subs:${customerId}`;
+  const revsCacheKey = `customer:reviews:${customerId}`;
 
-  if (!customer) {
+  // Helper 1: Fetch plans with 10-minute cache
+  const fetchPlans = async () => {
+    const cachedPlans = appCache.get<any>("plans:active");
+    if (cachedPlans) return cachedPlans;
+    const plans = await prisma.subscriptionPlan.findMany({
+      where: { active: true },
+      orderBy: { position: "asc" },
+    });
+    appCache.set("plans:active", plans, 600);
+    return plans;
+  };
+
+  // Helper 2: Fetch customer profile from cache or Shopify Admin GraphQL
+  const fetchCustomer = async () => {
+    const cached = appCache.get<any>(dashboardCacheKey);
+    if (cached) return cached;
+
     const { admin } = await unauthenticated.admin("purrkins-mhrlfymw.myshopify.com");
     if (!admin) {
       console.error("Admin access denied");
-      return new Response("<script>window.location.href='/apps/purrkins/login';</script>", {
-        headers: { "Content-Type": "application/liquid" }
-      });
+      return null;
     }
 
     const graphqlRes = await admin.graphql(`
@@ -168,11 +184,67 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (data.errors) {
       console.error("GraphQL errors:", JSON.stringify(data.errors));
     }
-    customer = data?.data?.customer || {};
+    const cust = data?.data?.customer || {};
     if (data?.data?.customer) {
-      appCache.set(dashboardCacheKey, customer, 180); // 3 minutes cache
+      appCache.set(dashboardCacheKey, cust, 180); // 3 minutes cache
     }
+    return cust;
+  };
+
+  // Run plans and customer fetch concurrently
+  const [customerData, availablePlans] = await Promise.all([fetchCustomer(), fetchPlans()]);
+  if (!customerData) {
+    return new Response("<script>window.location.href='/apps/purrkins/login';</script>", {
+      headers: { "Content-Type": "application/liquid" }
+    });
   }
+  const customer = customerData;
+
+  // Helper 3 & 4: Fetch subscriptions and reviews concurrently with 60s cache
+  const fetchSubscriptions = async () => {
+    const cachedSubs = appCache.get<any>(subsCacheKey);
+    if (cachedSubs) return cachedSubs;
+    const subs = await prisma.subscription.findMany({
+      where: {
+        OR: [
+          { customerId },
+          ...(numericId ? [{ customerId: { endsWith: numericId } }] : []),
+          ...(customer.email ? [{ customerEmail: customer.email }] : []),
+        ],
+      },
+      include: {
+        cycles: {
+          orderBy: { cycleNumber: "desc" },
+          take: 3,
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    appCache.set(subsCacheKey, subs, 60);
+    return subs;
+  };
+
+  const fetchReviews = async () => {
+    if (!customer.email) return [];
+    const cachedReviews = appCache.get<any>(revsCacheKey);
+    if (cachedReviews) return cachedReviews;
+    const revs = await prisma.review.findMany({
+      where: {
+        OR: [
+          { email: customer.email },
+          ...(customer.firstName ? [{ author: { contains: customer.firstName } }] : []),
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    appCache.set(revsCacheKey, revs, 60);
+    return revs;
+  };
+
+  const [customerSubscriptions, customerReviews] = await Promise.all([
+    fetchSubscriptions(),
+    fetchReviews(),
+  ]);
 
   const defaultAddress = customer.defaultAddress || {};
   // Escape values placed inside HTML attributes so quotes/angle brackets can't break the form
@@ -594,29 +666,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   `;
 
   // ─── Subscriptions Fetch & Render ─────────────────────────
-  const numericId = customerId.split("/").pop();
-  const customerSubscriptions = await prisma.subscription.findMany({
-    where: {
-      OR: [
-        { customerId },
-        ...(numericId ? [{ customerId: { endsWith: numericId } }] : []),
-        ...(customer.email ? [{ customerEmail: customer.email }] : []),
-      ],
-    },
-    include: {
-      cycles: {
-        orderBy: { cycleNumber: "desc" },
-        take: 3,
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const availablePlans = await prisma.subscriptionPlan.findMany({
-    where: { active: true },
-    orderBy: { position: "asc" },
-  });
-
   const WEEKDAY_NAMES_MAP = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
   const subscriptionsHtml = customerSubscriptions.length > 0
@@ -719,18 +768,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     `;
 
   // ─── Customer Reviews Fetch & Render ─────────────────────
-  const customerReviews = customer.email
-    ? await prisma.review.findMany({
-        where: {
-          OR: [
-            { email: customer.email },
-            ...(customer.firstName ? [{ author: { contains: customer.firstName } }] : []),
-          ],
-        },
-        orderBy: { createdAt: "desc" },
-      })
-    : [];
-
   const reviewsHtml = customerReviews.length > 0
     ? `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
@@ -944,7 +981,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         } catch(e) {}
       })();
     </script>
-    ${getLoaderHtml(false)}
+    ${getLoaderHtml(true)}
     \n\n<style>\n
       .pk-dashboard-wrapper {
         max-width: 1200px;
@@ -2433,7 +2470,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           hash = params.get('tab') || '';
         }
         window.switchDashboardTab(hash || 'overview');
-        if (typeof pkHideLoader === 'function') pkHideLoader();
+        setTimeout(function() {
+          if (typeof pkHideLoader === 'function') pkHideLoader();
+        }, 80);
         var loader = document.getElementById('pk-cat-loader-overlay');
         if (loader) loader.style.display = 'none';
 
