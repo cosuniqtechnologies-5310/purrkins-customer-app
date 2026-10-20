@@ -1425,12 +1425,27 @@ export async function ingestSubscriptionFromOrderNode(
     return existing;
   }
 
-  // Parse frequency from custom attributes or sellingPlan
+  // Parse frequency from custom attributes, sellingPlan, or line item properties
   const attrs = order.customAttributes || order.note_attributes || [];
-  const freqAttr = attrs.find((a: any) => {
+  let freqAttr = attrs.find((a: any) => {
     const key = (a.name || a.key || "").toLowerCase().trim();
     return key === "_delivery_frequency" || key === "delivery_frequency" || key === "frequency";
   })?.value;
+
+  if (!freqAttr) {
+    const rawItems = order.lineItems?.nodes || order.line_items || [];
+    for (const item of rawItems) {
+      const props = item.customAttributes || item.properties || [];
+      const match = props.find((p: any) => {
+        const k = (p.name || p.key || "").toLowerCase().trim();
+        return k === "_delivery_frequency" || k === "delivery_frequency" || k === "frequency";
+      })?.value;
+      if (match) {
+        freqAttr = match;
+        break;
+      }
+    }
+  }
 
   const { interval, intervalCount } = parseOrderFrequency(freqAttr);
 

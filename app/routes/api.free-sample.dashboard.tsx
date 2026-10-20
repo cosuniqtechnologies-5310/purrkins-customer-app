@@ -4,6 +4,22 @@ import jwt from "jsonwebtoken";
 import { unauthenticated } from "../shopify.server";
 import { getLoaderHtml } from "../loader-snippet";
 import { appCache } from "../cache.server";
+import { getAdmin } from "../utils/subscription-shopify.server";
+
+function getSubLines(sub: any): any[] {
+  if (!sub || !sub.lines) return [];
+  if (Array.isArray(sub.lines)) return sub.lines;
+  if (typeof sub.lines === "string") {
+    try {
+      const parsed = JSON.parse(sub.lines);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+      return [];
+    }
+  }
+  if (typeof sub.lines === "object") return [sub.lines];
+  return [];
+}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -191,14 +207,102 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return cust;
   };
 
-  // Run plans and customer fetch concurrently
-  const [customerData, availablePlans] = await Promise.all([fetchCustomer(), fetchPlans()]);
+  // Helper 3: Fetch store products dynamically from Shopify Admin GraphQL API
+  const fetchCatalogProducts = async () => {
+    const cached = appCache.get<any[]>("store:catalog:products");
+    if (cached && Array.isArray(cached) && cached.length > 0) return cached;
+
+    try {
+      const admin = await getAdmin("purrkins-mhrlfymw.myshopify.com");
+      const res = await admin.graphql(`
+        query GetDashboardProductsCatalog {
+          products(first: 50, sortKey: TITLE) {
+            nodes {
+              id
+              title
+              handle
+              description
+              featuredImage {
+                url
+                altText
+              }
+              variants(first: 5) {
+                nodes {
+                  id
+                  title
+                  price
+                  image {
+                    url
+                  }
+                }
+              }
+            }
+          }
+        }
+      `);
+      const json: any = await res.json();
+      const prods = json?.data?.products?.nodes || [];
+      if (prods.length > 0) {
+        appCache.set("store:catalog:products", prods, 600); // 10 minutes cache
+      }
+      return prods;
+    } catch (err) {
+      console.warn("Could not fetch catalog products dynamically from Shopify API:", err);
+      return [];
+    }
+  };
+
+  // Run plans, customer and catalog products fetch concurrently
+  const [customerData, availablePlans, catalogProducts] = await Promise.all([
+    fetchCustomer(),
+    fetchPlans(),
+    fetchCatalogProducts()
+  ]);
   if (!customerData) {
     return new Response("<script>window.location.href='/apps/purrkins/login';</script>", {
       headers: { "Content-Type": "application/liquid" }
     });
   }
   const customer = customerData;
+
+  // Build dynamic product map from live Shopify API products
+  const dynamicProductMap = new Map<string, { image: string; subtitle: string; price: number; title: string; id: string; handle: string }>();
+  for (const p of (catalogProducts || [])) {
+    const key = String(p.title || "").toLowerCase().trim();
+    const img = p.featuredImage?.url || p.variants?.nodes?.[0]?.image?.url || "";
+    const firstVariant = p.variants?.nodes?.[0];
+    const subtitle = p.description
+      ? (p.description.length > 60 ? p.description.substring(0, 57) + "..." : p.description)
+      : (firstVariant?.title && firstVariant.title !== "Default Title" ? `70 g pouch · ${firstVariant.title}` : "70 g pouch · Fresh kitten nutrition");
+    const price = parseFloat(firstVariant?.price || "79");
+    dynamicProductMap.set(key, { image: img, subtitle, price, title: p.title, id: p.id, handle: p.handle });
+  }
+
+  const defaultFallbackImg = catalogProducts?.[0]?.featuredImage?.url || catalogProducts?.[0]?.variants?.nodes?.[0]?.image?.url || "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066";
+
+  const getProductImage = (title: string, rawImageUrl?: string): string => {
+    if (rawImageUrl) return rawImageUrl;
+    const t = String(title || "").toLowerCase().trim();
+    for (const [key, info] of dynamicProductMap.entries()) {
+      if (t.includes(key) || key.includes(t)) {
+        if (info.image) return info.image;
+      }
+    }
+    return defaultFallbackImg;
+  };
+
+  const getProductSubtitle = (title: string, variantTitle?: string): string => {
+    if (variantTitle && variantTitle !== "Default Title" && !variantTitle.includes("Default")) {
+      return `70 g pouch · ${variantTitle}`;
+    }
+    const t = String(title || "").toLowerCase().trim();
+    for (const [key, info] of dynamicProductMap.entries()) {
+      if (t.includes(key) || key.includes(t)) {
+        if (info.subtitle) return info.subtitle;
+      }
+    }
+    return "70 g pouch · Fresh kitten nutrition";
+  };
 
   // Helper 3 & 4: Fetch subscriptions and reviews concurrently with 60s cache
   const fetchSubscriptions = async () => {
@@ -463,38 +567,54 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     : '<p style="color:#595961;margin:0;">No delivery addresses saved yet.</p>';
 
   // ─── Wishlist Data & Layout (Screenshot 5) ─────────────────────
-  const defaultWishlistProducts = [
-    {
-      title: "Chicken Broth",
-      price: "79",
-      weight: "70g",
-      desc: "Real broth for daily hyderation",
-      type: "Wet Food",
-      imgUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066",
-      handle: "chicken-broth",
-      variantId: ""
-    },
-    {
-      title: "Lamb Jerky",
-      price: "99",
-      weight: "70g",
-      desc: "High-protein rewards for active cats",
-      type: "Wet Food",
-      imgUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky-Product-Image.png?v=1789631395",
-      handle: "lamb-jerky",
-      variantId: ""
-    },
-    {
-      title: "Turkey Stew",
-      price: "79",
-      weight: "70g",
-      desc: "Soft meal for gentle digestion",
-      type: "Wet Food",
-      imgUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew-Product-Image.png?v=1789634179",
-      handle: "turkey-stew",
-      variantId: ""
-    }
-  ];
+  const defaultWishlistProducts = (catalogProducts && catalogProducts.length > 0)
+    ? catalogProducts.slice(0, 3).map((p: any) => {
+        const v = p.variants?.nodes?.[0];
+        const vTitle = v?.title || "70g";
+        const weight = vTitle.includes("g") ? vTitle.replace(/[^0-9]/g, "") + "g" : "70g";
+        return {
+          title: p.title,
+          price: parseFloat(v?.price || "79").toFixed(0),
+          weight,
+          desc: p.description ? (p.description.length > 50 ? p.description.substring(0, 47) + '...' : p.description) : 'Real broth for daily hydration',
+          type: "Wet Food",
+          imgUrl: p.featuredImage?.url || v?.image?.url || defaultFallbackImg,
+          handle: p.handle,
+          variantId: v?.id ? String(v.id).split('/').pop() : ''
+        };
+      })
+    : [
+        {
+          title: "Chicken Broth",
+          price: "79",
+          weight: "70g",
+          desc: "Real broth for daily hydration",
+          type: "Wet Food",
+          imgUrl: defaultFallbackImg,
+          handle: "chicken-broth",
+          variantId: ""
+        },
+        {
+          title: "Lamb Jerky",
+          price: "99",
+          weight: "70g",
+          desc: "High-protein rewards for active cats",
+          type: "Wet Food",
+          imgUrl: defaultFallbackImg,
+          handle: "lamb-jerky",
+          variantId: ""
+        },
+        {
+          title: "Turkey Stew",
+          price: "79",
+          weight: "70g",
+          desc: "Soft meal for gentle digestion",
+          type: "Wet Food",
+          imgUrl: defaultFallbackImg,
+          handle: "turkey-stew",
+          variantId: ""
+        }
+      ];
 
   const userWishlistNodes = customer.wishlist?.references?.nodes || [];
   const displayWishlist = userWishlistNodes.length > 0
@@ -508,7 +628,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           weight,
           desc: p.description ? (p.description.length > 50 ? p.description.substring(0, 47) + '...' : p.description) : 'Real broth for daily hydration',
           type: p.productType || 'Wet Food',
-          imgUrl: p.featuredImage?.url || 'https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066',
+          imgUrl: p.featuredImage?.url || defaultFallbackImg,
           handle: p.handle,
           variantId: v?.id ? v.id.split('/').pop() : ''
         };
@@ -521,7 +641,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <div style="border:1px solid #eaeaea; border-radius:16px; overflow:hidden; background:#fff; display:flex; flex-direction:column; box-shadow:0 2px 8px rgba(0,0,0,0.03);">
           <div style="background:#EBF4F6; padding:24px 20px 20px; position:relative; display:flex; justify-content:center; align-items:center; height:180px;">
             <span style="position:absolute; top:16px; left:16px; background:rgba(255,255,255,0.85); border:1px solid #7BB5F0; color:#4A90E2; padding:4px 12px; border-radius:20px; font-size:11px; font-weight:700;">${escAttr(item.type)}</span>
-            <img src="${item.imgUrl}" alt="${escAttr(item.title)}" style="max-height:140px; max-width:120px; object-fit:contain;" onerror="this.onerror=null; this.src='https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066';">
+            <img src="${item.imgUrl}" alt="${escAttr(item.title)}" style="max-height:140px; max-width:120px; object-fit:contain;" onerror="this.onerror=null; this.src='${defaultFallbackImg}';">
           </div>
           <div style="padding:20px 20px 24px; text-align:center; display:flex; flex-direction:column; flex-grow:1; align-items:center;">
             <h4 style="margin:0 0 8px 0; font-size:20px; font-weight:800; color:#121217; font-family:var(--font-heading--family, sans-serif);">${escAttr(item.title)}</h4>
@@ -539,6 +659,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   `;
 
   // ─── Kitten & Quiz Answers Data (Image 2) ──────────────────
+  const subscribedTitles = new Set(
+    customerSubscriptions.flatMap((s: any) =>
+      getSubLines(s).map((l: any) => String(l.title || "").toLowerCase().trim())
+    )
+  );
+
   const kittenTabHtml = `
     <!-- PET SELECTOR HEADER (Image 2: Milo, Kaju, + Add Kitten) -->
     <div class="pk-pet-selector-row">
@@ -624,33 +750,34 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       <div style="margin-top:20px;">
         <h3 id="pk-pet-rec-title" style="margin:0 0 18px 0; font-size:22px; font-weight:800; color:#121217; font-family:var(--font-heading--family, sans-serif);">Recommend for ${escAttr(petName)}</h3>
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:20px;">
-          <!-- Lean Kitty -->
-          <div style="background:#E8F4FE; border-radius:16px; padding:24px 20px; display:flex; flex-direction:column;">
-            <div style="width:60px; height:60px; background:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; overflow:hidden;">
-              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066" alt="Lean Kitty" style="max-height:85%; max-width:85%; object-fit:contain;" onerror="this.onerror=null; this.src='https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066';">
-            </div>
-            <h4 style="margin:0 0 6px 0; font-size:17px; font-weight:800; color:#121217;">Lean Kitty</h4>
-            <p style="font-size:12.5px; margin:0 0 16px 0; color:#595961; line-height:1.4; flex-grow:1;">80g pouch, starter pack, light, tasty nutrition to keep them playful and agile.</p>
-            <button type="button" onclick="switchDashboardTab('subscriptions')" style="background:#121217; color:#fff; border:none; border-radius:20px; padding:10px 22px; font-weight:700; font-size:13px; cursor:pointer; width:fit-content;">In Your Box</button>
-          </div>
-          <!-- Gutty Kitty -->
-          <div style="background:#FFF1EB; border-radius:16px; padding:24px 20px; display:flex; flex-direction:column;">
-            <div style="width:60px; height:60px; background:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; overflow:hidden;">
-              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky-Product-Image.png?v=1789631395" alt="Gutty Kitty" style="max-height:85%; max-width:85%; object-fit:contain;" onerror="this.onerror=null; this.src='https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky-Product-Image.png?v=1789631395';">
-            </div>
-            <h4 style="margin:0 0 6px 0; font-size:17px; font-weight:800; color:#121217;">Gutty Kitty</h4>
-            <p style="font-size:12.5px; margin:0 0 16px 0; color:#595961; line-height:1.4; flex-grow:1;">Happy tummies, happy kitties, gentle, easy-to-digest goodness to keep bellies comfortable and content.</p>
-            <button type="button" onclick="switchDashboardTab('subscriptions')" style="background:#121217; color:#fff; border:none; border-radius:20px; padding:10px 22px; font-weight:700; font-size:13px; cursor:pointer; width:fit-content;">In Your Box</button>
-          </div>
-          <!-- Mumma & Kitty -->
-          <div style="background:#E6F8F0; border-radius:16px; padding:24px 20px; display:flex; flex-direction:column;">
-            <div style="width:60px; height:60px; background:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; overflow:hidden;">
-              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew-Product-Image.png?v=1789634179" alt="Mumma & Kitty" style="max-height:85%; max-width:85%; object-fit:contain;" onerror="this.onerror=null; this.src='https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew-Product-Image.png?v=1789634179';">
-            </div>
-            <h4 style="margin:0 0 6px 0; font-size:17px; font-weight:800; color:#121217;">Mumma & Kitty</h4>
-            <p style="font-size:12.5px; margin:0 0 16px 0; color:#595961; line-height:1.4; flex-grow:1;">Nourishing fuel for growing kittens and comforting, energy-rich goodness to help mama cats recover.</p>
-            <button type="button" onclick="pkAddToCart('', this)" style="background:#121217; color:#fff; border:none; border-radius:20px; padding:10px 22px; font-weight:700; font-size:13px; cursor:pointer; width:fit-content;">Add to Cart</button>
-          </div>
+          ${(catalogProducts && catalogProducts.length > 0 ? catalogProducts.slice(0, 3) : [
+            { title: "Lean Kitty", description: "80g pouch, starter pack, light, tasty nutrition to keep them playful and agile.", variants: { nodes: [{ id: "51221448818935" }] } },
+            { title: "Gutty Kitty", description: "Happy tummies, happy kitties, gentle, easy-to-digest goodness to keep bellies comfortable and content.", variants: { nodes: [{ id: "51172691050743" }] } },
+            { title: "Mumma & Kitty", description: "Nourishing fuel for growing kittens and comforting, energy-rich goodness to help mama cats recover.", variants: { nodes: [{ id: "51172688134423" }] } }
+          ]).map((recP: any, rIdx: number) => {
+            const rTitle = recP.title || "Kitten Meal";
+            const rImg = recP.featuredImage?.url || recP.variants?.nodes?.[0]?.image?.url || defaultFallbackImg;
+            const rDesc = recP.description ? (recP.description.length > 90 ? recP.description.substring(0, 87) + '...' : recP.description) : '80g pouch, light, tasty nutrition to keep them playful and agile.';
+            const rVarId = recP.variants?.nodes?.[0]?.id ? String(recP.variants.nodes[0].id).split('/').pop() : '';
+            const isSubscribed = subscribedTitles.has(rTitle.toLowerCase().trim());
+            const bgColors = ['#E8F4FE', '#FFF1EB', '#E6F8F0'];
+            const bg = bgColors[rIdx % bgColors.length];
+
+            return `
+              <div style="background:${bg}; border-radius:16px; padding:24px 20px; display:flex; flex-direction:column;">
+                <div style="width:60px; height:60px; background:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; overflow:hidden;">
+                  <img src="${escAttr(rImg)}" alt="${escAttr(rTitle)}" style="max-height:85%; max-width:85%; object-fit:contain;" onerror="this.onerror=null; this.src='${defaultFallbackImg}';">
+                </div>
+                <h4 style="margin:0 0 6px 0; font-size:17px; font-weight:800; color:#121217;">${escAttr(rTitle)}</h4>
+                <p style="font-size:12.5px; margin:0 0 16px 0; color:#595961; line-height:1.4; flex-grow:1;">${escAttr(rDesc)}</p>
+                ${isSubscribed ? `
+                  <button type="button" onclick="switchDashboardTab('subscriptions')" style="background:#121217; color:#fff; border:none; border-radius:20px; padding:10px 22px; font-weight:700; font-size:13px; cursor:pointer; width:fit-content;">In Your Box</button>
+                ` : `
+                  <button type="button" onclick="pkAddToCart('${rVarId}', this)" style="background:#121217; color:#fff; border:none; border-radius:20px; padding:10px 22px; font-weight:700; font-size:13px; cursor:pointer; width:fit-content;">Add to Cart</button>
+                `}
+              </div>
+            `;
+          }).join('')}
         </div>
       </div>
     </div>
@@ -801,157 +928,187 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     `;
 
   // ─── Subscriptions Individual Screen (Screenshot 2 & 3) ───────────────────
-  const activeSub = customerSubscriptions[0];
-  const activeSubId = activeSub?.id || 'sub_demo_1';
-  const startedDateStr = activeSub?.createdAt
-    ? new Date(activeSub.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
-    : '14 July 2026';
-  const frequencyStr = activeSub?.planName || 'Every 30 days';
-  const nextChargeDate = activeSub?.nextDeliveryDate
-    ? new Date(activeSub.nextDeliveryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-    : '18 Aug';
-  const nextChargeAmount = activeSub?.recurringTotal
-    ? `₹${parseFloat(String(activeSub.recurringTotal)).toLocaleString('en-IN')}`
-    : '₹1,080';
-  const deliveriesSoFar = activeSub?.cycles?.filter((c: any) => c.status === 'COMPLETED' || c.status === 'SHIPPED').length || 2;
-
-  const subscriptionsTabHtml = `
-    <!-- Dedicated Subscriptions View (Screenshot 2 & 3) -->
-    <div class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
-      <!-- Header -->
-      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-        <h2 style="margin: 0; font-size: 26px; font-weight: 800; color: #121217; font-family: var(--font-heading--family, sans-serif);">Monthly plan</h2>
-        <span style="background: #FEF9C3; border: 1.5px solid #CA8A04; color: #854D0E; border-radius: 20px; padding: 3px 14px; font-size: 12px; font-weight: 800;">Active</span>
-      </div>
-
-      <!-- Yellow Summary Bar (5 columns) -->
-      <div class="pk-sub-summary-bar">
-        <div>
-          <div class="pk-sub-col-label">STARTED</div>
-          <div class="pk-sub-col-val">${startedDateStr}</div>
-        </div>
-        <div>
-          <div class="pk-sub-col-label">FREQUENCY</div>
-          <div class="pk-sub-col-val">${frequencyStr}</div>
-        </div>
-        <div>
-          <div class="pk-sub-col-label">NEXT CHARGE</div>
-          <div class="pk-sub-col-val">${nextChargeDate} · ${nextChargeAmount}</div>
-        </div>
-        <div>
-          <div class="pk-sub-col-label">DELIVERIES SO FAR</div>
-          <div class="pk-sub-col-val">${deliveriesSoFar}</div>
-        </div>
-        <div>
-          <div class="pk-sub-col-label">YOU SAVE</div>
-          <div class="pk-sub-col-val">15% vs one-time</div>
-        </div>
-      </div>
-
-      <!-- Subscribed Products Card -->
-      <div class="pk-sub-box-card">
-        <!-- Item 1: Growing Kitty -->
-        <div class="pk-sub-item-row">
-          <div class="pk-sub-item-info">
-            <div class="pk-sub-item-thumb">
-              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew-Product-Image.png?v=1789634179" alt="Growing Kitty" onerror="this.onerror=null; this.src='https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Turkey-Stew-Product-Image.png?v=1789634179';">
-            </div>
-            <div>
-              <div class="pk-sub-item-title" id="sub-title-item-1">Growing Kitty</div>
-              <div class="pk-sub-item-sub" id="sub-desc-item-1">70 g pouch · Chicken with DHA</div>
-            </div>
-          </div>
-          <div class="pk-sub-item-controls">
-            <button type="button" onclick="pkOpenSwapModal('item-1', 'Growing Kitty')" class="pk-sub-swap-btn">Swap flavour</button>
-            <div class="pk-sub-qty-stepper">
-              <button type="button" onclick="pkUpdateSubQty('item-1', -1)">-</button>
-              <span id="qty-item-1">15</span>
-              <button type="button" onclick="pkUpdateSubQty('item-1', 1)">+</button>
-            </div>
-            <div class="pk-sub-item-price" id="price-item-1">₹450</div>
-          </div>
-        </div>
-
-        <!-- Item 2: Gutty Kitty -->
-        <div class="pk-sub-item-row">
-          <div class="pk-sub-item-info">
-            <div class="pk-sub-item-thumb">
-              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky-Product-Image.png?v=1789631395" alt="Gutty Kitty" onerror="this.onerror=null; this.src='https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Lamb-Jerky-Product-Image.png?v=1789631395';">
-            </div>
-            <div>
-              <div class="pk-sub-item-title" id="sub-title-item-2">Gutty Kitty</div>
-              <div class="pk-sub-item-sub" id="sub-desc-item-2">70 g pouch · Tuna & salmon broth</div>
-            </div>
-          </div>
-          <div class="pk-sub-item-controls">
-            <button type="button" onclick="pkOpenSwapModal('item-2', 'Gutty Kitty')" class="pk-sub-swap-btn">Swap flavour</button>
-            <div class="pk-sub-qty-stepper">
-              <button type="button" onclick="pkUpdateSubQty('item-2', -1)">-</button>
-              <span id="qty-item-2">10</span>
-              <button type="button" onclick="pkUpdateSubQty('item-2', 1)">+</button>
-            </div>
-            <div class="pk-sub-item-price" id="price-item-2">₹300</div>
-          </div>
-        </div>
-
-        <!-- Item 3: Chicken Broth -->
-        <div class="pk-sub-item-row">
-          <div class="pk-sub-item-info">
-            <div class="pk-sub-item-thumb">
-              <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066" alt="Chicken Broth" onerror="this.onerror=null; this.src='https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066';">
-            </div>
-            <div>
-              <div class="pk-sub-item-title" id="sub-title-item-3">Chicken Broth</div>
-              <div class="pk-sub-item-sub" id="sub-desc-item-3">70 g pouch · Hydration topper</div>
-            </div>
-          </div>
-          <div class="pk-sub-item-controls">
-            <button type="button" onclick="pkOpenSwapModal('item-3', 'Chicken Broth')" class="pk-sub-swap-btn">Swap flavour</button>
-            <div class="pk-sub-qty-stepper">
-              <button type="button" onclick="pkUpdateSubQty('item-3', -1)">-</button>
-              <span id="qty-item-3">6</span>
-              <button type="button" onclick="pkUpdateSubQty('item-3', 1)">+</button>
-            </div>
-            <div class="pk-sub-item-price" id="price-item-3">₹180</div>
-          </div>
-        </div>
-
-        <!-- Black Bottom Strip -->
-        <div class="pk-sub-box-strip">
-          <div style="font-size: 13.5px; font-weight: 600;">+ Add a product to this box — treats, broths and supplement mousses</div>
-          <a href="/pages/byob" class="pk-sub-box-browse">Browse</a>
-        </div>
-      </div>
-
-      <!-- Action Buttons Row -->
-      <div class="pk-sub-action-bar">
-        <button type="button" onclick="pkOpenChangePlan('${activeSubId}', '')" class="pk-sub-action-btn">Change Frequency</button>
-        <button type="button" onclick="pkOpenReschedule('${activeSubId}', '2026-08-18')" class="pk-sub-action-btn">Change Delivery Date</button>
-        <button type="button" onclick="pkSkipSub('${activeSubId}', '2026-08-18')" class="pk-sub-action-btn">Skip Next Delivery</button>
-        <button type="button" onclick="pkPauseSub('${activeSubId}')" class="pk-sub-action-btn">Pause Plan</button>
-        <button type="button" onclick="pkCancelSub('${activeSubId}')" class="pk-sub-cancel-link">Cancel Subscription</button>
-      </div>
-
-      <!-- Yellow Benefit Banner (4 columns) -->
-      <div class="pk-sub-benefit-banner">
-        <div>
-          <div class="pk-benefit-title">Vet on call</div>
-          <div class="pk-benefit-desc">Unlimited chats with the Purrkins panel</div>
-        </div>
-        <div>
-          <div class="pk-benefit-title">15% off every order</div>
-          <div class="pk-benefit-desc">Applied automatically at renewal</div>
-        </div>
-        <div>
-          <div class="pk-benefit-title">Free delivery</div>
-          <div class="pk-benefit-desc">On every subscription box</div>
-        </div>
-        <div>
-          <div class="pk-benefit-title">Insurance benefit</div>
-          <div class="pk-benefit-desc">Partner cover</div>
-        </div>
-      </div>
+  const subscriptionsTabHtml = customerSubscriptions.length === 0 ? `
+    <!-- Empty Subscriptions State -->
+    <div class="pk-card" style="margin-bottom: 24px; padding: 48px 32px; text-align: center;">
+      <div style="font-size: 48px; margin-bottom: 16px;">📦</div>
+      <h2 style="margin: 0 0 10px 0; font-size: 26px; font-weight: 800; color: #121217; font-family: var(--font-heading--family, sans-serif);">No Active Subscriptions</h2>
+      <p style="color: #595961; font-size: 14.5px; max-width: 480px; margin: 0 auto 24px auto; line-height: 1.5;">You do not currently have an active meal subscription. Subscribe to your kitten's favorite fresh meals to save 15% and enjoy automated scheduled deliveries with zero hassle!</p>
+      <a href="/pages/byob" class="pk-outline-btn" style="display: inline-block; background: #FFE600; color: #121217; font-weight: 800; font-size: 14px; padding: 13px 32px; border-radius: 30px; border: none; text-decoration: none; cursor: pointer;">Build Your Own Box</a>
     </div>
+
+    <!-- Vet Chat Card -->
+    <div style="background: #121217; border-radius: 16px; padding: 32px 36px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; color: #fff; margin-bottom: 24px;">
+      <div>
+        <h3 style="margin: 0 0 8px 0; font-size: 22px; font-weight: 800; color: #fff; font-family: var(--font-heading--family, sans-serif);">Something not right with your kitten?</h3>
+        <p style="margin: 0; font-size: 14px; color: #d1d5db; line-height: 1.5;">Vet chat is included with your plan. Most questions get an answer in an hour.</p>
+      </div>
+      <button type="button" onclick="pkOpenVetModal()" style="background: #FFE600; color: #121217; border: none; border-radius: 30px; padding: 14px 34px; font-weight: 800; font-size: 15px; cursor: pointer; display: inline-block;">Talk to a Vet</button>
+    </div>
+  ` : `
+    ${customerSubscriptions.length > 1 ? `
+      <!-- Multi-Subscription Selector -->
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; background: #fff; padding: 14px 20px; border-radius: 16px; border: 1.5px solid #eaeaea; box-shadow: 0 2px 8px rgba(0,0,0,0.02);">
+        <span style="font-size: 13px; font-weight: 800; color: #595961; text-transform: uppercase; letter-spacing: 0.5px;">Your Subscriptions (${customerSubscriptions.length}):</span>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          ${customerSubscriptions.map((s: any, idx: number) => {
+            const lines = getSubLines(s);
+            const firstLineTitle = lines[0]?.title || 'Meal Plan';
+            const label = s.originOrderName ? `Order ${s.originOrderName} (${firstLineTitle})` : `Plan #${idx + 1} (${firstLineTitle})`;
+            return `
+              <button type="button"
+                id="pk-sub-pill-${idx}"
+                onclick="pkSelectSubCard(${idx})"
+                style="cursor: pointer; padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 700; border: 1.5px solid ${idx === 0 ? '#121217' : '#e5e7eb'}; background: ${idx === 0 ? '#121217' : '#fff'}; color: ${idx === 0 ? '#fff' : '#121217'}; transition: all 0.2s;">
+                ${escAttr(label)}
+              </button>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    ${customerSubscriptions.map((sub: any, subIdx: number) => {
+      const subId = sub.id;
+      const startedDateStr = sub.createdAt
+        ? new Date(sub.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+        : 'Recently';
+      const frequencyStr = sub.planName || (sub.intervalCount ? `Delivered every ${sub.intervalCount} ${sub.interval?.toLowerCase() || 'days'} (Save 15%)` : 'Delivered every 30 days (Save 15%)');
+      const nextChargeDate = sub.nextDeliveryDate
+        ? new Date(sub.nextDeliveryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+        : 'Scheduled';
+      const nextChargeAmount = sub.recurringTotal
+        ? `₹${parseFloat(String(sub.recurringTotal)).toLocaleString('en-IN')}`
+        : '₹90';
+      const deliveriesSoFar = sub.cycles?.filter((c: any) => c.status === 'COMPLETED' || c.status === 'SHIPPED').length || sub.ordersBilled || 1;
+      const nextDeliveryYmd = sub.nextDeliveryDate || (sub.nextBillingAt ? new Date(sub.nextBillingAt).toISOString().split('T')[0] : '');
+
+      const lines = getSubLines(sub);
+
+      const statusBg = sub.status === 'ACTIVE' ? '#FEF9C3' : sub.status === 'PAUSED' ? '#fef3d6' : '#f1f2f3';
+      const statusBorder = sub.status === 'ACTIVE' ? '#CA8A04' : sub.status === 'PAUSED' ? '#d97706' : '#d1d5db';
+      const statusColor = sub.status === 'ACTIVE' ? '#854D0E' : sub.status === 'PAUSED' ? '#916a00' : '#6d7175';
+
+      return `
+        <div id="pk-sub-card-${subIdx}" class="pk-sub-card-container" style="display: ${subIdx === 0 ? 'block' : 'none'};">
+          <div class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
+            <!-- Header -->
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <h2 style="margin: 0; font-size: 26px; font-weight: 800; color: #121217; font-family: var(--font-heading--family, sans-serif);">${escAttr(sub.planName || 'Monthly plan')}</h2>
+                <span style="background: ${statusBg}; border: 1.5px solid ${statusBorder}; color: ${statusColor}; border-radius: 20px; padding: 3px 14px; font-size: 12px; font-weight: 800; text-transform: capitalize;">${escAttr(sub.status ? sub.status.toLowerCase() : 'active')}</span>
+              </div>
+              ${sub.originOrderName ? `<span style="font-size: 13px; font-weight: 700; color: #71717A;">Order ${escAttr(sub.originOrderName)}</span>` : ''}
+            </div>
+
+            <!-- Yellow Summary Bar (5 columns) -->
+            <div class="pk-sub-summary-bar">
+              <div>
+                <div class="pk-sub-col-label">STARTED</div>
+                <div class="pk-sub-col-val">${startedDateStr}</div>
+              </div>
+              <div>
+                <div class="pk-sub-col-label">FREQUENCY</div>
+                <div class="pk-sub-col-val">${frequencyStr}</div>
+              </div>
+              <div>
+                <div class="pk-sub-col-label">NEXT CHARGE</div>
+                <div class="pk-sub-col-val">${nextChargeDate} · ${nextChargeAmount}</div>
+              </div>
+              <div>
+                <div class="pk-sub-col-label">DELIVERIES SO FAR</div>
+                <div class="pk-sub-col-val">${deliveriesSoFar}</div>
+              </div>
+              <div>
+                <div class="pk-sub-col-label">YOU SAVE</div>
+                <div class="pk-sub-col-val">15% vs one-time</div>
+              </div>
+            </div>
+
+            <!-- Subscribed Products Card -->
+            <div class="pk-sub-box-card">
+              ${lines.length > 0 ? lines.map((item: any, itemIdx: number) => {
+                const itemTitle = item.title || 'Subscription Meal';
+                const itemImg = getProductImage(itemTitle, item.imageUrl || item.image);
+                const itemSub = getProductSubtitle(itemTitle, item.variantTitle);
+                const unitPrice = (item.price !== undefined && item.price !== null) ? Number(item.price) : 90;
+                const qty = Math.max(1, Number(item.quantity) || 1);
+                const linePrice = unitPrice * qty;
+                const itemKey = `${subIdx}-${itemIdx}`;
+
+                return `
+                  <div class="pk-sub-item-row" id="sub-row-${itemKey}">
+                    <div class="pk-sub-item-info">
+                      <div class="pk-sub-item-thumb">
+                        <img id="sub-img-${itemKey}" src="${itemImg}" alt="${escAttr(itemTitle)}" onerror="this.onerror=null; this.src='${defaultFallbackImg}';">
+                      </div>
+                      <div>
+                        <div class="pk-sub-item-title" id="sub-title-${itemKey}">${escAttr(itemTitle)}</div>
+                        <div class="pk-sub-item-sub" id="sub-desc-${itemKey}">${escAttr(itemSub)}</div>
+                      </div>
+                    </div>
+                    <div class="pk-sub-item-controls">
+                      <button type="button" onclick="pkOpenSwapModal('${itemKey}', '${escAttr(itemTitle)}')" class="pk-sub-swap-btn">Swap flavour</button>
+                      <div class="pk-sub-qty-stepper">
+                        <button type="button" onclick="pkUpdateSubQty('${itemKey}', -1, ${unitPrice})">-</button>
+                        <span id="qty-${itemKey}">${qty}</span>
+                        <button type="button" onclick="pkUpdateSubQty('${itemKey}', 1, ${unitPrice})">+</button>
+                      </div>
+                      <div class="pk-sub-item-price" id="price-${itemKey}">₹${linePrice}</div>
+                    </div>
+                  </div>
+                `;
+              }).join('') : `
+                <div style="padding: 24px; text-align: center; color: #595961; font-size: 14px;">
+                  No products found in this subscription box.
+                </div>
+              `}
+
+              <!-- Black Bottom Strip -->
+              <div class="pk-sub-box-strip">
+                <div style="font-size: 13.5px; font-weight: 600;">+ Add a product to this box — treats, broths and supplement mousses</div>
+                <a href="/pages/byob" class="pk-sub-box-browse">Browse</a>
+              </div>
+            </div>
+
+            <!-- Action Buttons Row -->
+            <div class="pk-sub-action-bar">
+              <button type="button" onclick="pkOpenChangePlan('${subId}', '${sub.planId || ''}')" class="pk-sub-action-btn">Change Frequency</button>
+              <button type="button" onclick="pkOpenReschedule('${subId}', '${nextDeliveryYmd}')" class="pk-sub-action-btn">Change Delivery Date</button>
+              <button type="button" onclick="pkSkipSub('${subId}', '${nextDeliveryYmd}')" class="pk-sub-action-btn">Skip Next Delivery</button>
+              ${sub.status === 'PAUSED'
+                ? `<button type="button" onclick="pkResumeSub('${subId}')" class="pk-sub-action-btn" style="background:#008060; color:#fff; border-color:#008060;">Resume Plan</button>`
+                : `<button type="button" onclick="pkPauseSub('${subId}')" class="pk-sub-action-btn">Pause Plan</button>`
+              }
+              ${sub.status !== 'CANCELLED'
+                ? `<button type="button" onclick="pkCancelSub('${subId}')" class="pk-sub-cancel-link">Cancel Subscription</button>`
+                : `<span style="font-size:12px; color:#bf0711; font-weight:700;">Cancelled</span>`
+              }
+            </div>
+
+            <!-- Yellow Benefit Banner (4 columns) -->
+            <div class="pk-sub-benefit-banner">
+              <div>
+                <div class="pk-benefit-title">Vet on call</div>
+                <div class="pk-benefit-desc">Unlimited chats with the Purrkins panel</div>
+              </div>
+              <div>
+                <div class="pk-benefit-title">15% off every order</div>
+                <div class="pk-benefit-desc">Applied automatically at renewal</div>
+              </div>
+              <div>
+                <div class="pk-benefit-title">Free delivery</div>
+                <div class="pk-benefit-desc">On every subscription box</div>
+              </div>
+              <div>
+                <div class="pk-benefit-title">Insurance benefit</div>
+                <div class="pk-benefit-desc">Partner cover</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('')}
 
     <!-- Vet Chat Card (Screenshot 3 & 4) -->
     <div style="background: #121217; border-radius: 16px; padding: 32px 36px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; color: #fff; margin-bottom: 24px;">
@@ -2169,7 +2326,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             <a href="#overview" data-tab="overview" onclick="switchDashboardTab('overview', event); return false;" class="pk-menu-item active"><span class="pk-dot"></span> Overview</a>
             <a href="#kitten" data-tab="kitten" onclick="switchDashboardTab('kitten', event); return false;" class="pk-menu-item"><span class="pk-dot"></span> Kitten's Profile</a>
             <a href="#quiz-answers" data-tab="quiz-answers" onclick="switchDashboardTab('quiz-answers', event); return false;" class="pk-menu-item"><span class="pk-dot"></span> Your Quiz Answers</a>
-            <a href="#subscriptions" data-tab="subscriptions" onclick="switchDashboardTab('subscriptions', event); return false;" class="pk-menu-item"><span class="pk-dot"></span> Subscriptions <span class="pk-badge">${customerSubscriptions.length || 1}</span></a>
+            <a href="#subscriptions" data-tab="subscriptions" onclick="switchDashboardTab('subscriptions', event); return false;" class="pk-menu-item"><span class="pk-dot"></span> Subscriptions ${customerSubscriptions.length > 0 ? `<span class="pk-badge">${customerSubscriptions.length}</span>` : ''}</a>
             <a href="#vet" onclick="pkOpenVetModal(event); return false;" class="pk-menu-item"><span class="pk-dot"></span> Talk to a Vet</a>
           </div>
 
@@ -2917,22 +3074,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       window.pkConfirmSwap = function() {
         var sel = document.querySelector('input[name="swap_flavor"]:checked');
         if (!sel) return;
-        var chosen = sel.value;
-        var parts = chosen.split(' (');
-        var title = parts[0];
-        var desc = parts[1] ? ('70 g pouch · ' + parts[1].replace(')', '')) : '70 g pouch';
+        var title = sel.getAttribute('data-title') || sel.value;
+        var desc = sel.getAttribute('data-desc') || '70 g pouch';
+        var img = sel.getAttribute('data-img');
         
         var titleEl = document.getElementById('sub-title-' + _swapItemKey);
         var descEl = document.getElementById('sub-desc-' + _swapItemKey);
+        var imgEl = document.getElementById('sub-img-' + _swapItemKey);
         if (titleEl) titleEl.textContent = title;
         if (descEl) descEl.textContent = desc;
+        if (imgEl && img) {
+          imgEl.src = img;
+        }
 
         document.getElementById('pk-swap-modal').style.display = 'none';
         alert('Flavour updated to ' + title + ' for your next delivery cycle!');
       };
 
       // ─── Subscribed Items Interactive Quantity Stepper ──────────
-      window.pkUpdateSubQty = function(itemKey, delta) {
+      window.pkUpdateSubQty = function(itemKey, delta, unitPrice) {
         var qtyEl = document.getElementById('qty-' + itemKey);
         var priceEl = document.getElementById('price-' + itemKey);
         if (!qtyEl) return;
@@ -2940,9 +3100,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         var newQty = Math.max(1, currentQty + delta);
         qtyEl.textContent = newQty;
 
-        var unitPrice = itemKey === 'item-1' ? 30 : itemKey === 'item-2' ? 30 : 30;
-        var newPrice = newQty * unitPrice;
-        if (priceEl) priceEl.textContent = '₹' + newPrice;
+        var price = (unitPrice !== undefined && unitPrice !== null && !isNaN(unitPrice)) ? Number(unitPrice) : 90;
+        var newPrice = newQty * price;
+        if (priceEl) priceEl.textContent = '₹' + Math.round(newPrice);
+      };
+
+      // ─── Multi-Subscription Card Selector ───────────────────────
+      window.pkSelectSubCard = function(selectedIndex) {
+        var cards = document.querySelectorAll('.pk-sub-card-container');
+        for (var i = 0; i < cards.length; i++) {
+          cards[i].style.display = (i === selectedIndex) ? 'block' : 'none';
+          var pill = document.getElementById('pk-sub-pill-' + i);
+          if (pill) {
+            if (i === selectedIndex) {
+              pill.style.background = '#121217';
+              pill.style.color = '#fff';
+              pill.style.borderColor = '#121217';
+            } else {
+              pill.style.background = '#fff';
+              pill.style.color = '#121217';
+              pill.style.borderColor = '#e5e7eb';
+            }
+          }
+        }
       };
 
       // ─── Reorder Handler (Screenshot 1) ─────────────────────────
@@ -3038,35 +3218,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <button onclick="document.getElementById('pk-swap-modal').style.display='none'" style="position:absolute; top:16px; right:16px; background:none; border:none; font-size:22px; cursor:pointer; color:#595961;">✕</button>
         <h3 style="margin:0 0 6px 0; font-size:20px; font-weight:800; color:#121217;">Swap Flavour</h3>
         <p style="font-size:13.5px; color:#595961; margin:0 0 20px 0;">Select a new recipe for <strong id="pk-swap-target-name">Growing Kitty</strong>:</p>
-        <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:24px;">
-          <label style="border:1.5px solid #eaeaea; border-radius:12px; padding:12px 16px; display:flex; align-items:center; gap:12px; cursor:pointer;">
-            <input type="radio" name="swap_flavor" value="Growing Kitty (Chicken with DHA)" checked>
-            <div>
-              <div style="font-weight:700; font-size:14px; color:#121217;">Growing Kitty</div>
-              <div style="font-size:12px; color:#595961;">70 g pouch · Chicken with DHA</div>
-            </div>
-          </label>
-          <label style="border:1.5px solid #eaeaea; border-radius:12px; padding:12px 16px; display:flex; align-items:center; gap:12px; cursor:pointer;">
-            <input type="radio" name="swap_flavor" value="Gutty Kitty (Tuna & salmon broth)">
-            <div>
-              <div style="font-weight:700; font-size:14px; color:#121217;">Gutty Kitty</div>
-              <div style="font-size:12px; color:#595961;">70 g pouch · Tuna & salmon broth</div>
-            </div>
-          </label>
-          <label style="border:1.5px solid #eaeaea; border-radius:12px; padding:12px 16px; display:flex; align-items:center; gap:12px; cursor:pointer;">
-            <input type="radio" name="swap_flavor" value="Lean Kitty (Turkey & pumpkin)">
-            <div>
-              <div style="font-weight:700; font-size:14px; color:#121217;">Lean Kitty</div>
-              <div style="font-size:12px; color:#595961;">70 g pouch · Turkey & pumpkin</div>
-            </div>
-          </label>
-          <label style="border:1.5px solid #eaeaea; border-radius:12px; padding:12px 16px; display:flex; align-items:center; gap:12px; cursor:pointer;">
-            <input type="radio" name="swap_flavor" value="Active Kitty (Beef & duck recipe)">
-            <div>
-              <div style="font-weight:700; font-size:14px; color:#121217;">Active Kitty</div>
-              <div style="font-size:12px; color:#595961;">70 g pouch · Beef & duck recipe</div>
-            </div>
-          </label>
+        <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:24px; max-height:280px; overflow-y:auto; padding-right:4px;">
+          ${(catalogProducts && catalogProducts.length > 0 ? catalogProducts : [
+            { title: "Growing Kitty", description: "Chicken with DHA", featuredImage: { url: "" } },
+            { title: "Gutty Kitty", description: "Tuna & salmon broth", featuredImage: { url: "" } },
+            { title: "Lean Kitty", description: "Turkey & pumpkin", featuredImage: { url: "" } },
+            { title: "Active Kitty", description: "Beef & duck recipe", featuredImage: { url: "" } }
+          ]).map((p: any, idx: number) => {
+            const pTitle = p.title || 'Recipe';
+            const pImg = p.featuredImage?.url || p.variants?.nodes?.[0]?.image?.url || defaultFallbackImg;
+            const pDesc = p.description ? (p.description.length > 50 ? p.description.substring(0, 47) + '...' : p.description) : (p.variants?.nodes?.[0]?.title && p.variants.nodes[0].title !== 'Default Title' ? p.variants.nodes[0].title : 'Fresh kitten nutrition');
+            const pSub = '70 g pouch · ' + pDesc;
+            return `
+              <label style="border:1.5px solid #eaeaea; border-radius:12px; padding:10px 14px; display:flex; align-items:center; gap:12px; cursor:pointer; transition:border-color 0.15s ease;">
+                <input type="radio" name="swap_flavor" value="${escAttr(pTitle)}" data-title="${escAttr(pTitle)}" data-desc="${escAttr(pSub)}" data-img="${escAttr(pImg)}" ${idx === 0 ? 'checked' : ''}>
+                <img src="${escAttr(pImg)}" alt="${escAttr(pTitle)}" style="width:38px; height:38px; object-fit:contain; border-radius:8px; background:#f4f4f5; flex-shrink:0;" onerror="this.onerror=null; this.src='${defaultFallbackImg}';">
+                <div style="flex-grow:1;">
+                  <div style="font-weight:700; font-size:14px; color:#121217;">${escAttr(pTitle)}</div>
+                  <div style="font-size:12px; color:#595961;">${escAttr(pSub)}</div>
+                </div>
+              </label>
+            `;
+          }).join('')}
         </div>
         <button type="button" onclick="pkConfirmSwap()" style="width:100%; padding:13px; background:#121217; color:#fff; border:none; border-radius:30px; font-size:15px; font-weight:700; cursor:pointer;">Confirm Flavour Swap</button>
       </div>
