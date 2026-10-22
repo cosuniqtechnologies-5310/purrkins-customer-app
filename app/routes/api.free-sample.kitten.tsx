@@ -3,7 +3,6 @@ import type { LoaderFunctionArgs } from "react-router";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const session = url.searchParams.get("session") || "";
-
   return new Response(`
     <!DOCTYPE html>
     <html>
