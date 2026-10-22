@@ -90,7 +90,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const numericId = customerId.split("/").pop();
-  const dashboardCacheKey = `customer:dashboard:${customerId}`;
+  const dashboardCacheKey = `customer:dashboard:v3:${customerId}`;
   const subsCacheKey = `customer:subs:${customerId}`;
   const revsCacheKey = `customer:reviews:${customerId}`;
 
@@ -181,14 +181,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   }
                 }
                 wishlist: metafield(namespace: "custom", key: "wishlist") {
-                  references(first: 10) {
+                  value
+                  references(first: 20) {
                     nodes {
                       ... on Product {
                         id
                         title
                         handle
+                        description
+                        productType
+                        collections(first: 3) {
+                          nodes {
+                            title
+                            handle
+                            cardBg: metafield(namespace: "custom", key: "card_bg_color") { value }
+                            cardColor: metafield(namespace: "custom", key: "card_primary_color") { value }
+                          }
+                        }
                         featuredImage { url altText }
-                        priceRange { minVariantPrice { amount currencyCode } } variants(first: 1) { edges { node { id title price } } }
+                        priceRange { minVariantPrice { amount currencyCode } }
+                        variants(first: 5) {
+                          nodes {
+                            id
+                            title
+                            price
+                            image { url }
+                          }
+                        }
                       }
                     }
                   }
@@ -209,7 +228,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Helper 3: Fetch store products dynamically from Shopify Admin GraphQL API
   const fetchCatalogProducts = async () => {
-    const cached = appCache.get<any[]>("store:catalog:products");
+    const cached = appCache.get<any[]>("store:catalog:products:v3");
     if (cached && Array.isArray(cached) && cached.length > 0) return cached;
 
     try {
@@ -222,6 +241,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               title
               handle
               description
+              productType
+              collections(first: 3) {
+                nodes {
+                  title
+                  handle
+                  cardBg: metafield(namespace: "custom", key: "card_bg_color") { value }
+                  cardColor: metafield(namespace: "custom", key: "card_primary_color") { value }
+                }
+              }
               featuredImage {
                 url
                 altText
@@ -243,7 +271,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const json: any = await res.json();
       const prods = json?.data?.products?.nodes || [];
       if (prods.length > 0) {
-        appCache.set("store:catalog:products", prods, 600); // 10 minutes cache
+        appCache.set("store:catalog:products:v3", prods, 600); // 10 minutes cache
       }
       return prods;
     } catch (err) {
@@ -566,95 +594,239 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     `).join('')
     : '<p style="color:#595961;margin:0;">No delivery addresses saved yet.</p>';
 
-  // ─── Wishlist Data & Layout (Screenshot 5) ─────────────────────
-  const defaultWishlistProducts = (catalogProducts && catalogProducts.length > 0)
-    ? catalogProducts.slice(0, 3).map((p: any) => {
-        const v = p.variants?.nodes?.[0];
+  // ─── Wishlist Dynamic Category & Layout (Screenshot 2, 3, 4) ─────────────────────
+  const getProductCategoryStyles = (prod: any) => {
+    const col = prod.collections?.nodes?.[0] || prod.collections?.[0];
+    const colTitle = col?.title || prod.productType || "";
+    const titleLower = (colTitle + " " + (prod.title || "")).toLowerCase();
+
+    let cardBg = col?.cardBg?.value || col?.metafields?.find((m: any) => m.key === "card_bg_color")?.value;
+    let cardColor = col?.cardColor?.value || col?.metafields?.find((m: any) => m.key === "card_primary_color")?.value;
+    let badgeText = col?.title || prod.productType || "";
+
+    if (!cardBg || !cardColor) {
+      if (titleLower.includes("dry")) {
+        cardBg = cardBg || "#FFF4EC";
+        cardColor = cardColor || "#D97742";
+        badgeText = badgeText || "Dry Food";
+      } else if (titleLower.includes("wellness") || titleLower.includes("supplement") || titleLower.includes("health")) {
+        cardBg = cardBg || "#EAF7EE";
+        cardColor = cardColor || "#1F5E58";
+        badgeText = badgeText || "Wellness";
+      } else if (titleLower.includes("treat") || titleLower.includes("snack") || titleLower.includes("jerky")) {
+        cardBg = cardBg || "#FDF0F5";
+        cardColor = cardColor || "#C0392B";
+        badgeText = badgeText || "Treats";
+      } else {
+        cardBg = cardBg || "#EBF5FE";
+        cardColor = cardColor || "#2A85C8";
+        badgeText = badgeText || "Wet Food";
+      }
+    }
+
+    if (!badgeText) {
+      badgeText = titleLower.includes("dry") ? "Dry Food" : "Wet Food";
+    }
+
+    return { cardBg, cardColor, badgeText };
+  };
+
+  // 1. Gather wishlist IDs from customer.wishlist.value
+  let customerWishlistIds: string[] = [];
+  if (customer.wishlist?.value) {
+    try {
+      const parsed = JSON.parse(customer.wishlist.value);
+      if (Array.isArray(parsed)) {
+        customerWishlistIds = parsed.map((id: any) => String(id));
+      }
+    } catch (e) {}
+  }
+
+  // 2. Gather products from references if available
+  const userWishlistNodes = customer.wishlist?.references?.nodes || [];
+
+  // 3. Map to wishlist items
+  let displayWishlist: any[] = [];
+
+  if (userWishlistNodes.length > 0) {
+    displayWishlist = userWishlistNodes.map((p: any) => {
+      const v = p.variants?.nodes?.[0] || p.variants?.edges?.[0]?.node;
+      const vTitle = v?.title || "70g";
+      const weight = vTitle.includes("g") ? vTitle.replace(/[^0-9]/g, "") + "g" : "70g";
+      const styles = getProductCategoryStyles(p);
+      return {
+        id: p.id,
+        title: p.title,
+        price: parseFloat(v?.price || p.priceRange?.minVariantPrice?.amount || "79").toFixed(0),
+        weight,
+        desc: p.description ? (p.description.length > 50 ? p.description.substring(0, 47) + '...' : p.description) : 'Real broth for daily hydration',
+        type: styles.badgeText,
+        cardBg: styles.cardBg,
+        cardColor: styles.cardColor,
+        imgUrl: p.featuredImage?.url || v?.image?.url || defaultFallbackImg,
+        handle: p.handle,
+        variantId: v?.id ? String(v.id).split('/').pop() : ''
+      };
+    });
+  } else if (customerWishlistIds.length > 0 && catalogProducts && catalogProducts.length > 0) {
+    const matchedProducts = customerWishlistIds.map((wId) => {
+      const cleanWId = wId.includes('/') ? wId.split('/').pop() : wId;
+      return catalogProducts.find((p: any) => {
+        const pCleanId = p.id ? String(p.id).split('/').pop() : '';
+        return pCleanId === cleanWId || String(p.id) === wId;
+      });
+    }).filter(Boolean);
+
+    if (matchedProducts.length > 0) {
+      displayWishlist = matchedProducts.map((p: any) => {
+        const v = p.variants?.nodes?.[0] || p.variants?.[0];
         const vTitle = v?.title || "70g";
         const weight = vTitle.includes("g") ? vTitle.replace(/[^0-9]/g, "") + "g" : "70g";
+        const styles = getProductCategoryStyles(p);
         return {
+          id: p.id,
           title: p.title,
           price: parseFloat(v?.price || "79").toFixed(0),
           weight,
           desc: p.description ? (p.description.length > 50 ? p.description.substring(0, 47) + '...' : p.description) : 'Real broth for daily hydration',
-          type: "Wet Food",
+          type: styles.badgeText,
+          cardBg: styles.cardBg,
+          cardColor: styles.cardColor,
           imgUrl: p.featuredImage?.url || v?.image?.url || defaultFallbackImg,
           handle: p.handle,
           variantId: v?.id ? String(v.id).split('/').pop() : ''
         };
-      })
-    : [
-        {
-          title: "Chicken Broth",
-          price: "79",
-          weight: "70g",
-          desc: "Real broth for daily hydration",
-          type: "Wet Food",
-          imgUrl: defaultFallbackImg,
-          handle: "chicken-broth",
-          variantId: ""
-        },
-        {
-          title: "Lamb Jerky",
-          price: "99",
-          weight: "70g",
-          desc: "High-protein rewards for active cats",
-          type: "Wet Food",
-          imgUrl: defaultFallbackImg,
-          handle: "lamb-jerky",
-          variantId: ""
-        },
-        {
-          title: "Turkey Stew",
-          price: "79",
-          weight: "70g",
-          desc: "Soft meal for gentle digestion",
-          type: "Wet Food",
-          imgUrl: defaultFallbackImg,
-          handle: "turkey-stew",
-          variantId: ""
-        }
-      ];
+      });
+    }
+  }
 
-  const userWishlistNodes = customer.wishlist?.references?.nodes || [];
-  const displayWishlist = userWishlistNodes.length > 0
-    ? userWishlistNodes.map((p: any) => {
-        const v = p.variants?.edges?.[0]?.node;
-        const vTitle = v?.title || "70g";
-        const weight = vTitle.includes("g") ? vTitle.replace(/[^0-9]/g, "") + "g" : "70g";
-        return {
-          title: p.title,
-          price: parseFloat(v?.price || p.priceRange?.minVariantPrice?.amount || "79").toFixed(0),
-          weight,
-          desc: p.description ? (p.description.length > 50 ? p.description.substring(0, 47) + '...' : p.description) : 'Real broth for daily hydration',
-          type: p.productType || 'Wet Food',
-          imgUrl: p.featuredImage?.url || defaultFallbackImg,
-          handle: p.handle,
-          variantId: v?.id ? v.id.split('/').pop() : ''
-        };
-      })
-    : defaultWishlistProducts;
+  // If user has no saved wishlist yet, show default catalog products with dynamic colors
+  if (displayWishlist.length === 0) {
+    displayWishlist = (catalogProducts && catalogProducts.length > 0)
+      ? catalogProducts.slice(0, 6).map((p: any) => {
+          const v = p.variants?.nodes?.[0] || p.variants?.[0];
+          const vTitle = v?.title || "70g";
+          const weight = vTitle.includes("g") ? vTitle.replace(/[^0-9]/g, "") + "g" : "70g";
+          const styles = getProductCategoryStyles(p);
+          return {
+            id: p.id,
+            title: p.title,
+            price: parseFloat(v?.price || "79").toFixed(0),
+            weight,
+            desc: p.description ? (p.description.length > 50 ? p.description.substring(0, 47) + '...' : p.description) : 'Real broth for daily hydration',
+            type: styles.badgeText,
+            cardBg: styles.cardBg,
+            cardColor: styles.cardColor,
+            imgUrl: p.featuredImage?.url || v?.image?.url || defaultFallbackImg,
+            handle: p.handle,
+            variantId: v?.id ? String(v.id).split('/').pop() : ''
+          };
+        })
+      : [
+          {
+            title: "Chicken Broth",
+            price: "79",
+            weight: "70g",
+            desc: "Real broth for daily hydration",
+            type: "Wet Food",
+            cardBg: "#EBF5FE",
+            cardColor: "#2A85C8",
+            imgUrl: defaultFallbackImg,
+            handle: "chicken-broth",
+            variantId: ""
+          },
+          {
+            title: "Lamb Jerky",
+            price: "99",
+            weight: "70g",
+            desc: "High-protein rewards for active cats",
+            type: "Treats",
+            cardBg: "#FDF0F5",
+            cardColor: "#C0392B",
+            imgUrl: defaultFallbackImg,
+            handle: "lamb-jerky",
+            variantId: ""
+          },
+          {
+            title: "Turkey Stew",
+            price: "79",
+            weight: "70g",
+            desc: "Soft meal for gentle digestion",
+            type: "Wet Food",
+            cardBg: "#EBF5FE",
+            cardColor: "#2A85C8",
+            imgUrl: defaultFallbackImg,
+            handle: "turkey-stew",
+            variantId: ""
+          },
+          {
+            title: "Gutty Kitty",
+            price: "90",
+            weight: "70g",
+            desc: "Gut & digestive health support for kittens & adult cats",
+            type: "Dry Food",
+            cardBg: "#FFF4EC",
+            cardColor: "#D97742",
+            imgUrl: defaultFallbackImg,
+            handle: "gutty-kitty",
+            variantId: ""
+          }
+        ];
+  }
 
-  const wishlistHtml = `
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:24px;">
-      ${displayWishlist.map((item: any) => `
-        <div style="border:1px solid #eaeaea; border-radius:16px; overflow:hidden; background:#fff; display:flex; flex-direction:column; box-shadow:0 2px 8px rgba(0,0,0,0.03);">
-          <div style="background:#EBF4F6; padding:24px 20px 20px; position:relative; display:flex; justify-content:center; align-items:center; height:180px;">
-            <span style="position:absolute; top:16px; left:16px; background:rgba(255,255,255,0.85); border:1px solid #7BB5F0; color:#4A90E2; padding:4px 12px; border-radius:20px; font-size:11px; font-weight:700;">${escAttr(item.type)}</span>
-            <img src="${item.imgUrl}" alt="${escAttr(item.title)}" style="max-height:140px; max-width:120px; object-fit:contain;" onerror="this.onerror=null; this.src='${defaultFallbackImg}';">
-          </div>
-          <div style="padding:20px 20px 24px; text-align:center; display:flex; flex-direction:column; flex-grow:1; align-items:center;">
-            <h4 style="margin:0 0 8px 0; font-size:20px; font-weight:800; color:#121217; font-family:var(--font-heading--family, sans-serif);">${escAttr(item.title)}</h4>
-            <div style="display:flex; justify-content:center; align-items:center; gap:8px; margin-bottom:8px; font-size:18px; font-weight:800; color:#121217;">
-              <span>₹${escAttr(item.price)}</span>
-              <span style="color:#d1d5db; font-weight:400;">|</span>
-              <span style="color:#71717A; font-size:14px; font-weight:600;">${escAttr(item.weight)}</span>
+  // Pre-serialize catalog products for dynamic client-side sync
+  const clientCatalogProducts = (catalogProducts || []).map((p: any) => {
+    const v = p.variants?.nodes?.[0] || p.variants?.[0];
+    const vTitle = v?.title || "70g";
+    const weight = vTitle.includes("g") ? vTitle.replace(/[^0-9]/g, "") + "g" : "70g";
+    const styles = getProductCategoryStyles(p);
+    return {
+      id: p.id,
+      title: p.title,
+      price: parseFloat(v?.price || "79").toFixed(0),
+      weight,
+      desc: p.description ? (p.description.length > 50 ? p.description.substring(0, 47) + '...' : p.description) : 'Real broth for daily hydration',
+      cardBg: styles.cardBg,
+      cardColor: styles.cardColor,
+      badgeText: styles.badgeText,
+      image: p.featuredImage?.url || v?.image?.url || defaultFallbackImg,
+      variantId: v?.id ? String(v.id).split('/').pop() : ''
+    };
+  });
+
+  const getWishlistHtml = (sliderId: string) => `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 22px;">
+      <h3 class="pk-section-title" style="margin:0;">Your Wishlist</h3>
+      <div class="pk-wishlist-nav" style="display:flex; gap:8px;">
+        <button type="button" class="pk-wl-nav-btn prev" onclick="pkSlideWishlist('${sliderId}', -1)" aria-label="Previous Slide">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <button type="button" class="pk-wl-nav-btn next" onclick="pkSlideWishlist('${sliderId}', 1)" aria-label="Next Slide">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="pk-wishlist-slider-wrap">
+      <div id="${sliderId}" class="pk-wishlist-slider">
+        ${displayWishlist.map((item: any) => `
+          <div class="pk-wishlist-card">
+            <div class="pk-wishlist-card-top" style="background:${item.cardBg};">
+              <span class="pk-wishlist-badge" style="background:${item.cardBg}; border:1px solid ${item.cardColor}; color:${item.cardColor};">${escAttr(item.type)}</span>
+              <img src="${item.imgUrl}" alt="${escAttr(item.title)}" onerror="this.onerror=null; this.src='${defaultFallbackImg}';">
             </div>
-            <p style="margin:0 0 20px 0; font-size:13px; color:#71717A; line-height:1.4; flex-grow:1;">${escAttr(item.desc)}</p>
-            <button type="button" onclick="pkAddToCart('${item.variantId || ''}', this)" style="display:inline-block; padding:12px 32px; background:#FFE600; color:#121217; border-radius:30px; border:none; font-weight:800; font-size:14px; cursor:pointer; transition:transform 0.15s ease, box-shadow 0.15s ease;">Add to Cart</button>
+            <div class="pk-wishlist-card-bottom">
+              <h4 class="pk-wishlist-card-title">${escAttr(item.title)}</h4>
+              <div class="pk-wishlist-card-price-row">
+                <span>₹${escAttr(item.price)}</span>
+                <span class="pk-wishlist-sep">|</span>
+                <span class="pk-wishlist-weight">${escAttr(item.weight)}</span>
+              </div>
+              <p class="pk-wishlist-card-desc">${escAttr(item.desc)}</p>
+              <button type="button" onclick="pkAddToCart('${item.variantId || ''}', this)" class="pk-wishlist-add-btn">Add to Cart</button>
+            </div>
           </div>
-        </div>
-      `).join('')}
+        `).join('')}
+      </div>
     </div>
   `;
 
@@ -2307,8 +2479,175 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         top: 145px;
         align-self: start;
       }
+      /* Wishlist 2.5 Cards Slider (Screenshot 2, 3, 4) */
+      .pk-wishlist-slider-wrap {
+        position: relative;
+        width: 100%;
+        overflow: hidden;
+      }
+      .pk-wishlist-slider {
+        display: flex;
+        gap: 20px;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        padding: 4px 0 12px 0;
+      }
+      .pk-wishlist-slider::-webkit-scrollbar {
+        display: none;
+      }
+      .pk-wishlist-card {
+        flex: 0 0 calc((100% - 40px) / 2.5);
+        min-width: calc((100% - 40px) / 2.5);
+        max-width: calc((100% - 40px) / 2.5);
+        scroll-snap-align: start;
+        border: 1px solid #eaeaea;
+        border-radius: 16px;
+        overflow: hidden;
+        background: #fff;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+        box-sizing: border-box;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+      .pk-wishlist-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+      }
+      .pk-wishlist-card-top {
+        padding: 24px 20px 20px;
+        position: relative;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 180px;
+        box-sizing: border-box;
+      }
+      .pk-wishlist-badge {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        display: inline-block;
+        line-height: 1.2;
+      }
+      .pk-wishlist-card-top img {
+        max-height: 140px;
+        max-width: 120px;
+        object-fit: contain;
+        transition: transform 0.25s ease;
+      }
+      .pk-wishlist-card:hover .pk-wishlist-card-top img {
+        transform: scale(1.05);
+      }
+      .pk-wishlist-card-bottom {
+        padding: 20px 20px 24px;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        flex-grow: 1;
+        align-items: center;
+        background: #fff;
+      }
+      .pk-wishlist-card-title {
+        margin: 0 0 8px 0;
+        font-size: 20px;
+        font-weight: 800;
+        color: #121217;
+        font-family: var(--font-heading--family, sans-serif);
+        line-height: 1.2;
+      }
+      .pk-wishlist-card-price-row {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+        font-size: 18px;
+        font-weight: 800;
+        color: #121217;
+      }
+      .pk-wishlist-sep {
+        color: #d1d5db;
+        font-weight: 400;
+      }
+      .pk-wishlist-weight {
+        color: #71717A;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .pk-wishlist-card-desc {
+        margin: 0 0 20px 0;
+        font-size: 13px;
+        color: #71717A;
+        line-height: 1.4;
+        flex-grow: 1;
+        min-height: 36px;
+      }
+      .pk-wishlist-add-btn {
+        display: inline-block;
+        padding: 12px 32px;
+        background: #FFE600;
+        color: #121217;
+        border-radius: 30px;
+        border: none;
+        font-weight: 800;
+        font-size: 14px;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+        width: fit-content;
+      }
+      .pk-wishlist-add-btn:hover {
+        background: #FFD800;
+        transform: scale(1.02);
+      }
+      .pk-wishlist-add-btn:active {
+        transform: scale(0.98);
+      }
+      .pk-wl-nav-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: 1.5px solid #E4E4E7;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        color: #121217;
+        transition: all 0.2s ease;
+        padding: 0;
+      }
+      .pk-wl-nav-btn:hover {
+        background: #FFE600;
+        border-color: #FFE600;
+        color: #121217;
+        transform: scale(1.05);
+      }
+      .pk-wl-nav-btn:active {
+        transform: scale(0.95);
+      }
       @media (max-width: 900px) {
-        .pk-dashboard-sidebar { position: static; }
+        .pk-wishlist-card {
+          flex: 0 0 calc((100% - 20px) / 1.75);
+          min-width: calc((100% - 20px) / 1.75);
+          max-width: calc((100% - 20px) / 1.75);
+        }
+      }
+      @media (max-width: 600px) {
+        .pk-wishlist-card {
+          flex: 0 0 calc((100% - 16px) / 1.25);
+          min-width: calc((100% - 16px) / 1.25);
+          max-width: calc((100% - 16px) / 1.25);
+        }
       }
     \n</style>
 
@@ -2394,10 +2733,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               </div>
             </div>
 
-            <!-- Your Wishlist (Image 1) -->
+            <!-- Your Wishlist (Image 1 & 4) -->
             <div id="pk-overview-wishlist" class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
-              <h3 class="pk-section-title" style="margin-bottom: 24px;">Your Wishlist</h3>
-              ${wishlistHtml}
+              ${getWishlistHtml('pk-wl-slider-overview')}
             </div>
 
             <!-- Orders (Image 1) -->
@@ -2449,9 +2787,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
           <!-- TAB 5: WISHLIST -->
           <div id="pk-tab-wishlist" class="pk-tab-pane" style="display: none;">
-            <div class="pk-card">
-              <h3 class="pk-section-title" style="margin-bottom: 24px;">Your Wishlist</h3>
-              ${wishlistHtml}
+            <div class="pk-card" style="padding: 28px 32px;">
+              ${getWishlistHtml('pk-wl-slider-tab')}
             </div>
           </div>
 
@@ -2654,6 +2991,102 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           }
         } catch(e) {}
       })();
+
+      // Wishlist Slider Navigation (Screenshot 4)
+      window.pkSlideWishlist = function(sliderId, dir) {
+        var slider = document.getElementById(sliderId);
+        if (!slider) return;
+        var firstCard = slider.querySelector('.pk-wishlist-card');
+        var cardWidth = firstCard ? firstCard.offsetWidth + 20 : 280;
+        slider.scrollBy({
+          left: dir * cardWidth,
+          behavior: 'smooth'
+        });
+      };
+
+      // Client Catalog Products for instant synchronization
+      window.pkCatalogProducts = ${JSON.stringify(clientCatalogProducts)};
+
+      // Dynamic client-side wishlist synchronization
+      window.pkInitDynamicWishlist = function() {
+        var catalog = window.pkCatalogProducts || [];
+        if (!catalog.length) return;
+
+        function updateSlidersWithList(wishlistIds) {
+          if (!Array.isArray(wishlistIds) || wishlistIds.length === 0) return;
+          var cleanIds = wishlistIds.map(function(id) {
+            return String(id).includes('/') ? String(id).split('/').pop() : String(id);
+          });
+          
+          var matched = [];
+          cleanIds.forEach(function(cId) {
+            var found = catalog.find(function(p) {
+              var pId = p.id ? String(p.id).split('/').pop() : '';
+              return pId === cId;
+            });
+            if (found && !matched.some(function(m){ return m.id === found.id; })) {
+              matched.push(found);
+            }
+          });
+
+          if (matched.length === 0) return;
+
+          ['pk-wl-slider-overview', 'pk-wl-slider-tab'].forEach(function(sliderId) {
+            var slider = document.getElementById(sliderId);
+            if (!slider) return;
+            slider.innerHTML = matched.map(function(p) {
+              var bg = p.cardBg || '#EBF5FE';
+              var color = p.cardColor || '#2A85C8';
+              var badge = p.badgeText || 'Wet Food';
+              return '<div class="pk-wishlist-card">' +
+                '<div class="pk-wishlist-card-top" style="background:' + bg + ';">' +
+                  '<span class="pk-wishlist-badge" style="background:' + bg + '; border:1px solid ' + color + '; color:' + color + ';">' + badge + '</span>' +
+                  '<img src="' + (p.image || '') + '" alt="' + (p.title || '') + '" onerror="this.onerror=null; this.src=\'' + defaultFallbackImg + '\';">' +
+                '</div>' +
+                '<div class="pk-wishlist-card-bottom">' +
+                  '<h4 class="pk-wishlist-card-title">' + (p.title || '') + '</h4>' +
+                  '<div class="pk-wishlist-card-price-row">' +
+                    '<span>₹' + (p.price || 79) + '</span>' +
+                    '<span class="pk-wishlist-sep">|</span>' +
+                    '<span class="pk-wishlist-weight">' + (p.weight || '70g') + '</span>' +
+                  '</div>' +
+                  '<p class="pk-wishlist-card-desc">' + (p.desc || 'Real broth for daily hydration') + '</p>' +
+                  '<button type="button" onclick="pkAddToCart(\'' + (p.variantId || '') + '\', this)" class="pk-wishlist-add-btn">Add to Cart</button>' +
+                '</div>' +
+              '</div>';
+            }).join('');
+          });
+        }
+
+        // Listen for live wishlist events across tabs / components
+        document.addEventListener('purrkins:wishlist:updated', function(e) {
+          if (e.detail && e.detail.wishlist) {
+            updateSlidersWithList(e.detail.wishlist);
+          }
+        });
+
+        // Check if window.purrkinsWishlist is available or fetch
+        if (window.purrkinsWishlist && window.purrkinsWishlist.length > 0) {
+          updateSlidersWithList(window.purrkinsWishlist);
+        } else {
+          var token = localStorage.getItem('pk_session') || '';
+          fetch('/apps/purrkins/wishlist' + (token ? '?session=' + encodeURIComponent(token) : ''))
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+              if (res && res.success && Array.isArray(res.wishlist) && res.wishlist.length > 0) {
+                window.purrkinsWishlist = res.wishlist;
+                updateSlidersWithList(res.wishlist);
+              }
+            })
+            .catch(function(){});
+        }
+      };
+
+      setTimeout(function() {
+        if (typeof window.pkInitDynamicWishlist === 'function') {
+          window.pkInitDynamicWishlist();
+        }
+      }, 120);
 
       // Global Add to Cart helper for Wishlist and Recommendations
       window.pkAddToCart = function(variantId, btn) {
