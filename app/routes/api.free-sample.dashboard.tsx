@@ -124,6 +124,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 lastName
                 email
                 phone
+                avatar: metafield(namespace: "custom", key: "avatar") { value }
                 defaultAddress {
                   id
                   firstName
@@ -292,6 +293,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
   const customer = customerData;
+  const customerAvatarUrl = customer.avatar?.value || "";
 
   // Build dynamic product map from live Shopify API products
   const dynamicProductMap = new Map<string, { image: string; subtitle: string; price: number; title: string; id: string; handle: string }>();
@@ -798,10 +800,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 22px;">
       <h3 class="pk-section-title" style="margin:0;">Your Wishlist</h3>
       <div class="pk-wishlist-nav" style="display:flex; gap:8px;">
-        <button type="button" class="pk-wl-nav-btn prev" onclick="pkSlideWishlist('${sliderId}', -1)" aria-label="Previous Slide">
+        <button type="button" class="pk-wl-nav-btn prev" data-slider="${sliderId}" data-dir="-1" onclick="pkSlideWishlist('${sliderId}', -1, event)" aria-label="Previous Slide">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
-        <button type="button" class="pk-wl-nav-btn next" onclick="pkSlideWishlist('${sliderId}', 1)" aria-label="Next Slide">
+        <button type="button" class="pk-wl-nav-btn next" data-slider="${sliderId}" data-dir="1" onclick="pkSlideWishlist('${sliderId}', 1, event)" aria-label="Next Slide">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
         </button>
       </div>
@@ -1313,8 +1315,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ${getLoaderHtml(true)}
     \n\n<style>\n
       .pk-dashboard-wrapper {
-        max-width: 1200px;
-        margin: 40px auto;
+        max-width: 1336px;
+        margin: 0 auto;
         padding: 0 20px;
         font-family: var(--font-body--family, sans-serif);
         color: #121217;
@@ -1467,15 +1469,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         margin-bottom: 40px;
       }
       .pk-avatar {
-        width: 80px;
-        height: 80px;
+        width: 84px;
+        height: 84px;
         background: #eaeaea;
-        border-radius: 16px;
+        border-radius: 18px;
         display: flex;
         align-items: center;
         justify-content: center;
         color: #595961;
         flex-shrink: 0;
+        position: relative;
+        cursor: pointer;
+        overflow: hidden;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+      .pk-avatar:hover {
+        transform: scale(1.02);
+        box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+      }
+      .pk-avatar:hover .pk-avatar-hover-overlay {
+        opacity: 1 !important;
       }
       .pk-form-row {
         display: flex;
@@ -2001,8 +2014,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     \n/* KITTEN STYLES */\n
       .pk-dashboard-wrapper {
-        max-width: 1200px;
-        margin: 40px auto;
+        max-width: 1336px;
+        margin: 0 auto;
         padding: 0 20px;
         font-family: var(--font-body--family, sans-serif);
         color: #121217;
@@ -2489,7 +2502,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         display: flex;
         gap: 20px;
         overflow-x: auto;
-        scroll-snap-type: x mandatory;
+        scroll-snap-type: x proximity;
         scroll-behavior: smooth;
         -webkit-overflow-scrolling: touch;
         scrollbar-width: none;
@@ -2625,6 +2638,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         color: #121217;
         transition: all 0.2s ease;
         padding: 0;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .pk-wl-nav-btn svg {
+        pointer-events: none;
+        display: block;
       }
       .pk-wl-nav-btn:hover {
         background: #FFE600;
@@ -2683,22 +2702,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <div id="pk-tab-overview" class="pk-tab-pane">
             <!-- Profile & Billing Address -->
             <div class="pk-card" style="margin-bottom: 24px;">
-              <div class="pk-profile-top">
-                <div class="pk-avatar">
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <div class="pk-profile-top" style="display: flex; gap: 28px; align-items: center; margin-bottom: 32px; flex-wrap: wrap;">
+                <!-- Profile Avatar Option (Click or button to upload) -->
+                <div class="pk-avatar-wrapper" style="position: relative; flex-shrink: 0;">
+                  <div class="pk-avatar" id="pk-avatar-box" onclick="document.getElementById('pk-avatar-file-input').click()" style="width: 84px; height: 84px; background: #eaeaea; border-radius: 18px; display: flex; align-items: center; justify-content: center; color: #595961; cursor: pointer; overflow: hidden; position: relative; box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: transform 0.15s ease, box-shadow 0.15s ease;" title="Click to change profile photo">
+                    <img id="pk-avatar-img" src="${escAttr(customerAvatarUrl)}" alt="Profile Photo" style="width: 100%; height: 100%; object-fit: cover; display: ${customerAvatarUrl ? 'block' : 'none'};">
+                    <div id="pk-avatar-icon" style="display: ${customerAvatarUrl ? 'none' : 'flex'}; align-items: center; justify-content: center;">
+                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </div>
+                    <!-- Hover overlay -->
+                    <div class="pk-avatar-hover-overlay" style="position: absolute; inset: 0; background: rgba(0,0,0,0.38); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s ease;">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    </div>
+                  </div>
+                  <!-- Camera badge icon on bottom right -->
+                  <div onclick="document.getElementById('pk-avatar-file-input').click()" style="position: absolute; bottom: -3px; right: -3px; width: 28px; height: 28px; background: #121217; border: 2.5px solid #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.25); transition: transform 0.15s ease;" title="Upload profile photo">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                  </div>
+                  <input type="file" id="pk-avatar-file-input" accept="image/png, image/jpeg, image/webp" style="display: none;" onchange="handleAvatarChange(event)">
                 </div>
-                <div class="pk-form-row">
-                  <div class="pk-input-group">
+
+                <div class="pk-form-row" style="flex-grow: 1; display: flex; flex-direction: column; gap: 6px;">
+                  <div class="pk-input-group" style="max-width: 360px; width: 100%;">
                     <label>Username *</label>
                     <input type="text" id="pk-username" value="${escAttr(customer.firstName)}">
                   </div>
-                  <div class="pk-input-group">
-                    <label>Change Password</label>
-                    <input type="password" id="pk-password" placeholder="Enter New Password">
-                  </div>
-                  <div class="pk-input-group">
-                    <label>Confirm Password *</label>
-                    <input type="password" id="pk-password-confirm" placeholder="Confirm Your New Password">
+                  <div>
+                    <button type="button" onclick="document.getElementById('pk-avatar-file-input').click()" id="pk-avatar-upload-text" style="background: none; border: none; padding: 0; font-size: 13px; font-weight: 700; color: #121217; cursor: pointer; text-decoration: underline;">${customerAvatarUrl ? 'Change Profile Photo' : 'Upload Profile Photo'}</button>
                   </div>
                 </div>
               </div>
@@ -2797,6 +2827,159 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     </div>
 
     <script>
+      window.pkDefaultFallbackImg = ${JSON.stringify(defaultFallbackImg)};
+
+      // Global Tab Switcher (Early defined so left side menu clicks work immediately)
+      window.switchDashboardTab = function(tabId, ev) {
+        if (ev && ev.preventDefault) ev.preventDefault();
+        if (!tabId) tabId = 'overview';
+        if (tabId.indexOf('#') === 0) tabId = tabId.substring(1);
+        if (tabId.indexOf('pk-tab-') === 0) tabId = tabId.replace('pk-tab-', '');
+        if (tabId === 'profile') tabId = 'overview';
+
+        var shouldScrollWishlist = false;
+        if (tabId === 'wishlist') {
+          tabId = 'overview';
+          shouldScrollWishlist = true;
+        }
+
+        var shouldScrollQuiz = false;
+        if (tabId === 'quiz-answers' || tabId === 'quiz') {
+          tabId = 'kitten';
+          shouldScrollQuiz = true;
+        }
+
+        var validTabs = ['overview', 'kitten', 'subscriptions', 'reviews'];
+        if (validTabs.indexOf(tabId) === -1) tabId = 'overview';
+
+        // Instant DOM pane visibility toggle
+        document.querySelectorAll('.pk-tab-pane').forEach(function(p) {
+          p.style.display = 'none';
+        });
+        var target = document.getElementById('pk-tab-' + tabId);
+        if (target) {
+          target.style.display = 'block';
+        }
+
+        // Update active class on sidebar menu items
+        var activeTabKey = shouldScrollQuiz ? 'quiz-answers' : (shouldScrollWishlist ? 'overview' : tabId);
+        document.querySelectorAll('.pk-sidebar-menu .pk-menu-item').forEach(function(item) {
+          if (item.getAttribute('data-tab') === activeTabKey) {
+            item.classList.add('active');
+          } else {
+            item.classList.remove('active');
+          }
+        });
+
+        // Scroll to Wishlist if requested
+        if (shouldScrollWishlist) {
+          setTimeout(function() {
+            var w = document.getElementById('pk-overview-wishlist');
+            if (w) w.scrollIntoView({ behavior: 'smooth' });
+          }, 60);
+        }
+
+        // Scroll to Quiz if requested
+        if (shouldScrollQuiz) {
+          setTimeout(function() {
+            var q = document.getElementById('pk-pet-quiz-card');
+            if (q) q.scrollIntoView({ behavior: 'smooth' });
+          }, 60);
+        }
+
+        // Update URL hash without reload or fetch
+        if (window.history && window.history.replaceState) {
+          var u = new URL(window.location.href);
+          u.hash = shouldScrollWishlist ? 'wishlist' : (shouldScrollQuiz ? 'quiz-answers' : tabId);
+          window.history.replaceState(null, '', u.toString());
+        }
+
+        // Ensure loader is completely hidden immediately
+        if (typeof pkHideLoader === 'function') pkHideLoader();
+        var loader = document.getElementById('pk-cat-loader-overlay');
+        if (loader) loader.style.display = 'none';
+      };
+
+      // Ensure switchDashboardTab is also directly accessible in inline scopes
+      function switchDashboardTab(tabId, ev) {
+        window.switchDashboardTab(tabId, ev);
+      }
+
+      // Robust Wishlist Slider Controller (Early defined on window)
+      window.pkSlideWishlist = function(sliderId, dir, ev) {
+        if (ev) {
+          if (ev.preventDefault) ev.preventDefault();
+          if (ev.stopPropagation) ev.stopPropagation();
+        }
+        var slider = document.getElementById(sliderId) ||
+          document.querySelector('.pk-tab-pane:not([style*="display: none"]) .pk-wishlist-slider') ||
+          document.querySelector('.pk-wishlist-slider');
+        if (!slider) return;
+
+        var cards = slider.querySelectorAll('.pk-wishlist-card');
+        if (!cards || cards.length === 0) return;
+
+        var cardWidth = cards[0].offsetWidth || 280;
+        var gap = 20;
+        try {
+          var comp = window.getComputedStyle(slider);
+          var g = parseFloat(comp.gap || comp.columnGap);
+          if (!isNaN(g) && g > 0) gap = g;
+        } catch(e) {}
+
+        var step = cardWidth + gap;
+        var maxScroll = slider.scrollWidth - slider.clientWidth;
+        if (maxScroll <= 5) return;
+
+        var cur = slider.scrollLeft;
+        var target;
+
+        if (dir > 0) {
+          // Next slide
+          if (cur >= maxScroll - 15) {
+            target = 0; // Wrap back to beginning
+          } else {
+            target = cur + step;
+            if (target > maxScroll - 15) target = maxScroll;
+          }
+        } else {
+          // Prev slide
+          if (cur <= 15) {
+            target = maxScroll; // Wrap back to end
+          } else {
+            target = cur - step;
+            if (target < 15) target = 0;
+          }
+        }
+
+        target = Math.max(0, Math.min(target, maxScroll));
+
+        // Temporarily clear scrollSnapType so smooth programmatic scroll is never aborted by snap engine
+        slider.style.scrollSnapType = 'none';
+
+        if (typeof slider.scrollTo === 'function') {
+          slider.scrollTo({
+            left: target,
+            behavior: 'smooth'
+          });
+        } else {
+          slider.scrollLeft = target;
+        }
+
+        setTimeout(function() {
+          slider.style.scrollSnapType = 'x proximity';
+        }, 450);
+      };
+
+      // Document event delegation for any wishlist nav arrow clicks
+      document.addEventListener('click', function(e) {
+        var btn = e.target && e.target.closest ? e.target.closest('.pk-wl-nav-btn') : null;
+        if (!btn) return;
+        var sId = btn.getAttribute('data-slider') || 'pk-wl-slider-overview';
+        var d = parseInt(btn.getAttribute('data-dir'), 10) || (btn.classList.contains('prev') ? -1 : 1);
+        window.pkSlideWishlist(sId, d, e);
+      });
+
       // Pets data for instant client-side switching
       window.pkPetsData = ${JSON.stringify(pets)};
 
@@ -2993,16 +3176,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       })();
 
       // Wishlist Slider Navigation (Screenshot 4)
-      window.pkSlideWishlist = function(sliderId, dir) {
-        var slider = document.getElementById(sliderId);
-        if (!slider) return;
-        var firstCard = slider.querySelector('.pk-wishlist-card');
-        var cardWidth = firstCard ? firstCard.offsetWidth + 20 : 280;
-        slider.scrollBy({
-          left: dir * cardWidth,
-          behavior: 'smooth'
-        });
-      };
+      // Already defined early in script on window.pkSlideWishlist
 
       // Client Catalog Products for instant synchronization
       window.pkCatalogProducts = ${JSON.stringify(clientCatalogProducts)};
@@ -3038,10 +3212,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               var bg = p.cardBg || '#EBF5FE';
               var color = p.cardColor || '#2A85C8';
               var badge = p.badgeText || 'Wet Food';
+              var vId = p.variantId || '';
               return '<div class="pk-wishlist-card">' +
                 '<div class="pk-wishlist-card-top" style="background:' + bg + ';">' +
                   '<span class="pk-wishlist-badge" style="background:' + bg + '; border:1px solid ' + color + '; color:' + color + ';">' + badge + '</span>' +
-                  '<img src="' + (p.image || '') + '" alt="' + (p.title || '') + '" onerror="this.onerror=null; this.src=\'' + defaultFallbackImg + '\';">' +
+                  '<img src="' + (p.image || '') + '" alt="' + (p.title || '') + '" onerror="this.onerror=null; if(window.pkDefaultFallbackImg) this.src=window.pkDefaultFallbackImg;">' +
                 '</div>' +
                 '<div class="pk-wishlist-card-bottom">' +
                   '<h4 class="pk-wishlist-card-title">' + (p.title || '') + '</h4>' +
@@ -3051,7 +3226,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                     '<span class="pk-wishlist-weight">' + (p.weight || '70g') + '</span>' +
                   '</div>' +
                   '<p class="pk-wishlist-card-desc">' + (p.desc || 'Real broth for daily hydration') + '</p>' +
-                  '<button type="button" onclick="pkAddToCart(\'' + (p.variantId || '') + '\', this)" class="pk-wishlist-add-btn">Add to Cart</button>' +
+                  '<button type="button" data-vid="' + vId + '" onclick="pkAddToCart(this.dataset.vid, this)" class="pk-wishlist-add-btn">Add to Cart</button>' +
                 '</div>' +
               '</div>';
             }).join('');
@@ -3148,6 +3323,79 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       var _pk_session = localStorage.getItem('pk_session') || '';
       var _apiBase = '/apps/purrkins/customer-api?session=' + _pk_session + '&intent=';
 
+      // Profile Avatar Upload Handler
+      window._pk_pending_avatar = '';
+      window.handleAvatarChange = function(event) {
+        var file = event.target.files && event.target.files[0];
+        if (!file) return;
+
+        if (file.size > 5 * 1024 * 1024) {
+          alert('Image size should be less than 5MB.');
+          return;
+        }
+
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          var dataUrl = e.target.result;
+          var avatarImg = document.getElementById('pk-avatar-img');
+          var avatarIcon = document.getElementById('pk-avatar-icon');
+          if (avatarImg) {
+            avatarImg.src = dataUrl;
+            avatarImg.style.display = 'block';
+          }
+          if (avatarIcon) {
+            avatarIcon.style.display = 'none';
+          }
+          window._pk_pending_avatar = dataUrl;
+
+          var custId = '${numericId}';
+          if (custId) {
+            try { localStorage.setItem('pk_avatar_' + custId, dataUrl); } catch(err) {}
+          }
+
+          var uploadText = document.getElementById('pk-avatar-upload-text');
+          if (uploadText) uploadText.textContent = 'Uploading...';
+
+          var token = localStorage.getItem('pk_session') || '';
+          var formData = new FormData();
+          formData.append('avatar', file);
+          formData.append('filename', file.name || 'avatar.jpg');
+
+          fetch('/apps/purrkins/customer-api?session=' + token + '&intent=upload_avatar', {
+            method: 'POST',
+            body: formData
+          })
+          .then(function(res) { return res.json(); })
+          .then(function(data) {
+            if (data && data.success && data.avatarUrl) {
+              window._pk_pending_avatar = data.avatarUrl;
+              if (custId) {
+                try { localStorage.setItem('pk_avatar_' + custId, data.avatarUrl); } catch(err) {}
+              }
+              if (avatarImg) avatarImg.src = data.avatarUrl;
+            }
+            if (uploadText) uploadText.textContent = 'Change Profile Photo';
+          })
+          .catch(function() {
+            if (uploadText) uploadText.textContent = 'Change Profile Photo';
+          });
+        };
+        reader.readAsDataURL(file);
+      };
+
+      // Restore cached avatar on load if image is not yet rendered from server
+      try {
+        var custId = '${numericId}';
+        var cachedAvatar = localStorage.getItem('pk_avatar_' + custId);
+        var avatarImg = document.getElementById('pk-avatar-img');
+        var avatarIcon = document.getElementById('pk-avatar-icon');
+        if (cachedAvatar && avatarImg && (!avatarImg.src || avatarImg.style.display === 'none')) {
+          avatarImg.src = cachedAvatar;
+          avatarImg.style.display = 'block';
+          if (avatarIcon) avatarIcon.style.display = 'none';
+        }
+      } catch(e) {}
+
       function submitProfile(e) {
         if (e) e.preventDefault();
         var msg = document.getElementById('pk-profile-msg');
@@ -3157,17 +3405,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           msg.style.color = ok ? '#2E8E5A' : '#e53e3e';
           msg.innerText = text;
         }
-        function val(id) { return document.getElementById(id).value.trim(); }
-
-        var pw = document.getElementById('pk-password').value;
-        var pw2 = document.getElementById('pk-password-confirm').value;
-        if (pw || pw2) {
-          show('Passwords are not used for this account. You sign in with an email code, so there is no password to change.', false);
-          return;
+        function val(id) { 
+          var el = document.getElementById(id);
+          return el ? el.value.trim() : ''; 
         }
 
         var body = {
           username: val('pk-username'),
+          avatar: window._pk_pending_avatar || '',
           firstName: val('pk-bill-firstName'),
           lastName: val('pk-bill-lastName'),
           country: val('pk-bill-country'),
@@ -3298,21 +3543,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
       }, true);
       
-      var custFullName = "${escAttr((customer.firstName ? (customer.firstName + ' ' + (customer.lastName || '')).trim() : ''))}";
-      var custEmail = "${escAttr(customer.email)}";
+      var custFullName = ${JSON.stringify((customer.firstName ? (customer.firstName + ' ' + (customer.lastName || '')).trim() : ''))};
+      var custEmail = ${JSON.stringify(customer.email || '')};
       if (custFullName) localStorage.setItem('pk_user_name', custFullName);
       if (custEmail) localStorage.setItem('pk_user_email', custEmail);
       localStorage.setItem('pk_checkout_info', JSON.stringify({
         email: custEmail,
-        firstName: "${escAttr(defaultAddress.firstName || customer.firstName)}",
-        lastName: "${escAttr(defaultAddress.lastName || customer.lastName)}",
-        phone: "${escAttr(customer.phone)}",
-        address1: "${escAttr(defaultAddress.address1)}",
-        address2: "${escAttr(defaultAddress.address2)}",
-        city: "${escAttr(defaultAddress.city)}",
-        province: "${escAttr(defaultAddress.province)}",
-        zip: "${escAttr(defaultAddress.zip)}",
-        country: "${escAttr(defaultAddress.country || 'India')}"
+        firstName: ${JSON.stringify(defaultAddress.firstName || customer.firstName || '')},
+        lastName: ${JSON.stringify(defaultAddress.lastName || customer.lastName || '')},
+        phone: ${JSON.stringify(customer.phone || '')},
+        address1: ${JSON.stringify(defaultAddress.address1 || '')},
+        address2: ${JSON.stringify(defaultAddress.address2 || '')},
+        city: ${JSON.stringify(defaultAddress.city || '')},
+        province: ${JSON.stringify(defaultAddress.province || '')},
+        zip: ${JSON.stringify(defaultAddress.zip || '')},
+        country: ${JSON.stringify(defaultAddress.country || 'India')}
       }));
       // ─── Subscription portal actions ─────────────────────────
       var _activeSubId = null;

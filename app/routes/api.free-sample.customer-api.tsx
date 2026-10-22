@@ -171,8 +171,109 @@ async function handleRequest(request: Request) {
       }
     }
 
+    // 3. Customer Avatar Metafield
+    const avatar = String(body.avatar || "").trim();
+    if (avatar) {
+      try {
+        await shopifyGql(accessToken, `
+          mutation setCustomerAvatar($metafields: [MetafieldsSetInput!]!) {
+            metafieldsSet(metafields: $metafields) {
+              metafields { id value }
+              userErrors { field message }
+            }
+          }
+        `, {
+          metafields: [{
+            ownerId: `gid://shopify/Customer/${numericId}`,
+            namespace: "custom",
+            key: "avatar",
+            type: "single_line_text_field",
+            value: avatar
+          }]
+        });
+      } catch (err) {
+        console.warn("Could not save customer avatar metafield:", err);
+      }
+    }
+
     appCache.delPrefix("customer:");
     return json({ success: true });
+  }
+
+  // UPLOAD AVATAR
+  if (intent === "upload_avatar") {
+    try {
+      const formData = await request.formData();
+      const file = formData.get("avatar") as File | null;
+      const filename = (formData.get("filename") as string) || "profile.jpg";
+
+      if (!file) {
+        return json({ success: false, error: "No file provided" }, 400);
+      }
+
+      const arrayBuf = await file.arrayBuffer();
+      const b64 = Buffer.from(arrayBuf).toString("base64");
+      const mime = file.type || "image/jpeg";
+      let finalUrl = `data:${mime};base64,${b64}`;
+
+      try {
+        const stagedRes = await shopifyGql(accessToken, `
+          mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+            stagedUploadsCreate(input: $input) {
+              stagedTargets {
+                url
+                resourceUrl
+                parameters { name value }
+              }
+              userErrors { field message }
+            }
+          }
+        `, {
+          input: [{
+            filename,
+            mimeType: mime,
+            resource: "IMAGE",
+            httpMethod: "POST"
+          }]
+        });
+
+        const target = stagedRes.data?.stagedUploadsCreate?.stagedTargets?.[0];
+        if (target) {
+          const uploadForm = new FormData();
+          target.parameters.forEach((p: any) => uploadForm.append(p.name, p.value));
+          uploadForm.append("file", file);
+          const uploadRes = await fetch(target.url, { method: "POST", body: uploadForm });
+          if (uploadRes.ok && target.resourceUrl) {
+            finalUrl = target.resourceUrl;
+          }
+        }
+      } catch (e) {
+        console.warn("Shopify staged upload failed, using data URL fallback:", e);
+      }
+
+      await shopifyGql(accessToken, `
+        mutation setCustomerAvatar($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id value }
+            userErrors { field message }
+          }
+        }
+      `, {
+        metafields: [{
+          ownerId: `gid://shopify/Customer/${numericId}`,
+          namespace: "custom",
+          key: "avatar",
+          type: "single_line_text_field",
+          value: finalUrl
+        }]
+      });
+
+      appCache.delPrefix("customer:");
+      return json({ success: true, avatarUrl: finalUrl });
+    } catch (err: any) {
+      console.error("Error in upload_avatar:", err);
+      return json({ success: false, error: err.message || "Failed to upload avatar" }, 500);
+    }
   }
 
   // ADD ADDRESS
