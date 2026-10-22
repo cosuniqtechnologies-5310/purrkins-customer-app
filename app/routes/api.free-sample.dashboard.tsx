@@ -1725,7 +1725,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       })();
     </script>
     ${getLoaderHtml(true)}
-    \n\n<style>\n
+
+    <!-- Google Fonts for Bricolage Grotesque & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+      :root {
+        --purrkins-heading-font: 'Bricolage Grotesque', sans-serif;
+        --purrkins-primary-font: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        --font-heading--family: 'Bricolage Grotesque', sans-serif;
+        --font-body--family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
       .pk-dashboard-wrapper {
         max-width: 1336px;
         margin: 0 auto;
@@ -2691,24 +2703,59 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         color: #21252A;
       }
 
-      /* Vet Modal Tag Pill (Screenshot 5) */
+      /* Vet Modal Tag Pill (Figma Design) */
       .pk-vet-pill {
-        border: 1.5px solid #eaeaea;
-        border-radius: 20px;
-        padding: 7px 16px;
+        border: 1.5px dashed #D0D0D5;
+        border-radius: 9999px;
+        padding: 8px 18px;
         font-size: 12.5px;
-        font-weight: 600;
+        font-weight: 500;
         cursor: pointer;
-        background: #fff;
-        color: #121217;
-        display: inline-block;
-        transition: all 0.2s;
+        background: #FFFFFF;
+        color: #555B64;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
         user-select: none;
+        line-height: 1.2;
+      }
+      .pk-vet-pill:hover {
+        border-color: #16130F;
+        color: #16130F;
       }
       .pk-vet-pill.selected {
-        background: #121217;
-        border-color: #121217;
-        color: #fff;
+        background: #16130F !important;
+        border: 1.5px solid #16130F !important;
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+      }
+      #pk-vet-modal input::placeholder {
+        color: #8E9298;
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+      }
+      #pk-vet-modal input:focus, #pk-vet-modal select:focus {
+        border-color: #16130F !important;
+        outline: none;
+      }
+      #pk-vet-submit-btn:hover {
+        opacity: 0.92;
+        transform: translateY(-1px);
+      }
+      #pk-vet-submit-btn:active {
+        transform: translateY(0);
+      }
+      @media (max-width: 768px) {
+        #pk-vet-modal-card {
+          flex-direction: column !important;
+          max-height: 90vh !important;
+          overflow-y: auto !important;
+        }
+        #pk-vet-modal-img-col {
+          min-height: 220px !important;
+          height: 220px !important;
+        }
       }
       
       .pk-outline-btn {
@@ -5244,7 +5291,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           '• Parent Name: ' + name + '\\n' +
           '• Phone: ' + phone + '\\n' +
           (city ? ('• City: ' + city + '\\n') : '') +
-          '• Kitten Age: ' + age + '\\n' +
+          (age ? ('• Kitten Age: ' + age + '\\n') : '') +
           (selectedTopics.length ? ('• Help Topics: ' + selectedTopics.join(', ') + '\\n') : '');
 
         var form = document.getElementById('pk-vet-form');
@@ -5614,37 +5661,52 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       if (typeof pkHideLoader === 'function') pkHideLoader();
     </script>
 
-    <!-- Talk to a Vet Modal (Screenshot 5) -->
-    <div id="pk-vet-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.65); z-index:9999999; align-items:center; justify-content:center; backdrop-filter:blur(4px); padding:20px; box-sizing:border-box;">
-      <div style="background:#fff; border-radius:20px; max-width:840px; width:100%; max-height:92vh; overflow:hidden; display:flex; flex-direction:row; position:relative; box-shadow:0 25px 60px rgba(0,0,0,0.35);">
-        <!-- Close Button (Screenshot 5) -->
-        <button type="button" onclick="pkCloseVetModal()" aria-label="Close" style="position:absolute; top:16px; right:16px; width:34px; height:34px; border-radius:50%; background:rgba(18,18,23,0.75); color:#fff; border:none; font-size:16px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:10; transition:background 0.2s;">✕</button>
+    <!-- Talk to a Vet Modal (Figma Design) -->
+    <div id="pk-vet-modal" onclick="if(event.target===this)pkCloseVetModal();" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.65); z-index:9999999; align-items:center; justify-content:center; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); padding:20px; box-sizing:border-box;">
+      <div id="pk-vet-modal-card" style="background:#fff; border-radius:24px; max-width:960px; width:100%; min-height:560px; max-height:92vh; overflow:hidden; display:flex; flex-direction:row; position:relative; box-shadow:0 30px 80px rgba(0,0,0,0.35); font-family:'Inter', -apple-system, BlinkMacSystemFont, sans-serif;">
+        <!-- Close Button (Dark circle top right over image, matching Figma) -->
+        <button type="button" onclick="pkCloseVetModal()" aria-label="Close" style="position:absolute; top:18px; right:18px; width:36px; height:36px; border-radius:50%; background:#21252A; color:#fff; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:20; box-shadow:0 3px 10px rgba(0,0,0,0.25); transition:transform 0.15s, background 0.15s;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
 
         <!-- Left Column: Form -->
-        <div style="flex:1.25; padding:36px 32px; background:linear-gradient(135deg, #FFFDF0 0%, #FFFFFF 65%, #F4F6FF 100%); overflow-y:auto; box-sizing:border-box;">
-          <div style="background:#FFE600; color:#121217; font-size:11px; font-weight:800; padding:4px 14px; border-radius:20px; display:inline-block; margin-bottom:12px;">Free 15 minutes</div>
-          <h2 style="margin:0 0 6px 0; font-size:28px; font-weight:800; color:#121217; font-family:var(--font-heading--family, sans-serif);">Talk to a vet</h2>
-          <p style="margin:0 0 20px 0; font-size:13.5px; color:#595961; line-height:1.4;">Free short call with a Purrkins vet. No purchase needed.</p>
+        <div style="flex:1.15; padding:44px 44px 36px 44px; background:radial-gradient(120% 90% at 0% 0%, #FFF8D5 0%, #FFFFFF 50%, #F5F7FF 100%); overflow-y:auto; box-sizing:border-box; display:flex; flex-direction:column; justify-content:center;">
+          <!-- Free 15 Minutes Pill Badge -->
+          <div style="background:#FFE330; color:#16130F; font-size:12px; font-weight:700; padding:6px 14px; border-radius:9999px; display:inline-block; width:fit-content; margin-bottom:14px; letter-spacing:-0.1px;">Free 15 Minutes</div>
+          
+          <!-- Heading -->
+          <h2 style="margin:0 0 10px 0; font-size:38px; font-weight:800; color:#16130F; font-family:'Bricolage Grotesque', sans-serif !important; letter-spacing:-0.8px; line-height:1.12;">Talk to a vet</h2>
+          
+          <!-- Subtitle -->
+          <p style="margin:0 0 24px 0; font-size:14.5px; color:#555B64; line-height:1.45; font-family:'Inter', sans-serif;">Free short call with a Purrkins vet. No purchase needed.</p>
 
-          <form id="pk-vet-form" onsubmit="pkSubmitVetCall(event)">
+          <form id="pk-vet-form" onsubmit="pkSubmitVetCall(event)" style="margin:0;">
+            <!-- Row 1: Name & Phone -->
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
-              <input type="text" id="vet-name" placeholder="Full name" value="${escAttr(customer.firstName ? (customer.firstName + ' ' + (customer.lastName || '')) : '')}" required style="width:100%; padding:11px 14px; border:1.5px solid #eaeaea; border-radius:10px; font-size:13.5px; box-sizing:border-box; background:#fff;">
-              <input type="tel" id="vet-phone" placeholder="+91" value="${escAttr(customer.phone || defaultAddress.phone || '+91 ')}" required style="width:100%; padding:11px 14px; border:1.5px solid #eaeaea; border-radius:10px; font-size:13.5px; box-sizing:border-box; background:#fff;">
+              <input type="text" id="vet-name" placeholder="Full Name" value="${escAttr(customer.firstName ? (customer.firstName + ' ' + (customer.lastName || '')) : '')}" required style="width:100%; height:46px; padding:10px 16px; border:1.5px solid #E2E2E6; border-radius:14px; font-size:14px; font-family:'Inter',sans-serif; color:#16130F; box-sizing:border-box; background:#fff; outline:none; transition:border-color 0.2s;">
+              <input type="tel" id="vet-phone" placeholder="+91 |" value="${escAttr(customer.phone || defaultAddress.phone || '+91 ')}" required style="width:100%; height:46px; padding:10px 16px; border:1.5px solid #E2E2E6; border-radius:14px; font-size:14px; font-family:'Inter',sans-serif; color:#16130F; box-sizing:border-box; background:#fff; outline:none; transition:border-color 0.2s;">
             </div>
+            
+            <!-- Row 2: City & Age -->
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px;">
-              <input type="text" id="vet-city" placeholder="City" value="${escAttr(defaultAddress.city || '')}" style="width:100%; padding:11px 14px; border:1.5px solid #eaeaea; border-radius:10px; font-size:13.5px; box-sizing:border-box; background:#fff;">
-              <select id="vet-age" style="width:100%; padding:11px 14px; border:1.5px solid #eaeaea; border-radius:10px; font-size:13.5px; box-sizing:border-box; background:#fff; cursor:pointer;">
-                <option value="Under 3 months">Your kitten's age</option>
-                <option value="Under 3 months">Under 3 months</option>
-                <option value="3 - 6 months">3 - 6 months</option>
-                <option value="6 - 12 months">6 - 12 months</option>
-                <option value="Adult (1+ years)">Adult (1+ years)</option>
-              </select>
+              <input type="text" id="vet-city" placeholder="City" value="${escAttr(defaultAddress.city || '')}" style="width:100%; height:46px; padding:10px 16px; border:1.5px solid #E2E2E6; border-radius:14px; font-size:14px; font-family:'Inter',sans-serif; color:#16130F; box-sizing:border-box; background:#fff; outline:none; transition:border-color 0.2s;">
+              <div style="position:relative; width:100%;">
+                <select id="vet-age" style="width:100%; height:46px; padding:10px 36px 10px 16px; border:1.5px solid #E2E2E6; border-radius:14px; font-size:14px; font-family:'Inter',sans-serif; color:#16130F; box-sizing:border-box; background:#fff; cursor:pointer; outline:none; appearance:none; -webkit-appearance:none; transition:border-color 0.2s;">
+                  <option value="" disabled selected hidden>Your Kitten's Age</option>
+                  <option value="Under 3 months">Under 3 months</option>
+                  <option value="3 - 6 months">3 - 6 months</option>
+                  <option value="6 - 12 months">6 - 12 months</option>
+                  <option value="Adult (1+ years)">Adult (1+ years)</option>
+                </select>
+                <div style="position:absolute; right:14px; top:50%; transform:translateY(-50%); pointer-events:none; color:#555B64; display:flex; align-items:center;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </div>
+              </div>
             </div>
 
             <!-- Help Topics -->
-            <label style="display:block; font-size:12.5px; font-weight:800; color:#121217; margin-bottom:8px;">What do you need help with?</label>
-            <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px;">
+            <label style="display:block; font-size:13.5px; font-weight:700; color:#16130F; margin:16px 0 10px 0; font-family:'Inter',sans-serif;">What do you need help with?</label>
+            <div style="display:flex; flex-wrap:wrap; gap:8px 10px; margin-bottom:24px;">
               <span class="pk-vet-pill" onclick="pkToggleVetPill(this)" data-topic="Weaning / starting solids">Weaning / starting solids</span>
               <span class="pk-vet-pill" onclick="pkToggleVetPill(this)" data-topic="Fussy eating">Fussy eating</span>
               <span class="pk-vet-pill" onclick="pkToggleVetPill(this)" data-topic="Loose stools">Loose stools</span>
@@ -5653,20 +5715,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               <span class="pk-vet-pill" onclick="pkToggleVetPill(this)" data-topic="Something else">Something else</span>
             </div>
 
-            <button type="submit" id="pk-vet-submit-btn" style="width:100%; padding:13px; background:#121217; color:#fff; border:none; border-radius:30px; font-size:15px; font-weight:700; cursor:pointer; transition:opacity 0.2s;">Request a Call</button>
-            <div style="font-size:11.5px; color:#8c8c9a; text-align:center; margin-top:8px;">We'll confirm your slot on WhatsApp within one day</div>
+            <!-- Centered Request a Call Button (Matching Figma) -->
+            <button type="submit" id="pk-vet-submit-btn" style="display:block; margin:0 auto; min-width:180px; padding:13px 40px; background:#16130F; color:#fff; border:none; border-radius:9999px; font-size:15px; font-weight:700; font-family:'Bricolage Grotesque',sans-serif; cursor:pointer; text-align:center; box-shadow:0 4px 14px rgba(22,19,15,0.15); transition:transform 0.15s, opacity 0.15s;">Request a Call</button>
+            <div style="font-size:12px; color:#8E9298; text-align:center; margin-top:14px; font-family:'Inter',sans-serif;">We'll confirm your slot on WhatsApp within one day.</div>
           </form>
-          <div id="pk-vet-success-msg" style="display:none; text-align:center; padding:24px 10px;">
-            <div style="font-size:36px; margin-bottom:10px;">🎉</div>
-            <h3 style="margin:0 0 8px 0; font-size:20px; font-weight:800; color:#121217;">Request Submitted!</h3>
-            <p style="margin:0 0 16px 0; font-size:14px; color:#595961; line-height:1.4;">Our veterinary team has received your details and will connect with you on WhatsApp shortly.</p>
-            <button type="button" onclick="pkCloseVetModal()" style="padding:10px 24px; background:#121217; color:#fff; border:none; border-radius:24px; font-size:13px; font-weight:700; cursor:pointer;">Close</button>
+
+          <div id="pk-vet-success-msg" style="display:none; text-align:center; padding:32px 10px;">
+            <div style="font-size:42px; margin-bottom:12px;">🎉</div>
+            <h3 style="margin:0 0 8px 0; font-size:22px; font-weight:800; color:#16130F; font-family:'Bricolage Grotesque',sans-serif;">Request Submitted!</h3>
+            <p style="margin:0 0 20px 0; font-size:14px; color:#595961; line-height:1.45; font-family:'Inter',sans-serif;">Our veterinary team has received your details and will connect with you on WhatsApp shortly.</p>
+            <button type="button" onclick="pkCloseVetModal()" style="padding:10px 28px; background:#16130F; color:#fff; border:none; border-radius:9999px; font-size:14px; font-weight:700; font-family:'Bricolage Grotesque',sans-serif; cursor:pointer;">Close</button>
           </div>
         </div>
 
-        <!-- Right Column: Vet Image (Screenshot 5) -->
-        <div style="flex:1; min-height:380px; position:relative; background:#f4f4f5; display:flex;">
-          <img src="{{ 'vet-examining-kitten.jpg' | asset_url }}" onerror="this.onerror=null; this.src='/vet-examining-kitten.jpg';" alt="Purrkins Veterinarian" style="width:100%; height:100%; object-fit:cover; display:block;">
+        <!-- Right Column: Vet Image (Matching Figma) -->
+        <div id="pk-vet-modal-img-col" style="flex:1; min-height:540px; position:relative; background:#f4f4f5; display:flex;">
+          <img src="https://cdn.shopify.com/s/files/1/0955/9366/0663/files/vet-card.png?v=1792671550" alt="Purrkins Veterinarian" style="width:100%; height:100%; object-fit:cover; display:block;">
         </div>
       </div>
     </div>
