@@ -600,6 +600,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
       ordersMap[node.name] = orderObj;
       ordersMap[node.name.replace('#', '')] = orderObj;
+      ordersMap['PK-' + node.name.replace('#', '')] = orderObj;
+      ordersMap['#' + node.name.replace('#', '')] = orderObj;
     });
   }
 
@@ -616,6 +618,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 
   const mockOrdersList = [
+    {
+      id: '1007',
+      name: '#1007',
+      date: '18 Aug 2026',
+      time: '03:30 PM',
+      statusText: 'Delivered',
+      statusBadgeStyle: 'background:#dcfce7; color:#15803d;',
+      financialStatus: 'Paid',
+      subtotal: '₹90.00',
+      shipping: '₹20.00',
+      taxes: '₹16.20',
+      total: '₹126.20',
+      items: [
+        {
+          title: 'Lean Kitty - Fresh Recipe',
+          variantTitle: '1 pouch · 150g Trial Pack',
+          quantity: 1,
+          unitPrice: '₹90.00',
+          totalPrice: '₹90.00',
+          imageUrl: defaultFallbackImg,
+        }
+      ]
+    },
     {
       id: 'PK-10391',
       name: '#PK-10391',
@@ -772,6 +797,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (!ordersMap[m.id]) ordersMap[m.id] = fullObj;
     if (!ordersMap[m.name]) ordersMap[m.name] = fullObj;
     if (!ordersMap[m.id.replace('#', '')]) ordersMap[m.id.replace('#', '')] = fullObj;
+    if (!ordersMap[fullObj.orderNumber]) ordersMap[fullObj.orderNumber] = fullObj;
+    if (!ordersMap['PK-' + fullObj.orderNumber]) ordersMap['PK-' + fullObj.orderNumber] = fullObj;
+    if (!ordersMap['#' + fullObj.orderNumber]) ordersMap['#' + fullObj.orderNumber] = fullObj;
   });
 
   const ordersHtml = (customer.orders?.edges && customer.orders.edges.length > 0)
@@ -808,6 +836,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }).join('')
     : `
       <!-- Screenshot 1 Table Rows -->
+      <div class="pk-order-row">
+        <div>
+          <div class="pk-order-id">#1007</div>
+          <div class="pk-order-sub">1 pouch · Lean Kitty Trial</div>
+        </div>
+        <div class="pk-order-date">18 Aug 2026</div>
+        <div>
+          <span class="pk-order-pill" style="background:#dcfce7; color:#15803d;">Delivered</span>
+        </div>
+        <div class="pk-order-total">₹126.20</div>
+        <div class="pk-order-actions">
+          <button type="button" onclick="pkViewInvoice('1007', event)" class="pk-btn-invoice">Invoice</button>
+        </div>
+      </div>
+
       <div class="pk-order-row">
         <div>
           <div class="pk-order-id">#PK-10391</div>
@@ -1726,23 +1769,60 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     </script>
     ${getLoaderHtml(true)}
 
-    <!-- Google Fonts for Bricolage Grotesque & Inter -->
+    <!-- Fontshare: Cabinet Grotesk & Google Fonts: Bricolage Grotesque, Plus Jakarta Sans, Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700,800,900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
+      @font-face {
+        font-family: 'Cabinet Grotesk';
+        src: url('https://cdn.fontshare.com/wf/J6PPRPKWXDUIYA47IXLEQB4R4OPVYDQH/N2ZXAXWEHVMLISD2TIXJC7EF4GOY43L4/NXM4Z4TDCMYWBZ7AVI2N6DQ5VMWNENMU.woff2') format('woff2');
+        font-weight: 400;
+        font-display: swap;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Cabinet Grotesk';
+        src: url('https://cdn.fontshare.com/wf/CKQBK2QBTCDREE7L3MXZ3PPW7LDNJCWU/OTOY7FQFSFOJVZKJWKO2EHUJLOGBDN4Q/4CO2ETY7NITKLUDKMYJ75RHJSPHOJ7XT.woff2') format('woff2');
+        font-weight: 500;
+        font-display: swap;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Cabinet Grotesk';
+        src: url('https://cdn.fontshare.com/wf/XMXWOHABYLQDJ42L65EFRYNVRY37HQCB/B2O4O6V3JMFM2WDCYQI3A47L5U4THDUL/WN5274VQ3AUBDFP74GB4EC4XYJ3EKVNE.woff2') format('woff2');
+        font-weight: 700;
+        font-display: swap;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Cabinet Grotesk';
+        src: url('https://cdn.fontshare.com/wf/ZX6AQLSFYVDPN2URWO2MQFGTYYOHIS64/TPYPKOYWFQVNJHLLRXD4KFYX4LUOUW4Z/6QH2ALVTTK7IRVO5MYOQQ3OZNXW5SSS3.woff2') format('woff2');
+        font-weight: 800;
+        font-display: swap;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Cabinet Grotesk';
+        src: url('https://cdn.fontshare.com/wf/54BYDK52GK4J6SPDN2E656FIZHUETKL3/ACYE4XDNEUAHIOQEOGPYPDVAVDI5P67Q/TZVUWRP4UW5PEJWBLXHG5VVGPODI2WLC.woff2') format('woff2');
+        font-weight: 900;
+        font-display: swap;
+        font-style: normal;
+      }
+
       :root {
-        --purrkins-heading-font: 'Bricolage Grotesque', sans-serif;
-        --purrkins-primary-font: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        --font-heading--family: 'Bricolage Grotesque', sans-serif;
-        --font-body--family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        --purrkins-heading-font: 'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        --purrkins-primary-font: 'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        --font-heading--family: 'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        --font-body--family: 'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       }
       .pk-dashboard-wrapper {
         max-width: 1336px;
         margin: 0 auto;
         padding: 44px 20px 80px;
-        font-family: var(--font-body--family, sans-serif);
+        font-family: 'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         color: #121217;
       }
       .pk-dashboard-header {
@@ -1792,51 +1872,60 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
       .pk-sidebar-menu {
         background: #fff;
-        border: 1px solid #eaeaea;
-        border-radius: 16px;
+        border: 1.5px solid #EAEAEA;
+        border-radius: 20px;
         padding: 16px;
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 6px;
+        font-family: 'Cabinet Grotesk', sans-serif;
       }
       .pk-menu-item {
         display: flex;
         align-items: center;
         gap: 12px;
         text-decoration: none;
-        color: #595961;
+        color: #16130F;
+        font-family: 'Cabinet Grotesk', sans-serif;
         font-weight: 700;
-        padding: 12px;
-        border-radius: 8px;
-        transition: 0.2s;
-        font-size: 14px;
+        padding: 12px 18px;
+        border-radius: 14px;
+        transition: all 0.15s ease;
+        font-size: 15px;
+        letter-spacing: -0.2px;
+      }
+      .pk-menu-item:hover {
+        background: #FAF9F6;
       }
       .pk-menu-item.active {
-        background: #FFF9E6;
-        color: #121217;
+        background: #F8F4DF;
+        color: #16130F;
+        font-weight: 800;
       }
       .pk-dot {
         width: 8px;
         height: 8px;
-        background: #d1d1d1;
+        background: #D8D8DC;
         border-radius: 50%;
+        flex-shrink: 0;
       }
       .pk-menu-item.active .pk-dot {
-        background: #121217;
+        background: #16130F;
       }
       .pk-badge {
         margin-left: auto;
-        background: #ffd831;
-        color: #121217;
+        background: #FFE330;
+        color: #16130F;
+        font-family: 'Cabinet Grotesk', sans-serif;
         font-size: 11px;
         font-weight: 800;
-        min-width: 20px;
-        height: 20px;
-        border-radius: 20px;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        padding: 0 6px;
+        padding: 0;
         flex-shrink: 0;
       }
       .pk-whatsapp-card {
@@ -2479,8 +2568,31 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           background: #fff !important;
           color: #000 !important;
         }
-        .pk-sidebar, .pk-header, .pk-footer, .pk-navbar, .pk-invoice-back-btn, .pk-btn-print-invoice, .pk-invoice-footer-card button, #pk-orders-table, .pk-pagination-wrap {
+        .pk-sidebar, .pk-header, .pk-footer, .pk-navbar, .pk-invoice-back-btn, .pk-btn-print-invoice, .pk-invoice-footer-card button, #pk-orders-table, .pk-pagination-wrap, #pk-invoice-modal-close, #pk-vet-modal, #pk-swap-modal, #addr-modal, #pk-cat-loader-overlay {
           display: none !important;
+        }
+        #pk-invoice-modal {
+          display: block !important;
+          position: static !important;
+          background: #fff !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          width: 100% !important;
+          height: auto !important;
+          box-shadow: none !important;
+          backdrop-filter: none !important;
+          -webkit-backdrop-filter: none !important;
+        }
+        #pk-invoice-modal-card {
+          box-shadow: none !important;
+          border: none !important;
+          max-width: 100% !important;
+          width: 100% !important;
+          max-height: none !important;
+          overflow: visible !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          background: #fff !important;
         }
         #pk-tab-invoice {
           display: block !important;
@@ -2858,6 +2970,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         margin-bottom: 24px;
         align-items: center;
         flex-wrap: wrap;
+        font-family: 'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
       }
       .pk-pet-pill {
         display: inline-flex;
@@ -2866,15 +2979,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         padding: 8px 24px 8px 10px;
         border-radius: 999px;
         background: #ffffff;
-        border: 1.5px solid #E2E8F0;
+        border: 1.5px solid #CBD5E1;
         text-decoration: none;
         color: #121217;
         cursor: pointer;
         transition: all 0.2s ease;
         box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        font-family: 'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
       }
       .pk-pet-pill:hover {
-        border-color: #CBD5E1;
+        border-color: #94A3B8;
       }
       .pk-pet-pill.active {
         background: #FFE330 !important;
@@ -2893,9 +3007,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         justify-content: center;
       }
       .pk-pet-avatar img { width: 100%; height: 100%; object-fit: cover; }
-      .pk-pet-info { display: flex; flex-direction: column; text-align: left; }
-      .pk-pet-info strong { font-size: 15px; font-weight: 800; color: #121217; line-height: 1.2; }
-      .pk-pet-info span { font-size: 12px; color: #555B64; font-weight: 600; margin-top: 2px; }
+      .pk-pet-info { display: flex; flex-direction: column; text-align: left; font-family: 'Cabinet Grotesk', sans-serif; }
+      .pk-pet-info strong { font-family: 'Cabinet Grotesk', sans-serif; font-size: 16px; font-weight: 800; color: #121217; line-height: 1.2; letter-spacing: -0.2px; }
+      .pk-pet-info span { font-family: 'Cabinet Grotesk', sans-serif; font-size: 13px; color: #121217; font-weight: 700; margin-top: 2px; }
       .pk-pet-add-btn {
         display: inline-flex;
         align-items: center;
@@ -2905,10 +3019,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         background: #ffffff;
         border: 1.5px dashed #CBD5E1;
         color: #121217;
-        font-size: 14px;
+        font-family: 'Cabinet Grotesk', sans-serif;
+        font-size: 15px;
         font-weight: 800;
         cursor: pointer;
         transition: all 0.2s ease;
+        letter-spacing: -0.2px;
       }
       .pk-pet-add-btn:hover {
         border-color: #121217;
@@ -2919,53 +3035,70 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         display: grid;
         grid-template-columns: 280px 1fr;
         gap: 40px;
+        font-family: 'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
       }
       .pk-dashboard-sidebar {
         display: flex;
         flex-direction: column;
         gap: 20px;
+        font-family: 'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
       }
       .pk-sidebar-menu {
         background: #fff;
-        border: 1px solid #eaeaea;
-        border-radius: 16px;
+        border: 1.5px solid #EAEAEA;
+        border-radius: 20px;
         padding: 16px;
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 6px;
+        font-family: 'Cabinet Grotesk', sans-serif;
       }
       .pk-menu-item {
         display: flex;
         align-items: center;
         gap: 12px;
         text-decoration: none;
-        color: #595961;
+        color: #16130F;
+        font-family: 'Cabinet Grotesk', sans-serif;
         font-weight: 700;
-        padding: 12px;
-        border-radius: 8px;
-        transition: 0.2s;
-        font-size: 14px;
+        padding: 12px 18px;
+        border-radius: 14px;
+        transition: all 0.15s ease;
+        font-size: 15px;
+        letter-spacing: -0.2px;
+      }
+      .pk-menu-item:hover {
+        background: #FAF9F6;
       }
       .pk-menu-item.active {
-        background: #FFF9E6;
-        color: #121217;
+        background: #F8F4DF;
+        color: #16130F;
+        font-weight: 800;
       }
       .pk-dot {
         width: 8px;
         height: 8px;
-        background: #d1d1d1;
+        background: #D8D8DC;
         border-radius: 50%;
+        flex-shrink: 0;
       }
       .pk-menu-item.active .pk-dot {
-        background: #121217;
+        background: #16130F;
       }
       .pk-badge {
-        background: #ffd831;
-        color: #121217;
-        font-size: 10px;
-        padding: 2px 6px;
-        border-radius: 10px;
+        background: #FFE330;
+        color: #16130F;
+        font-family: 'Cabinet Grotesk', sans-serif;
+        font-size: 11px;
+        font-weight: 800;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
         margin-left: auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
       }
       .pk-whatsapp-card {
         background: #21252A;
@@ -3919,7 +4052,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           shouldScrollQuiz = true;
         }
 
-        var validTabs = ['overview', 'kitten', 'subscriptions', 'reviews', 'invoice'];
+        if (tabId.indexOf('invoice') === 0) {
+          var cleanInvId = tabId.replace('invoice-', '').replace('invoice', '').trim() || '1007';
+          tabId = 'overview';
+          setTimeout(function() {
+            if (typeof window.pkViewInvoice === 'function') {
+              window.pkViewInvoice(cleanInvId);
+            }
+          }, 30);
+        }
+
+        var validTabs = ['overview', 'kitten', 'subscriptions', 'reviews', 'wishlist', 'invoice'];
         if (validTabs.indexOf(tabId) === -1) tabId = 'overview';
 
         // Instant DOM pane visibility toggle
@@ -4679,7 +4822,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           shouldScrollQuiz = true;
         }
 
-        var validTabs = ['overview', 'kitten', 'subscriptions', 'reviews', 'invoice'];
+        if (tabId.indexOf('invoice') === 0) {
+          var cleanInvId = tabId.replace('invoice-', '').replace('invoice', '').trim() || '1007';
+          tabId = 'overview';
+          setTimeout(function() {
+            if (typeof window.pkViewInvoice === 'function') {
+              window.pkViewInvoice(cleanInvId);
+            }
+          }, 30);
+        }
+
+        var validTabs = ['overview', 'kitten', 'subscriptions', 'reviews', 'wishlist', 'invoice'];
         if (validTabs.indexOf(tabId) === -1) tabId = 'overview';
 
         // Instant DOM pane visibility toggle
@@ -4736,18 +4889,42 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
       // Handle direct hash navigation and back/forward buttons
       window.addEventListener('hashchange', function() {
-        var h = window.location.hash ? window.location.hash.replace('#', '') : 'overview';
-        window.switchDashboardTab(h);
+        var rawHash = window.location.hash ? window.location.hash.replace('#', '') : '';
+        if (rawHash.indexOf('invoice') === 0) {
+          var invId = rawHash.replace('invoice-', '').replace('invoice', '').trim() || '1007';
+          if (typeof window.pkViewInvoice === 'function') {
+            window.pkViewInvoice(invId);
+          }
+        } else {
+          if (typeof window.pkCloseInvoiceModal === 'function') {
+            var m = document.getElementById('pk-invoice-modal');
+            if (m && m.style.display === 'flex') {
+              m.style.display = 'none';
+              document.body.style.overflow = '';
+            }
+          }
+          window.switchDashboardTab(rawHash || 'overview');
+        }
       });
 
       // Initialize on initial page load
       (function initDashboard() {
-        var hash = window.location.hash ? window.location.hash.replace('#', '') : '';
-        if (!hash) {
+        var rawHash = window.location.hash ? window.location.hash.replace('#', '') : '';
+        if (!rawHash) {
           var params = new URLSearchParams(window.location.search);
-          hash = params.get('tab') || '';
+          rawHash = params.get('tab') || '';
         }
-        window.switchDashboardTab(hash || 'overview');
+        if (rawHash.indexOf('invoice') === 0) {
+          var invId = rawHash.replace('invoice-', '').replace('invoice', '').trim() || '1007';
+          window.switchDashboardTab('overview');
+          setTimeout(function() {
+            if (typeof window.pkViewInvoice === 'function') {
+              window.pkViewInvoice(invId);
+            }
+          }, 50);
+        } else {
+          window.switchDashboardTab(rawHash || 'overview');
+        }
         if (typeof window.pkInitOrdersPagination === 'function') {
           window.pkInitOrdersPagination();
         }
@@ -5438,11 +5615,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           '<!-- Invoice Header Card -->' +
           '<div class="pk-card pk-invoice-header-card">' +
             '<div class="pk-invoice-top-nav">' +
-              '<button type="button" class="pk-invoice-back-btn" onclick="pkBackToOrders(event)">' +
+              '<button type="button" class="pk-invoice-back-btn" onclick="pkCloseInvoiceModal(event)">' +
                 '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>' +
                 '<span>Back to Orders</span>' +
               '</button>' +
-              '<div class="pk-invoice-top-actions">' +
+              '<div class="pk-invoice-top-actions" style="margin-right:44px;">' +
                 '<button type="button" class="pk-btn-print-invoice" onclick="window.print()">' +
                   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>' +
                   '<span>Print Invoice</span>' +
@@ -5550,11 +5727,39 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               '<div style="font-weight:700;font-size:14px;color:#121217;margin-bottom:4px;">Purrkins · Kitten Nutrition Purr-fected</div>' +
               '<div style="font-size:13px;color:#71717a;">Have questions regarding this order? Contact our support team at <a href="mailto:support@purrkins.com" style="color:#ea580c;text-decoration:underline;">support@purrkins.com</a></div>' +
             '</div>' +
-            '<button type="button" class="pk-outline-btn" onclick="pkBackToOrders(event)" style="border-radius:20px;padding:8px 22px;font-size:13px;font-weight:700;background:#fff;border:1.5px solid #595961;color:#121217;cursor:pointer;">' +
-              '← Back to Orders' +
+            '<button type="button" class="pk-outline-btn" onclick="pkCloseInvoiceModal(event)" style="border-radius:20px;padding:8px 22px;font-size:13px;font-weight:700;background:#fff;border:1.5px solid #595961;color:#121217;cursor:pointer;">' +
+              'Close' +
             '</button>' +
           '</div>'
         );
+      };
+
+      window.pkCloseInvoiceModal = function(ev) {
+        if (ev) {
+          if (ev.preventDefault) ev.preventDefault();
+          if (ev.stopPropagation) ev.stopPropagation();
+        }
+        var modal = document.getElementById('pk-invoice-modal');
+        if (modal) modal.style.display = 'none';
+        document.body.style.overflow = '';
+        if (window.history && window.history.replaceState) {
+          var u = new URL(window.location.href);
+          u.hash = 'overview';
+          window.history.replaceState(null, '', u.toString());
+        }
+      };
+
+      window.pkBackToOrders = function(ev) {
+        if (typeof window.pkCloseInvoiceModal === 'function') {
+          window.pkCloseInvoiceModal(ev);
+        }
+        if (typeof window.switchDashboardTab === 'function') {
+          window.switchDashboardTab('overview');
+        }
+        setTimeout(function() {
+          var el = document.getElementById('pk-orders-table');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 40);
       };
 
       window.pkViewInvoice = function(orderId, ev) {
@@ -5567,7 +5772,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         if (window.pkOrdersData) {
           order = window.pkOrdersData[orderId] ||
                   window.pkOrdersData['#' + orderId] ||
-                  window.pkOrdersData[String(orderId).replace('#', '')];
+                  window.pkOrdersData[String(orderId).replace('#', '')] ||
+                  window.pkOrdersData['PK-' + String(orderId).replace('#', '')] ||
+                  window.pkOrdersData[String(orderId).replace('PK-', '').replace('#', '')];
+
+          if (!order) {
+            var cleanTarget = String(orderId || '').replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+            for (var k in window.pkOrdersData) {
+              if (window.pkOrdersData.hasOwnProperty(k)) {
+                var cleanK = k.replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+                if (cleanK === cleanTarget || (cleanTarget && cleanK.indexOf(cleanTarget) !== -1)) {
+                  order = window.pkOrdersData[k];
+                  break;
+                }
+              }
+            }
+          }
         }
 
         if (!order) {
@@ -5576,9 +5796,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             id: cleanName,
             name: cleanName,
             orderNumber: cleanName.replace('#', ''),
-            date: '16 Oct 2026',
-            fullDate: '16 Oct 2026',
-            statusText: 'Delivered 16 Oct',
+            date: '18 Aug 2026',
+            fullDate: '18 Aug 2026 at 03:30 PM',
+            statusText: 'Delivered',
             statusBadgeStyle: 'background:#dcfce7; color:#15803d;',
             financialStatus: 'Paid',
             subtotal: '₹90.00',
@@ -5586,6 +5806,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             taxes: '₹16.20',
             total: '₹126.20',
             contactEmail: 'gowthamdeveloper94@gmail.com',
+            contactPhone: '+91 9876543210',
             shippingAddress: {
               name: 'Kowsalya .Selvaraj',
               address1: '5/233 C, Sarthamanilayout, kvs colony near, sri ram nagar',
@@ -5593,14 +5814,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               city: 'Udumalpet',
               province: 'Tamil Nadu',
               zip: '642126',
-              country: 'India'
+              country: 'India',
+              phone: '+91 9876543210'
             },
-            shippingMethod: 'Shipping',
+            shippingMethod: 'Standard Shipping',
             paymentMethod: 'Pre-paid Online',
             items: [
               {
-                title: 'Lean Kitty',
-                variantTitle: '1 pouch',
+                title: 'Lean Kitty - Fresh Recipe',
+                variantTitle: '1 pouch · 150g Trial Pack',
                 quantity: 1,
                 unitPrice: '₹90.00',
                 totalPrice: '₹90.00',
@@ -5610,60 +5832,87 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           };
         }
 
-        var container = document.getElementById('pk-invoice-content');
-        if (container) {
-          container.innerHTML = window.pkRenderInvoiceHtml(order);
+        var renderedHtml = window.pkRenderInvoiceHtml(order);
+
+        // Populate popup modal content
+        var modalContent = document.getElementById('pk-invoice-modal-content');
+        if (modalContent) {
+          modalContent.innerHTML = renderedHtml;
         }
 
-        window.switchDashboardTab('invoice');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        // Also populate tab container if present
+        var tabContainer = document.getElementById('pk-invoice-content');
+        if (tabContainer) {
+          tabContainer.innerHTML = renderedHtml;
+        }
+
+        // Ensure background overview tab is visible rather than a blank tab
+        var overviewPane = document.getElementById('pk-tab-overview');
+        if (!overviewPane || overviewPane.style.display === 'none') {
+          if (typeof window.switchDashboardTab === 'function') {
+            window.switchDashboardTab('overview');
+          }
+        }
+
+        // Open the popup modal
+        var modal = document.getElementById('pk-invoice-modal');
+        if (modal) {
+          modal.style.display = 'flex';
+          document.body.style.overflow = 'hidden';
+          var card = document.getElementById('pk-invoice-modal-card');
+          if (card) card.scrollTop = 0;
+        }
 
         if (window.history && window.history.replaceState) {
           var u = new URL(window.location.href);
-          u.hash = 'invoice-' + encodeURIComponent((order.orderNumber || order.name || orderId).replace('#', ''));
+          var cleanNum = (order.orderNumber || order.name || orderId || '1007').toString().replace('#', '');
+          u.hash = 'invoice-' + encodeURIComponent(cleanNum);
           window.history.replaceState(null, '', u.toString());
         }
       };
 
-      window.pkBackToOrders = function(ev) {
-        if (ev && ev.preventDefault) ev.preventDefault();
-        window.switchDashboardTab('overview');
-        setTimeout(function() {
-          var el = document.getElementById('pk-orders-table');
-          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 40);
-      };
+      // Escape key to close modal
+      window.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' || e.keyCode === 27) {
+          var m = document.getElementById('pk-invoice-modal');
+          if (m && m.style.display === 'flex') {
+            window.pkCloseInvoiceModal();
+          }
+        }
+      });
 
-      // Direct hash navigation listener for invoice
-      window.addEventListener('DOMContentLoaded', function() {
+      // Direct hash check on load
+      (function checkInitialInvoiceHash() {
         var h = window.location.hash || '';
         if (h.indexOf('#invoice') === 0) {
-          var id = h.replace('#invoice-', '').replace('#invoice', '').trim();
-          if (id) {
-            setTimeout(function() {
-              if (typeof window.pkViewInvoice === 'function') {
-                window.pkViewInvoice(id);
-              }
-            }, 80);
-          }
+          var id = h.replace('#invoice-', '').replace('#invoice', '').trim() || '1007';
+          setTimeout(function() {
+            if (typeof window.pkViewInvoice === 'function') {
+              window.pkViewInvoice(id);
+            }
+          }, 80);
         }
-      });
-      window.addEventListener('hashchange', function() {
-        var h = window.location.hash || '';
-        if (h.indexOf('#invoice') === 0) {
-          var id = h.replace('#invoice-', '').replace('#invoice', '').trim();
-          if (id && typeof window.pkViewInvoice === 'function') {
-            window.pkViewInvoice(id);
-          }
-        }
-      });
+      })();
 
       if (typeof pkHideLoader === 'function') pkHideLoader();
     </script>
 
+    <!-- Invoice Popup Modal -->
+    <div id="pk-invoice-modal" onclick="if(event.target===this)pkCloseInvoiceModal();" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.65); z-index:9999999; align-items:center; justify-content:center; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); padding:24px 16px; box-sizing:border-box;">
+      <div id="pk-invoice-modal-card" style="background:#f4f4f5; border-radius:24px; max-width:880px; width:100%; max-height:92vh; overflow-y:auto; position:relative; box-shadow:0 30px 80px rgba(0,0,0,0.35); font-family:'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, sans-serif; padding:28px 24px; box-sizing:border-box;">
+        <!-- Close Button (Dark circle top right) -->
+        <button type="button" id="pk-invoice-modal-close" onclick="pkCloseInvoiceModal()" aria-label="Close" style="position:absolute; top:20px; right:20px; width:36px; height:36px; border-radius:50%; background:#21252A; color:#fff; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:50; box-shadow:0 3px 10px rgba(0,0,0,0.25); transition:transform 0.15s, background 0.15s;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+
+        <!-- Invoice Modal Dynamic Content -->
+        <div id="pk-invoice-modal-content"></div>
+      </div>
+    </div>
+
     <!-- Talk to a Vet Modal (Figma Design) -->
     <div id="pk-vet-modal" onclick="if(event.target===this)pkCloseVetModal();" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.65); z-index:9999999; align-items:center; justify-content:center; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); padding:20px; box-sizing:border-box;">
-      <div id="pk-vet-modal-card" style="background:#fff; border-radius:24px; max-width:960px; width:100%; min-height:560px; max-height:92vh; overflow:hidden; display:flex; flex-direction:row; position:relative; box-shadow:0 30px 80px rgba(0,0,0,0.35); font-family:'Inter', -apple-system, BlinkMacSystemFont, sans-serif;">
+      <div id="pk-vet-modal-card" style="background:#fff; border-radius:24px; max-width:960px; width:100%; min-height:560px; max-height:92vh; overflow:hidden; display:flex; flex-direction:row; position:relative; box-shadow:0 30px 80px rgba(0,0,0,0.35); font-family:'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;">
         <!-- Close Button (Dark circle top right over image, matching Figma) -->
         <button type="button" onclick="pkCloseVetModal()" aria-label="Close" style="position:absolute; top:18px; right:18px; width:36px; height:36px; border-radius:50%; background:#21252A; color:#fff; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:20; box-shadow:0 3px 10px rgba(0,0,0,0.25); transition:transform 0.15s, background 0.15s;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
