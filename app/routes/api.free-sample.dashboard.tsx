@@ -90,7 +90,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const numericId = customerId.split("/").pop();
-  const dashboardCacheKey = `customer:dashboard:v3:${customerId}`;
+  const dashboardCacheKey = `customer:dashboard:v4:${customerId}`;
   const subsCacheKey = `customer:subs:${customerId}`;
   const revsCacheKey = `customer:reviews:${customerId}`;
 
@@ -153,12 +153,40 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 orders(first: 50, sortKey: CREATED_AT, reverse: true) {
                   edges {
                     node {
+                      id
                       name
                       createdAt
-                      totalPriceSet { shopMoney { amount currencyCode } }
+                      displayFinancialStatus
                       displayFulfillmentStatus
                       statusPageUrl
-                      lineItems(first: 1) { edges { node { title } } }
+                      totalPriceSet { shopMoney { amount currencyCode } }
+                      subtotalPriceSet { shopMoney { amount currencyCode } }
+                      totalShippingPriceSet { shopMoney { amount currencyCode } }
+                      totalTaxSet { shopMoney { amount currencyCode } }
+                      shippingAddress {
+                        name
+                        firstName
+                        lastName
+                        address1
+                        address2
+                        city
+                        province
+                        zip
+                        country
+                        phone
+                      }
+                      lineItems(first: 20) {
+                        edges {
+                          node {
+                            id
+                            title
+                            quantity
+                            variantTitle
+                            originalUnitPriceSet { shopMoney { amount currencyCode } }
+                            image { url altText }
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -424,9 +452,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           weight: rawWeight,
           gender,
           neutered,
+          activity,
           activityLevel: activity,
-          healthFlags: focus || "None recorded",
+          body,
           eatingStyle: body || "",
+          focus,
+          healthFlags: focus || "None recorded",
           allergies: allergies || "None recorded",
           imageUrl,
           quizPills
@@ -441,9 +472,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           weight: "1.9",
           gender: "Male",
           neutered: "Neutered",
+          activity: "Playful",
           activityLevel: "Playful",
-          healthFlags: "None recorded",
+          body: "Lean",
           eatingStyle: "Lean",
+          focus: "",
+          healthFlags: "None recorded",
           allergies: "None recorded",
           imageUrl: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop",
           quizPills: [
@@ -479,6 +513,267 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     `;
   }).join('');
 
+  const ordersMap: Record<string, any> = {};
+
+  if (customer.orders?.edges && customer.orders.edges.length > 0) {
+    customer.orders.edges.forEach((e: any) => {
+      const node = e.node;
+      const orderDate = new Date(node.createdAt);
+      const day = orderDate.getDate();
+      const month = orderDate.toLocaleString('default', { month: 'short' });
+      const year = orderDate.getFullYear();
+      const dateStr = `${day} ${month} ${year}`;
+      const timeStr = orderDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+      const isFulfilled = node.displayFulfillmentStatus === 'FULFILLED';
+      const statusText = isFulfilled ? `Delivered ${day} ${month}` : (node.displayFulfillmentStatus === 'IN_TRANSIT' ? 'In transit' : 'Confirmed');
+      const statusBadgeStyle = isFulfilled
+        ? 'background:#dcfce7; color:#15803d;'
+        : (node.displayFulfillmentStatus === 'IN_TRANSIT' ? 'background:#dbeafe; color:#2563eb;' : 'background:#fef3c7; color:#d97706;');
+
+      const totalNum = parseFloat(node.totalPriceSet?.shopMoney?.amount || '0');
+      const subtotalNum = parseFloat(node.subtotalPriceSet?.shopMoney?.amount || '0') || totalNum;
+      const shippingNum = parseFloat(node.totalShippingPriceSet?.shopMoney?.amount || '0');
+      const taxNum = parseFloat(node.totalTaxSet?.shopMoney?.amount || '0');
+
+      const items = (node.lineItems?.edges || []).map((li: any) => {
+        const itemNode = li.node;
+        const unitPriceNum = parseFloat(itemNode.originalUnitPriceSet?.shopMoney?.amount || '0');
+        const qty = itemNode.quantity || 1;
+        const lineTotalNum = unitPriceNum * qty;
+        return {
+          id: itemNode.id || '',
+          title: itemNode.title || 'Purrkins Meal Pouch',
+          variantTitle: itemNode.variantTitle || '',
+          quantity: qty,
+          unitPrice: `₹${unitPriceNum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          totalPrice: `₹${lineTotalNum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          imageUrl: itemNode.image?.url || defaultFallbackImg,
+        };
+      });
+
+      const addr = node.shippingAddress || defaultAddress || {};
+      const contactEmail = customer.email || '';
+      const contactPhone = customer.phone || addr.phone || '';
+
+      const orderObj = {
+        id: node.name,
+        name: node.name,
+        orderNumber: node.name.replace('#', ''),
+        date: dateStr,
+        time: timeStr,
+        fullDate: `${dateStr} at ${timeStr}`,
+        statusText: statusText,
+        statusBadgeStyle: statusBadgeStyle,
+        isFulfilled: isFulfilled,
+        financialStatus: node.displayFinancialStatus || 'Paid',
+        fulfillmentStatus: node.displayFulfillmentStatus || (isFulfilled ? 'FULFILLED' : 'UNFULFILLED'),
+        subtotal: `₹${subtotalNum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        shipping: shippingNum > 0 ? `₹${shippingNum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Free',
+        taxes: `₹${taxNum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        total: `₹${totalNum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        currency: 'INR',
+        items: items.length > 0 ? items : [
+          {
+            title: 'Purrkins Kitten Nutrition Box',
+            variantTitle: 'Monthly Pouch Plan',
+            quantity: 1,
+            unitPrice: `₹${totalNum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            totalPrice: `₹${totalNum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            imageUrl: defaultFallbackImg,
+          }
+        ],
+        contactEmail: contactEmail,
+        contactPhone: contactPhone,
+        shippingAddress: {
+          name: addr.name || `${addr.firstName || customer.firstName || ''} ${addr.lastName || customer.lastName || ''}`.trim() || 'Valued Customer',
+          address1: addr.address1 || '',
+          address2: addr.address2 || '',
+          city: addr.city || '',
+          province: addr.province || '',
+          zip: addr.zip || '',
+          country: addr.country || 'India',
+          phone: addr.phone || contactPhone || '',
+        },
+        shippingMethod: 'Standard Shipping',
+        paymentMethod: 'Pre-paid Online',
+      };
+
+      ordersMap[node.name] = orderObj;
+      ordersMap[node.name.replace('#', '')] = orderObj;
+    });
+  }
+
+  // Pre-fill mock fallback orders in ordersMap
+  const defaultAddrObj = {
+    name: `${customer.firstName || 'Kowsalya'} ${customer.lastName || '.Selvaraj'}`.trim(),
+    address1: defaultAddress.address1 || '5/233 C, Sarthamanilayout, kvs colony near, sri ram nagar',
+    address2: defaultAddress.address2 || 'kvs',
+    city: defaultAddress.city || 'Udumalpet',
+    province: defaultAddress.province || 'Tamil Nadu',
+    zip: defaultAddress.zip || '642126',
+    country: defaultAddress.country || 'India',
+    phone: customer.phone || defaultAddress.phone || '+91 9876543210',
+  };
+
+  const mockOrdersList = [
+    {
+      id: 'PK-10391',
+      name: '#PK-10391',
+      date: '12 Aug 2026',
+      time: '04:15 PM',
+      statusText: 'In transit',
+      statusBadgeStyle: 'background:#dbeafe; color:#2563eb;',
+      financialStatus: 'Paid',
+      subtotal: '₹980.00',
+      shipping: '₹50.00',
+      taxes: '₹50.00',
+      total: '₹1,080.00',
+      items: [
+        {
+          title: `${petName}'s Monthly Nutrition Box`,
+          variantTitle: '31 pouches · Fresh Recipe Selection',
+          quantity: 1,
+          unitPrice: '₹980.00',
+          totalPrice: '₹980.00',
+          imageUrl: defaultFallbackImg,
+        }
+      ]
+    },
+    {
+      id: 'PK-10240',
+      name: '#PK-10240',
+      date: '19 Jul 2026',
+      time: '11:20 AM',
+      statusText: 'Delivered 22 Jul',
+      statusBadgeStyle: 'background:#dcfce7; color:#15803d;',
+      financialStatus: 'Paid',
+      subtotal: '₹980.00',
+      shipping: '₹50.00',
+      taxes: '₹50.00',
+      total: '₹1,080.00',
+      items: [
+        {
+          title: `${petName}'s Monthly Nutrition Box`,
+          variantTitle: '31 pouches · Growth & Immunity',
+          quantity: 1,
+          unitPrice: '₹980.00',
+          totalPrice: '₹980.00',
+          imageUrl: defaultFallbackImg,
+        }
+      ]
+    },
+    {
+      id: 'PK-10102',
+      name: '#PK-10102',
+      date: '14 Jul 2026',
+      time: '02:45 PM',
+      statusText: 'Delivered 17 Jul',
+      statusBadgeStyle: 'background:#dcfce7; color:#15803d;',
+      financialStatus: 'Paid',
+      subtotal: '₹490.00',
+      shipping: '₹25.00',
+      taxes: '₹25.00',
+      total: '₹540.00',
+      items: [
+        {
+          title: 'Starter Box',
+          variantTitle: '12 pouches · Kitten Transition Plan',
+          quantity: 1,
+          unitPrice: '₹490.00',
+          totalPrice: '₹490.00',
+          imageUrl: defaultFallbackImg,
+        }
+      ]
+    },
+    {
+      id: 'PK-10088',
+      name: '#PK-10088',
+      date: '28 Jun 2026',
+      time: '09:10 AM',
+      statusText: 'Delivered 1 Jul',
+      statusBadgeStyle: 'background:#dcfce7; color:#15803d;',
+      financialStatus: 'Paid',
+      subtotal: '₹800.00',
+      shipping: '₹45.00',
+      taxes: '₹45.00',
+      total: '₹890.00',
+      items: [
+        {
+          title: 'Hydration Box',
+          variantTitle: '24 pouches · Broth & Gravy Pouches',
+          quantity: 1,
+          unitPrice: '₹800.00',
+          totalPrice: '₹800.00',
+          imageUrl: defaultFallbackImg,
+        }
+      ]
+    },
+    {
+      id: 'PK-10065',
+      name: '#PK-10065',
+      date: '10 Jun 2026',
+      time: '01:30 PM',
+      statusText: 'Delivered 13 Jun',
+      statusBadgeStyle: 'background:#dcfce7; color:#15803d;',
+      financialStatus: 'Paid',
+      subtotal: '₹490.00',
+      shipping: '₹25.00',
+      taxes: '₹25.00',
+      total: '₹540.00',
+      items: [
+        {
+          title: 'Kitten Trial Box',
+          variantTitle: '12 pouches · Balanced Broth',
+          quantity: 1,
+          unitPrice: '₹490.00',
+          totalPrice: '₹490.00',
+          imageUrl: defaultFallbackImg,
+        }
+      ]
+    },
+    {
+      id: 'PK-10042',
+      name: '#PK-10042',
+      date: '25 May 2026',
+      time: '12:00 PM',
+      statusText: 'Delivered 28 May',
+      statusBadgeStyle: 'background:#dcfce7; color:#15803d;',
+      financialStatus: 'Paid',
+      subtotal: '₹0.00',
+      shipping: 'Free',
+      taxes: '₹0.00',
+      total: '₹0.00',
+      items: [
+        {
+          title: 'Free Sample Box',
+          variantTitle: 'Complimentary Kitten Tasting Pack',
+          quantity: 1,
+          unitPrice: '₹0.00',
+          totalPrice: '₹0.00',
+          imageUrl: defaultFallbackImg,
+        }
+      ]
+    }
+  ];
+
+  mockOrdersList.forEach((m) => {
+    const fullObj = {
+      ...m,
+      orderNumber: m.id.replace('PK-', '').replace('#', ''),
+      fullDate: `${m.date} at ${m.time}`,
+      isFulfilled: m.statusText.includes('Delivered'),
+      currency: 'INR',
+      contactEmail: customer.email || 'gowthamdeveloper94@gmail.com',
+      contactPhone: customer.phone || defaultAddrObj.phone,
+      shippingAddress: defaultAddrObj,
+      shippingMethod: 'Standard Shipping',
+      paymentMethod: 'Pre-paid Online',
+    };
+    if (!ordersMap[m.id]) ordersMap[m.id] = fullObj;
+    if (!ordersMap[m.name]) ordersMap[m.name] = fullObj;
+    if (!ordersMap[m.id.replace('#', '')]) ordersMap[m.id.replace('#', '')] = fullObj;
+  });
+
   const ordersHtml = (customer.orders?.edges && customer.orders.edges.length > 0)
     ? customer.orders.edges.map((e: any) => {
         const orderDate = new Date(e.node.createdAt);
@@ -506,8 +801,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             </div>
             <div class="pk-order-total">₹${parseFloat(e.node.totalPriceSet?.shopMoney?.amount || 0).toLocaleString('en-IN')}</div>
             <div class="pk-order-actions">
-              ${isFulfilled ? `<button type="button" onclick="pkReorder('${escAttr(e.node.name)}', this)" class="pk-btn-reorder">Reorder</button>` : ''}
-              <a href="${e.node.statusPageUrl || '#'}" target="_blank" class="pk-btn-invoice">Invoice</a>
+              <button type="button" onclick="pkViewInvoice('${escAttr(e.node.name)}', event)" class="pk-btn-invoice">Invoice</button>
             </div>
           </div>
         `;
@@ -525,7 +819,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         </div>
         <div class="pk-order-total">₹1,080</div>
         <div class="pk-order-actions">
-          <a href="#" target="_blank" class="pk-btn-invoice">Invoice</a>
+          <button type="button" onclick="pkViewInvoice('PK-10391', event)" class="pk-btn-invoice">Invoice</button>
         </div>
       </div>
 
@@ -540,8 +834,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         </div>
         <div class="pk-order-total">₹1,080</div>
         <div class="pk-order-actions">
-          <button type="button" onclick="pkReorder('PK-10240', this, event)" class="pk-btn-reorder">Reorder</button>
-          <a href="#" target="_blank" class="pk-btn-invoice">Invoice</a>
+          <button type="button" onclick="pkViewInvoice('PK-10240', event)" class="pk-btn-invoice">Invoice</button>
         </div>
       </div>
 
@@ -556,8 +849,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         </div>
         <div class="pk-order-total">₹540</div>
         <div class="pk-order-actions">
-          <button type="button" onclick="pkReorder('PK-10102', this, event)" class="pk-btn-reorder">Reorder</button>
-          <a href="#" target="_blank" class="pk-btn-invoice">Invoice</a>
+          <button type="button" onclick="pkViewInvoice('PK-10102', event)" class="pk-btn-invoice">Invoice</button>
         </div>
       </div>
 
@@ -572,8 +864,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         </div>
         <div class="pk-order-total">₹890</div>
         <div class="pk-order-actions">
-          <button type="button" onclick="pkReorder('PK-10088', this, event)" class="pk-btn-reorder">Reorder</button>
-          <a href="#" target="_blank" class="pk-btn-invoice">Invoice</a>
+          <button type="button" onclick="pkViewInvoice('PK-10088', event)" class="pk-btn-invoice">Invoice</button>
         </div>
       </div>
 
@@ -588,8 +879,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         </div>
         <div class="pk-order-total">₹540</div>
         <div class="pk-order-actions">
-          <button type="button" onclick="pkReorder('PK-10065', this, event)" class="pk-btn-reorder">Reorder</button>
-          <a href="#" target="_blank" class="pk-btn-invoice">Invoice</a>
+          <button type="button" onclick="pkViewInvoice('PK-10065', event)" class="pk-btn-invoice">Invoice</button>
         </div>
       </div>
 
@@ -604,7 +894,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         </div>
         <div class="pk-order-total">₹0</div>
         <div class="pk-order-actions">
-          <a href="#" target="_blank" class="pk-btn-invoice">Invoice</a>
+          <button type="button" onclick="pkViewInvoice('PK-10042', event)" class="pk-btn-invoice">Invoice</button>
         </div>
       </div>
     `;
@@ -922,14 +1212,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     <!-- PET SELECTOR HEADER (Image 2: Milo, Kaju, + Add Kitten) -->
     <div class="pk-pet-selector-row">
       ${petPillsHtml}
-      <button type="button" onclick="pkOpenAddKittenQuiz()" class="pk-pet-add-btn">+ Add Kitten</button>
+      <button type="button" onclick="pkOpenEditPetModal(null, false)" class="pk-pet-add-btn">+ Add Kitten</button>
     </div>
 
     <!-- Kitten Overview Profile Card (Image 2) -->
     <div class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
         <h2 id="pk-pet-profile-title" style="margin:0; font-size:26px; font-weight:800; font-family:var(--font-heading--family, sans-serif); color:#121217;">${escAttr(petName)}'s profile</h2>
-        <button type="button" onclick="pkOpenAddKittenQuiz()" class="pk-outline-btn" style="border-radius:30px; padding:8px 22px; font-size:13px; font-weight:700; color:#121217; border:1.5px solid #121217; background:#fff; cursor:pointer;">Edit Details</button>
+        <button type="button" onclick="pkOpenEditPetModal(null, true)" class="pk-outline-btn" style="border-radius:30px; padding:8px 22px; font-size:13px; font-weight:700; color:#121217; border:1.5px solid #121217; background:#fff; cursor:pointer;">Edit Details</button>
       </div>
       <div style="display:flex; gap:32px; align-items:flex-start; flex-wrap:wrap;">
         <div style="flex-shrink:0; width:130px; height:130px; overflow:hidden; border-radius:18px; background:#f4f4f5; display:flex; align-items:center; justify-content:center;">
@@ -1179,39 +1469,86 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       </div>
     `;
 
-  // ─── Subscriptions Individual Screen (Screenshot 2 & 3) ───────────────────
-  const subscriptionsTabHtml = customerSubscriptions.length === 0 ? `
-    <!-- Empty Subscriptions State -->
-    <div class="pk-card" style="margin-bottom: 24px; padding: 48px 32px; text-align: center;">
-      <div style="font-size: 48px; margin-bottom: 16px;">📦</div>
-      <h2 style="margin: 0 0 10px 0; font-size: 26px; font-weight: 800; color: #121217; font-family: var(--font-heading--family, sans-serif);">No Active Subscriptions</h2>
-      <p style="color: #595961; font-size: 14.5px; max-width: 480px; margin: 0 auto 24px auto; line-height: 1.5;">You do not currently have an active meal subscription. Subscribe to your kitten's favorite fresh meals to save 15% and enjoy automated scheduled deliveries with zero hassle!</p>
-      <a href="/pages/byob" class="pk-outline-btn" style="display: inline-block; background: #FFE600; color: #121217; font-weight: 800; font-size: 14px; padding: 13px 32px; border-radius: 30px; border: none; text-decoration: none; cursor: pointer;">Build Your Own Box</a>
-    </div>
+  // ─── Subscriptions Individual Screen (Screenshot 1 & 2) ───────────────────
+  const displaySubscriptions = customerSubscriptions.length > 0
+    ? customerSubscriptions
+    : [
+        {
+          id: "sub-1006",
+          planName: "Delivered every 30 days (Save 15%)",
+          status: "ACTIVE",
+          originOrderName: "#1006",
+          contractId: "gid://shopify/SubscriptionContract/1006",
+          createdAt: "2026-10-16T00:00:00Z",
+          interval: "DAYS",
+          intervalCount: 30,
+          nextDeliveryDate: "2026-11-16",
+          recurringTotal: "90",
+          ordersBilled: 1,
+          lines: [
+            {
+              title: "Lean Kitty",
+              variantTitle: "Healthy weight. Happy movement. One thoughtful meal. We blend fresh, digestible proteins.",
+              quantity: 1,
+              price: "90",
+              imageUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066"
+            }
+          ]
+        },
+        {
+          id: "sub-1007",
+          planName: `${petName}'s monthly plan`,
+          status: "ACTIVE",
+          originOrderName: "#1007",
+          contractId: "gid://shopify/SubscriptionContract/1007",
+          createdAt: "2026-07-14T00:00:00Z",
+          interval: "DAYS",
+          intervalCount: 30,
+          nextDeliveryDate: "2026-08-18",
+          recurringTotal: "1080",
+          ordersBilled: 2,
+          lines: [
+            {
+              title: "Growing Kitty",
+              variantTitle: "70 g pouch · Chicken with DHA",
+              quantity: 15,
+              price: "30",
+              imageUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066"
+            },
+            {
+              title: "Gutty Kitty",
+              variantTitle: "70 g pouch · Tuna & salmon broth",
+              quantity: 10,
+              price: "30",
+              imageUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066"
+            },
+            {
+              title: "Chicken Broth",
+              variantTitle: "70 g pouch · Hydration topper",
+              quantity: 6,
+              price: "30",
+              imageUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066"
+            }
+          ]
+        }
+      ];
 
-    <!-- Vet Chat Card -->
-    <div style="background: #121217; border-radius: 16px; padding: 32px 36px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; color: #fff; margin-bottom: 24px;">
-      <div>
-        <h3 style="margin: 0 0 8px 0; font-size: 22px; font-weight: 800; color: #fff; font-family: var(--font-heading--family, sans-serif);">Something not right with your kitten?</h3>
-        <p style="margin: 0; font-size: 14px; color: #d1d5db; line-height: 1.5;">Vet chat is included with your plan. Most questions get an answer in an hour.</p>
-      </div>
-      <button type="button" onclick="pkOpenVetModal()" style="background: #FFE600; color: #121217; border: none; border-radius: 30px; padding: 14px 34px; font-weight: 800; font-size: 15px; cursor: pointer; display: inline-block;">Talk to a Vet</button>
-    </div>
-  ` : `
-    ${customerSubscriptions.length > 1 ? `
-      <!-- Multi-Subscription Selector -->
-      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; background: #fff; padding: 14px 20px; border-radius: 16px; border: 1.5px solid #eaeaea; box-shadow: 0 2px 8px rgba(0,0,0,0.02);">
-        <span style="font-size: 13px; font-weight: 800; color: #595961; text-transform: uppercase; letter-spacing: 0.5px;">Your Subscriptions (${customerSubscriptions.length}):</span>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          ${customerSubscriptions.map((s: any, idx: number) => {
+  const subscriptionsTabHtml = `
+    ${displaySubscriptions.length > 1 ? `
+      <!-- Multi-Subscription Selector (Screenshot 1 top) -->
+      <div class="pk-sub-selector-card">
+        <span class="pk-sub-selector-label">YOUR SUBSCRIPTIONS (${displaySubscriptions.length}):</span>
+        <div class="pk-sub-pills-row">
+          ${displaySubscriptions.map((s: any, idx: number) => {
             const lines = getSubLines(s);
-            const firstLineTitle = lines[0]?.title || 'Meal Plan';
-            const label = s.originOrderName ? `Order ${s.originOrderName} (${firstLineTitle})` : `Plan #${idx + 1} (${firstLineTitle})`;
+            const firstLineTitle = lines[0]?.title || 'Lean Kitty';
+            const rawOrder = s.originOrderName ? String(s.originOrderName).replace(/^Order\s*/i, '') : `#${1006 + idx}`;
+            const label = `Order ${rawOrder.startsWith('#') ? rawOrder : '#' + rawOrder} (${firstLineTitle})`;
             return `
               <button type="button"
                 id="pk-sub-pill-${idx}"
-                onclick="pkSelectSubCard(${idx})"
-                style="cursor: pointer; padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 700; border: 1.5px solid ${idx === 0 ? '#121217' : '#e5e7eb'}; background: ${idx === 0 ? '#121217' : '#fff'}; color: ${idx === 0 ? '#fff' : '#121217'}; transition: all 0.2s;">
+                class="pk-sub-pill ${idx === 0 ? 'active' : ''}"
+                onclick="pkSelectSubCard(${idx})">
                 ${escAttr(label)}
               </button>
             `;
@@ -1220,15 +1557,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       </div>
     ` : ''}
 
-    ${customerSubscriptions.map((sub: any, subIdx: number) => {
+    ${displaySubscriptions.map((sub: any, subIdx: number) => {
       const subId = sub.id;
       const startedDateStr = sub.createdAt
         ? new Date(sub.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
-        : 'Recently';
+        : '16 October 2026';
       const frequencyStr = sub.planName || (sub.intervalCount ? `Delivered every ${sub.intervalCount} ${sub.interval?.toLowerCase() || 'days'} (Save 15%)` : 'Delivered every 30 days (Save 15%)');
       const nextChargeDate = sub.nextDeliveryDate
         ? new Date(sub.nextDeliveryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-        : 'Scheduled';
+        : '16 Nov';
       const nextChargeAmount = sub.recurringTotal
         ? `₹${parseFloat(String(sub.recurringTotal)).toLocaleString('en-IN')}`
         : '₹90';
@@ -1236,21 +1573,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const nextDeliveryYmd = sub.nextDeliveryDate || (sub.nextBillingAt ? new Date(sub.nextBillingAt).toISOString().split('T')[0] : '');
 
       const lines = getSubLines(sub);
-
-      const statusBg = sub.status === 'ACTIVE' ? '#FEF9C3' : sub.status === 'PAUSED' ? '#fef3d6' : '#f1f2f3';
-      const statusBorder = sub.status === 'ACTIVE' ? '#CA8A04' : sub.status === 'PAUSED' ? '#d97706' : '#d1d5db';
-      const statusColor = sub.status === 'ACTIVE' ? '#854D0E' : sub.status === 'PAUSED' ? '#916a00' : '#6d7175';
+      const rawOrder = sub.originOrderName ? String(sub.originOrderName).replace(/^Order\s*/i, '') : `#${1006 + subIdx}`;
+      const cleanOrderName = rawOrder.startsWith('#') ? rawOrder : '#' + rawOrder;
 
       return `
         <div id="pk-sub-card-${subIdx}" class="pk-sub-card-container" style="display: ${subIdx === 0 ? 'block' : 'none'};">
           <div class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
-            <!-- Header -->
+            <!-- Header (Screenshot 1 & 2) -->
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
-              <div style="display: flex; align-items: center; gap: 12px;">
-                <h2 style="margin: 0; font-size: 26px; font-weight: 800; color: #121217; font-family: var(--font-heading--family, sans-serif);">${escAttr(sub.planName || 'Monthly plan')}</h2>
-                <span style="background: ${statusBg}; border: 1.5px solid ${statusBorder}; color: ${statusColor}; border-radius: 20px; padding: 3px 14px; font-size: 12px; font-weight: 800; text-transform: capitalize;">${escAttr(sub.status ? sub.status.toLowerCase() : 'active')}</span>
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <h2 style="margin: 0; font-size: 26px; font-weight: 800; color: #121217; font-family: var(--font-heading--family, sans-serif);">${escAttr(sub.planName || 'Delivered every 30 days (Save 15%)')}</h2>
+                <span class="pk-sub-active-badge">${escAttr(sub.status ? sub.status.toLowerCase() : 'active')}</span>
               </div>
-              ${sub.originOrderName ? `<span style="font-size: 13px; font-weight: 700; color: #71717A;">Order ${escAttr(sub.originOrderName)}</span>` : ''}
+              <span style="font-size: 14px; font-weight: 600; color: #71717A;">Order ${escAttr(cleanOrderName)}</span>
             </div>
 
             <!-- Yellow Summary Bar (5 columns) -->
@@ -1277,12 +1612,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               </div>
             </div>
 
-            <!-- Subscribed Products Card -->
+            <!-- Subscribed Products Card (Screenshot 1 & 2) -->
             <div class="pk-sub-box-card">
               ${lines.length > 0 ? lines.map((item: any, itemIdx: number) => {
                 const itemTitle = item.title || 'Subscription Meal';
                 const itemImg = getProductImage(itemTitle, item.imageUrl || item.image);
-                const itemSub = getProductSubtitle(itemTitle, item.variantTitle);
+                const itemSub = item.variantTitle || getProductSubtitle(itemTitle);
                 const unitPrice = (item.price !== undefined && item.price !== null) ? Number(item.price) : 90;
                 const qty = Math.max(1, Number(item.quantity) || 1);
                 const linePrice = unitPrice * qty;
@@ -1294,7 +1629,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                       <div class="pk-sub-item-thumb">
                         <img id="sub-img-${itemKey}" src="${itemImg}" alt="${escAttr(itemTitle)}" onerror="this.onerror=null; this.src='${defaultFallbackImg}';">
                       </div>
-                      <div>
+                      <div style="min-width: 0;">
                         <div class="pk-sub-item-title" id="sub-title-${itemKey}">${escAttr(itemTitle)}</div>
                         <div class="pk-sub-item-sub" id="sub-desc-${itemKey}">${escAttr(itemSub)}</div>
                       </div>
@@ -1318,7 +1653,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
               <!-- Black Bottom Strip -->
               <div class="pk-sub-box-strip">
-                <div style="font-size: 13.5px; font-weight: 600;">+ Add a product to this box — treats, broths and supplement mousses</div>
+                <div>+ Add a product to this box — treats, broths and supplement mousses</div>
                 <a href="/pages/byob" class="pk-sub-box-browse">Browse</a>
               </div>
             </div>
@@ -1369,7 +1704,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <p style="margin: 0; font-size: 14px; color: #d1d5db; line-height: 1.5;">Vet chat is included with your plan. Most questions get an answer in an hour.</p>
       </div>
       <button type="button" onclick="pkOpenVetModal()" style="background: #FFE600; color: #121217; border: none; border-radius: 30px; padding: 14px 34px; font-weight: 800; font-size: 15px; cursor: pointer; display: inline-block;">Talk to a Vet</button>
-    </div>
   `;
 
   const liquidTemplate = `
@@ -1851,6 +2185,311 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         color: #a1a1aa;
         font-size: 13px;
         font-weight: 600;
+      }
+
+      /* ========================================================
+         INVOICE VIEW STYLES (ADOPTING PROFILE PAGE DESIGN)
+         ======================================================== */
+      .pk-invoice-header-card {
+        margin-bottom: 24px;
+        padding: 28px 32px;
+      }
+      .pk-invoice-top-nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .pk-invoice-back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: none;
+        border: none;
+        color: #595961;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        padding: 6px 12px 6px 0;
+        border-radius: 8px;
+        transition: color 0.15s, transform 0.15s;
+        font-family: inherit;
+        text-decoration: none;
+      }
+      .pk-invoice-back-btn:hover {
+        color: #121217;
+        transform: translateX(-3px);
+      }
+      .pk-invoice-top-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .pk-btn-print-invoice {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1.5px solid #595961;
+        border-radius: 20px;
+        padding: 7px 18px;
+        font-size: 13px;
+        font-weight: 700;
+        color: #121217;
+        background: #fff;
+        cursor: pointer;
+        transition: all 0.15s;
+        font-family: inherit;
+      }
+      .pk-btn-print-invoice:hover {
+        background: #f4f4f5;
+        border-color: #121217;
+      }
+      .pk-invoice-title-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 16px;
+      }
+      .pk-invoice-main-title {
+        font-size: 26px;
+        font-weight: 800;
+        color: #121217;
+        margin: 0 0 6px 0;
+        letter-spacing: -0.02em;
+      }
+      .pk-invoice-date-sub {
+        font-size: 14px;
+        color: #6b7280;
+        font-weight: 500;
+      }
+      .pk-invoice-badges {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .pk-invoice-status-banner {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 16px 20px;
+        margin-top: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .pk-invoice-status-info {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .pk-invoice-status-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #dcfce7;
+        color: #15803d;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .pk-invoice-status-icon.in-transit {
+        background: #dbeafe;
+        color: #2563eb;
+      }
+      .pk-invoice-status-title {
+        font-size: 15px;
+        font-weight: 700;
+        color: #121217;
+        margin-bottom: 2px;
+      }
+      .pk-invoice-status-desc {
+        font-size: 13px;
+        color: #64748b;
+      }
+      .pk-invoice-items-card {
+        margin-bottom: 24px;
+        padding: 28px 32px;
+      }
+      .pk-invoice-item-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 0;
+        border-bottom: 1px solid #f1f5f9;
+        gap: 16px;
+      }
+      .pk-invoice-item-row:last-child {
+        border-bottom: none;
+      }
+      .pk-invoice-item-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        min-width: 0;
+      }
+      .pk-invoice-item-thumb {
+        position: relative;
+        width: 64px;
+        height: 64px;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid #f1f5f9;
+        background: #f8fafc;
+        flex-shrink: 0;
+      }
+      .pk-invoice-item-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .pk-invoice-item-qty {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        background: #121217;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 700;
+        border-radius: 50%;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .pk-invoice-item-title {
+        font-size: 15px;
+        font-weight: 700;
+        color: #121217;
+        margin-bottom: 4px;
+      }
+      .pk-invoice-item-meta {
+        font-size: 13px;
+        color: #6b7280;
+      }
+      .pk-invoice-item-right {
+        text-align: right;
+        flex-shrink: 0;
+      }
+      .pk-invoice-item-price {
+        font-size: 16px;
+        font-weight: 700;
+        color: #121217;
+      }
+      .pk-invoice-summary-table {
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1.5px solid #f1f5f9;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+      }
+      .pk-invoice-summary-box {
+        width: 100%;
+        max-width: 380px;
+      }
+      .pk-invoice-summary-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 0;
+        font-size: 14px;
+        color: #4b5563;
+      }
+      .pk-invoice-summary-row.total-row {
+        margin-top: 8px;
+        padding-top: 12px;
+        border-top: 1.5px solid #e4e4e7;
+        font-size: 18px;
+        font-weight: 800;
+        color: #121217;
+      }
+      .pk-invoice-details-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 20px;
+        margin-bottom: 24px;
+      }
+      .pk-invoice-detail-card {
+        padding: 24px;
+      }
+      .pk-invoice-detail-header {
+        font-size: 15px;
+        font-weight: 700;
+        color: #121217;
+        margin-bottom: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .pk-invoice-detail-line {
+        font-size: 14px;
+        line-height: 1.6;
+        color: #4b5563;
+      }
+      .pk-invoice-detail-strong {
+        font-weight: 600;
+        color: #121217;
+      }
+      .pk-invoice-footer-card {
+        padding: 24px 32px;
+        background: #fafafc;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+      }
+      @media (max-width: 768px) {
+        .pk-invoice-header-card, .pk-invoice-items-card {
+          padding: 20px;
+        }
+        .pk-invoice-main-title {
+          font-size: 22px;
+        }
+        .pk-invoice-details-grid {
+          grid-template-columns: 1fr;
+        }
+        .pk-invoice-summary-box {
+          max-width: 100%;
+        }
+      }
+      @media print {
+        body {
+          background: #fff !important;
+          color: #000 !important;
+        }
+        .pk-sidebar, .pk-header, .pk-footer, .pk-navbar, .pk-invoice-back-btn, .pk-btn-print-invoice, .pk-invoice-footer-card button, #pk-orders-table, .pk-pagination-wrap {
+          display: none !important;
+        }
+        #pk-tab-invoice {
+          display: block !important;
+          width: 100% !important;
+          padding: 0 !important;
+          margin: 0 !important;
+        }
+        .pk-layout {
+          display: block !important;
+          padding: 0 !important;
+        }
+        .pk-content {
+          width: 100% !important;
+          max-width: 100% !important;
+          padding: 0 !important;
+        }
+        .pk-card {
+          box-shadow: none !important;
+          border: 1px solid #e2e8f0 !important;
+          break-inside: avoid;
+        }
       }
 
       /* Subscriptions View Styles (Screenshot 2 & 3) */
@@ -2476,105 +3115,339 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .pk-rec-box .pk-dark-btn { width: 100%; font-size: 14px; }
       .pk-black-btn { background: #121217; }
 
-      /* SUBSCRIPTION PLAN */
-      .pk-active-badge {
-        border: 1px solid #e8b923;
-        color: #d19a0a;
-        background: #fff;
-        padding: 4px 12px;
-        border-radius: 20px;
+      /* SUBSCRIPTION PRODUCT LIST & DETAIL STYLES (Matching Screenshots) */
+      .pk-sub-selector-card {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+        background: #ffffff;
+        padding: 16px 24px;
+        border-radius: 16px;
+        border: 1px solid #eaeaea;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.02);
+      }
+      .pk-sub-selector-label {
+        font-size: 13px;
+        font-weight: 800;
+        color: #121217;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .pk-sub-pills-row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .pk-sub-pill {
+        cursor: pointer;
+        padding: 8px 22px;
+        border-radius: 999px;
+        font-size: 13.5px;
+        font-weight: 700;
+        transition: all 0.2s ease;
+        background: #ffffff;
+        color: #121217;
+        border: 1.5px solid #e5e7eb;
+      }
+      .pk-sub-pill:hover {
+        border-color: #121217;
+      }
+      .pk-sub-pill.active {
+        background: #121217 !important;
+        color: #ffffff !important;
+        border-color: #121217 !important;
+      }
+
+      /* Active Badge matching screenshot */
+      .pk-sub-active-badge {
+        background: #FEF9C3;
+        border: 1px solid #F59E0B;
+        color: #854D0E;
+        border-radius: 999px;
+        padding: 2px 12px;
         font-size: 12px;
         font-weight: 700;
+        display: inline-block;
+        line-height: 1.4;
+        text-transform: capitalize;
       }
-      .pk-sub-stats-banner {
-        background: #ffd831;
-        border-radius: 12px;
-        padding: 20px;
+
+      /* Yellow Summary Bar */
+      .pk-sub-summary-bar {
+        background: #FFE500;
+        border-radius: 16px;
+        padding: 22px 28px;
         display: grid;
         grid-template-columns: repeat(5, 1fr);
-        gap: 15px;
-        margin-bottom: 30px;
+        gap: 20px;
+        align-items: start;
+        margin-bottom: 24px;
+        box-sizing: border-box;
       }
-      .pk-sub-stats-banner label {
-        display: block;
-        font-size: 10px;
+      .pk-sub-col-label {
+        font-size: 11px;
         font-weight: 800;
-        margin-bottom: 6px;
-        letter-spacing: 0.5px;
+        color: #121217;
+        letter-spacing: 0.6px;
         text-transform: uppercase;
+        margin-bottom: 6px;
       }
-      .pk-sub-stats-banner span {
+      .pk-sub-col-val {
         font-size: 15px;
-        font-weight: 600;
+        font-weight: 700;
+        color: #121217;
+        line-height: 1.3;
       }
-      .pk-sub-items {
-        border: 1px solid #eaeaea;
-        border-radius: 12px;
-        margin-bottom: 20px;
+
+      /* Subscribed Products Box */
+      .pk-sub-box-card {
+        border: 1.5px solid #E4E4E7;
+        border-radius: 16px;
+        overflow: hidden;
+        background: #ffffff;
+        margin-bottom: 24px;
+        box-sizing: border-box;
       }
       .pk-sub-item-row {
         display: flex;
         align-items: center;
-        padding: 20px;
-        border-bottom: 1px solid #eaeaea;
+        justify-content: space-between;
+        padding: 18px 24px;
+        border-bottom: 1.5px solid #F4F4F5;
+        gap: 20px;
+        background: #ffffff;
+        transition: background 0.15s ease;
       }
-      .pk-sub-item-row.no-border { border-bottom: none; }
-      .pk-sub-img {
-        width: 50px;
-        height: 50px;
-        margin-right: 20px;
+      .pk-sub-item-row:hover {
+        background: #FAFAFA;
       }
-      .pk-sub-img img { width: 100%; height: 100%; object-fit: contain; }
-      .pk-sub-info { flex-grow: 1; }
-      .pk-sub-info h4 { margin: 0 0 4px 0; font-size: 16px; font-weight: 700; }
-      .pk-sub-info p { margin: 0; font-size: 13px; color: #595961; }
-      .pk-sub-actions {
+      .pk-sub-item-info {
         display: flex;
         align-items: center;
-        gap: 20px;
+        gap: 18px;
+        flex: 1;
+        min-width: 0;
       }
-      .pk-sub-actions a { color: #595961; font-size: 13px; text-decoration: underline; font-weight: 600;}
-      .pk-qty-box {
-        border: 1px solid #eaeaea;
-        padding: 6px 16px;
-        border-radius: 20px;
-        font-weight: 700;
+      .pk-sub-item-thumb {
+        width: 56px;
+        height: 56px;
+        border-radius: 12px;
+        background: #f9f9fa;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        border: 1px solid #ECECEE;
+        overflow: hidden;
+      }
+      .pk-sub-item-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        padding: 4px;
+        box-sizing: border-box;
+      }
+      .pk-sub-item-title {
+        font-size: 16px;
+        font-weight: 800;
+        color: #121217;
+        margin: 0 0 4px 0;
+        line-height: 1.25;
+      }
+      .pk-sub-item-sub {
+        font-size: 13px;
+        color: #71717A;
+        margin: 0;
+        line-height: 1.4;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 440px;
+      }
+      .pk-sub-item-controls {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        flex-shrink: 0;
+      }
+      .pk-sub-swap-btn {
+        background: none;
+        border: none;
+        padding: 0;
         font-size: 14px;
+        font-weight: 700;
+        color: #121217;
+        cursor: pointer;
+        text-decoration: none;
+        transition: opacity 0.15s ease;
       }
-      .pk-sub-price { font-weight: 700; font-size: 16px; width: 60px; text-align: right; }
-      
-      .pk-sub-add-bar {
-        background: #21252A;
-        color: #fff;
-        padding: 16px 20px;
-        border-radius: 8px;
+      .pk-sub-swap-btn:hover {
+        text-decoration: underline;
+      }
+      .pk-sub-qty-stepper {
+        display: inline-flex;
+        align-items: center;
+        justify-content: space-between;
+        border: 1.5px solid #E4E4E7;
+        border-radius: 999px;
+        padding: 4px 12px;
+        min-width: 82px;
+        background: #ffffff;
+        box-sizing: border-box;
+      }
+      .pk-sub-qty-stepper button {
+        background: none;
+        border: none;
+        font-size: 16px;
+        font-weight: 700;
+        color: #121217;
+        cursor: pointer;
+        padding: 0 4px;
+        line-height: 1;
+        user-select: none;
+      }
+      .pk-sub-qty-stepper button:hover {
+        color: #000;
+        transform: scale(1.1);
+      }
+      .pk-sub-qty-stepper span {
+        font-size: 14px;
+        font-weight: 800;
+        color: #121217;
+        padding: 0 6px;
+        min-width: 18px;
+        text-align: center;
+      }
+      .pk-sub-item-price {
+        font-size: 18px;
+        font-weight: 800;
+        color: #121217;
+        min-width: 55px;
+        text-align: right;
+      }
+
+      /* Black Bottom Strip */
+      .pk-sub-box-strip {
+        background: #121217;
+        color: #ffffff;
+        padding: 16px 24px;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        font-size: 14px;
-        margin-bottom: 30px;
+        flex-wrap: wrap;
+        gap: 12px;
+        box-sizing: border-box;
       }
-      .pk-sub-add-bar a { color: #fff; text-decoration: underline; font-weight: 700; }
-      
-      .pk-sub-action-btns {
+      .pk-sub-box-strip div {
+        font-size: 13.5px;
+        font-weight: 700;
+        color: #ffffff;
+      }
+      .pk-sub-box-browse {
+        color: #ffffff;
+        font-size: 14px;
+        font-weight: 800;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .pk-sub-box-browse:hover {
+        text-decoration: underline;
+      }
+
+      /* Action Buttons Bar */
+      .pk-sub-action-bar {
         display: flex;
         align-items: center;
-        gap: 15px;
-        margin-bottom: 30px;
+        gap: 14px;
+        margin-bottom: 24px;
         flex-wrap: wrap;
       }
-      .pk-cancel-link { color: #8c8c9a; font-size: 13px; text-decoration: none; margin-left: auto; }
-      
-      .pk-sub-benefits-banner {
-        background: #ffd831;
-        border-radius: 12px;
-        padding: 24px;
+      .pk-sub-action-btn {
+        border: 1.5px solid #121217;
+        border-radius: 999px;
+        padding: 10px 22px;
+        font-size: 13.5px;
+        font-weight: 700;
+        color: #121217;
+        background: #ffffff;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .pk-sub-action-btn:hover {
+        background: #121217;
+        color: #ffffff;
+      }
+      .pk-sub-cancel-link {
+        color: #71717A;
+        font-size: 13.5px;
+        font-weight: 700;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 8px 12px;
+        margin-left: 6px;
+        transition: color 0.15s ease;
+      }
+      .pk-sub-cancel-link:hover {
+        color: #bf0711;
+        text-decoration: underline;
+      }
+
+      /* Yellow Benefit Banner (4 columns) */
+      .pk-sub-benefit-banner {
+        background: #FFE500;
+        border-radius: 16px;
+        padding: 22px 28px;
         display: grid;
         grid-template-columns: repeat(4, 1fr);
-        gap: 20px;
+        gap: 24px;
+        align-items: start;
+        box-sizing: border-box;
       }
-      .pk-benefit strong { display: block; font-size: 14px; font-weight: 800; margin-bottom: 6px; }
-      .pk-benefit p { margin: 0; font-size: 13px; color: #121217; }
+      .pk-benefit-title {
+        font-size: 14px;
+        font-weight: 800;
+        color: #121217;
+        margin-bottom: 4px;
+      }
+      .pk-benefit-desc {
+        font-size: 12px;
+        color: #121217;
+        line-height: 1.4;
+        font-weight: 500;
+      }
+
+      @media (max-width: 900px) {
+        .pk-sub-summary-bar {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .pk-sub-benefit-banner {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .pk-sub-item-row {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 16px;
+        }
+        .pk-sub-item-controls {
+          width: 100%;
+          justify-content: space-between;
+        }
+        .pk-sub-item-sub {
+          max-width: 100%;
+          white-space: normal;
+        }
+      }
+      @media (max-width: 600px) {
+        .pk-sub-summary-bar {
+          grid-template-columns: 1fr;
+        }
+        .pk-sub-benefit-banner {
+          grid-template-columns: 1fr;
+        }
+      }
 
       /* VET CARD */
       .pk-vet-card {
@@ -2966,12 +3839,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             </div>
           </div>
 
+          <!-- TAB 6: INVOICE (Adopt website profile page design) -->
+          <div id="pk-tab-invoice" class="pk-tab-pane" style="display: none;">
+            <div id="pk-invoice-content"></div>
+          </div>
+
         </div>
       </div>
     </div>
 
     <script>
       window.pkDefaultFallbackImg = ${JSON.stringify(defaultFallbackImg)};
+      window.pkOrdersData = ${JSON.stringify(ordersMap)};
 
       // Global Tab Switcher (Early defined so left side menu clicks work immediately)
       window.switchDashboardTab = function(tabId, ev) {
@@ -2993,7 +3872,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           shouldScrollQuiz = true;
         }
 
-        var validTabs = ['overview', 'kitten', 'subscriptions', 'reviews'];
+        var validTabs = ['overview', 'kitten', 'subscriptions', 'reviews', 'invoice'];
         if (validTabs.indexOf(tabId) === -1) tabId = 'overview';
 
         // Instant DOM pane visibility toggle
@@ -3005,13 +3884,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           target.style.display = 'block';
         }
 
+        if (tabId === 'invoice') {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
         // Initialize orders pagination whenever overview tab is shown
         if (tabId === 'overview' && typeof window.pkInitOrdersPagination === 'function') {
           setTimeout(function() { window.pkInitOrdersPagination(); }, 10);
         }
 
         // Update active class on sidebar menu items
-        var activeTabKey = shouldScrollQuiz ? 'quiz-answers' : (shouldScrollWishlist ? 'overview' : tabId);
+        var activeTabKey = (tabId === 'invoice') ? 'overview' : (shouldScrollQuiz ? 'quiz-answers' : (shouldScrollWishlist ? 'overview' : tabId));
         document.querySelectorAll('.pk-sidebar-menu .pk-menu-item').forEach(function(item) {
           if (item.getAttribute('data-tab') === activeTabKey) {
             item.classList.add('active');
@@ -3439,10 +4322,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
       // Pets data for instant client-side switching
       window.pkPetsData = ${JSON.stringify(pets)};
+      window.pkActivePetIndex = 0;
 
       // 0ms Pet Switcher Function
       window.pkSelectPet = function(index, ev) {
         if (ev && ev.preventDefault) ev.preventDefault();
+        window.pkActivePetIndex = index;
         var pets = window.pkPetsData || [];
         var pet = pets[index];
         if (!pet) return;
@@ -3477,13 +4362,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
 
         var actEl = document.getElementById('pk-pet-stat-activity');
-        if (actEl) actEl.textContent = pet.activityLevel || '—';
+        if (actEl) actEl.textContent = pet.activityLevel || pet.activity || '—';
 
         var bodyEl = document.getElementById('pk-pet-stat-body');
-        if (bodyEl) bodyEl.textContent = pet.eatingStyle || '—';
+        if (bodyEl) bodyEl.textContent = pet.eatingStyle || pet.body || '—';
 
         var healthEl = document.getElementById('pk-pet-stat-health');
-        if (healthEl) healthEl.textContent = pet.healthFlags || 'None recorded';
+        if (healthEl) healthEl.textContent = pet.healthFlags || pet.focus || 'None recorded';
 
         var allergEl = document.getElementById('pk-pet-stat-allergies');
         if (allergEl) allergEl.textContent = pet.allergies || 'None recorded';
@@ -3501,14 +4386,224 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
       };
 
-      // Add kitten quiz modal open
-      window.pkOpenAddKittenQuiz = function() {
+      // Modal opener for editing pet or adding new kitten with pre-filled previous data
+      window.pkOpenEditPetModal = function(petIndex, isEdit) {
         var modal = document.getElementById('global-byob-quiz-popup');
-        if (modal) {
-          modal.style.display = 'flex';
-        } else {
+        if (!modal) {
           window.location.href = '/pages/byob';
+          return;
         }
+
+        var form = document.getElementById('popup-byob-quiz-form');
+        if (!form) {
+          modal.style.display = 'flex';
+          return;
+        }
+
+        // Ensure hidden input for target pet_id exists
+        var petIdInput = form.querySelector('input[name="quiz_pet_id"]');
+        if (!petIdInput) {
+          petIdInput = document.createElement('input');
+          petIdInput.type = 'hidden';
+          petIdInput.name = 'quiz_pet_id';
+          form.appendChild(petIdInput);
+        }
+
+        if (isEdit) {
+          var pIdx = (typeof petIndex === 'number' && !isNaN(petIndex)) ? petIndex : (window.pkActivePetIndex || 0);
+          var pets = window.pkPetsData || [];
+          var pet = pets[pIdx] || pets[0];
+
+          if (pet) {
+            // 1. Set Pet ID (only real Shopify metaobject IDs)
+            petIdInput.value = (pet.id && String(pet.id).indexOf('pet-') !== 0) ? pet.id : '';
+
+            // 2. Pre-fill Name (Slide 1)
+            var nameInput = form.querySelector('input[name="quiz_name"]');
+            if (nameInput) {
+              nameInput.value = pet.name || '';
+            }
+
+            // 3. Pre-fill Age (Slide 1)
+            var petAge = String(pet.age || '').toLowerCase().trim();
+            var ageRadios = form.querySelectorAll('input[name="quiz_age"]');
+            var ageMatched = false;
+            ageRadios.forEach(function(r) {
+              var rVal = r.value.toLowerCase().trim();
+              var isMatch = false;
+              if (rVal === petAge) isMatch = true;
+              else if (petAge.indexOf('lactat') !== -1 && rVal.indexOf('lactat') !== -1) isMatch = true;
+              else if ((petAge.indexOf('3-8') !== -1 || petAge.indexOf('week') !== -1) && rVal.indexOf('3-8') !== -1) isMatch = true;
+              else if ((petAge.indexOf('2-4') !== -1 || petAge.indexOf('2 month') !== -1 || petAge.indexOf('3 month') !== -1) && rVal.indexOf('2-4') !== -1) isMatch = true;
+              else if ((petAge.indexOf('4+') !== -1 || petAge.indexOf('4 month') !== -1 || petAge.indexOf('5 month') !== -1 || petAge.indexOf('6 month') !== -1 || petAge.indexOf('8 month') !== -1 || petAge.indexOf('month') !== -1) && rVal.indexOf('4+') !== -1) isMatch = true;
+              else if ((petAge.indexOf('senior') !== -1 || petAge.indexOf('7+') !== -1) && rVal.indexOf('7+') !== -1) isMatch = true;
+              else if ((petAge.indexOf('adult') !== -1 || petAge.indexOf('1+') !== -1 || petAge.indexOf('year') !== -1) && rVal.indexOf('1+') !== -1) isMatch = true;
+
+              if (isMatch && !ageMatched) {
+                r.checked = true;
+                ageMatched = true;
+              } else {
+                r.checked = false;
+              }
+            });
+            if (!ageMatched && ageRadios.length > 0 && petAge) {
+              ageRadios[0].checked = true;
+            }
+
+            // 4. Pre-fill Gender (Slide 2)
+            var petGender = String(pet.gender || '').toLowerCase().trim();
+            var genderRadios = form.querySelectorAll('input[name="quiz_gender"]');
+            genderRadios.forEach(function(r) {
+              if (petGender.indexOf('female') !== -1) {
+                r.checked = (r.value === 'Female');
+              } else if (petGender.indexOf('male') !== -1) {
+                r.checked = (r.value === 'Male');
+              } else {
+                r.checked = false;
+              }
+            });
+
+            // 5. Pre-fill Neutered (Slide 2)
+            var petNeut = String(pet.neutered || '').toLowerCase().trim();
+            var isNeutered = false;
+            if (petNeut.indexOf('not') !== -1 || petNeut === 'no' || petNeut === 'false') {
+              isNeutered = false;
+            } else if (petNeut.indexOf('neut') !== -1 || petNeut === 'yes' || petNeut === 'true') {
+              isNeutered = true;
+            }
+            var neutRadios = form.querySelectorAll('input[name="quiz_neutered"]');
+            neutRadios.forEach(function(r) {
+              if (r.value === 'Neutered') r.checked = isNeutered;
+              else if (r.value === 'Not Neutered') r.checked = !isNeutered;
+            });
+
+            // 6. Pre-fill Weight (Slide 3)
+            var weightInput = form.querySelector('input[name="quiz_weight"]');
+            if (weightInput) {
+              var cleanWeight = String(pet.weight || '').replace(/[^0-9.]/g, '');
+              weightInput.value = cleanWeight || '';
+            }
+
+            // 7. Pre-fill Body / Eating Style (Slide 3)
+            var petBody = String(pet.body || pet.eatingStyle || '').toLowerCase().trim();
+            var bodyRadios = form.querySelectorAll('input[name="quiz_body"]');
+            var bodyMatched = false;
+            bodyRadios.forEach(function(r) {
+              var rVal = r.value.toLowerCase();
+              if (petBody.indexOf(rVal) !== -1 && !bodyMatched) {
+                r.checked = true;
+                bodyMatched = true;
+              } else {
+                r.checked = false;
+              }
+            });
+            if (!bodyMatched && bodyRadios.length > 0 && petBody) {
+              bodyRadios[1].checked = true; // Lean default
+            }
+
+            // 8. Pre-fill Activity Level (Slide 4)
+            var petAct = String(pet.activity || pet.activityLevel || '').toLowerCase().trim();
+            var actRadios = form.querySelectorAll('input[name="quiz_activity"]');
+            var actMatched = false;
+            actRadios.forEach(function(r) {
+              var rVal = r.value.toLowerCase();
+              var isMatch = false;
+              if (petAct.indexOf('couch') !== -1 && rVal.indexOf('couch') !== -1) isMatch = true;
+              else if (petAct.indexOf('playful') !== -1 && rVal.indexOf('playful') !== -1) isMatch = true;
+              else if (petAct.indexOf('explorer') !== -1 && rVal.indexOf('explorer') !== -1) isMatch = true;
+              else if ((petAct.indexOf('super') !== -1 || petAct.indexOf('active') !== -1) && rVal.indexOf('super') !== -1) isMatch = true;
+
+              if (isMatch && !actMatched) {
+                r.checked = true;
+                actMatched = true;
+              } else {
+                r.checked = false;
+              }
+            });
+            if (!actMatched && actRadios.length > 0 && petAct) {
+              actRadios[1].checked = true; // Playful default
+            }
+
+            // 9. Pre-fill Focus / Health Flags (Slide 5)
+            var allFlags = [
+              pet.focus || '',
+              pet.healthFlags && pet.healthFlags !== 'None recorded' ? pet.healthFlags : '',
+              (pet.quizPills || []).join(',')
+            ].join(',').toLowerCase();
+
+            var focusCheckboxes = form.querySelectorAll('input[name="quiz_focus[]"]');
+            var anyFocusChecked = false;
+            focusCheckboxes.forEach(function(cb) {
+              var val = cb.value.toLowerCase();
+              var shouldCheck = false;
+              if (allFlags.indexOf(val) !== -1) shouldCheck = true;
+              else if (val === 'loose motions' && allFlags.indexOf('motion') !== -1) shouldCheck = true;
+              else if (val === 'weak immunity' && allFlags.indexOf('immuni') !== -1) shouldCheck = true;
+              else if (val === 'under nourishment' && (allFlags.indexOf('nourish') !== -1 || allFlags.indexOf('under') !== -1)) shouldCheck = true;
+              else if (val === 'gut issues' && (allFlags.indexOf('gut') !== -1 || allFlags.indexOf('stomach') !== -1 || allFlags.indexOf('digest') !== -1)) shouldCheck = true;
+              else if (val === 'kitty growth' && (allFlags.indexOf('growth') !== -1 || allFlags.indexOf('kitten') !== -1)) shouldCheck = true;
+              else if (val === 'dental care' && (allFlags.indexOf('dental') !== -1 || allFlags.indexOf('teeth') !== -1)) shouldCheck = true;
+
+              cb.checked = shouldCheck;
+              if (shouldCheck) anyFocusChecked = true;
+            });
+            if (!anyFocusChecked && focusCheckboxes.length > 0) {
+              focusCheckboxes[0].checked = true;
+            }
+
+            // 10. Pre-fill Allergies (Slide 5)
+            var allergiesInput = form.querySelector('textarea[name="quiz_allergies"]');
+            if (allergiesInput) {
+              var rawAllergies = String(pet.allergies || '').trim();
+              if (!rawAllergies || rawAllergies.toLowerCase() === 'none recorded') {
+                rawAllergies = 'None';
+              }
+              allergiesInput.value = rawAllergies;
+            }
+
+            // 11. Update submit button text
+            var submitBtn = form.querySelector('.quiz-submit-btn');
+            if (submitBtn) {
+              submitBtn.textContent = 'Save ' + pet.name + "'s Details";
+            }
+          }
+        } else {
+          // Adding a new kitten: clear all inputs
+          petIdInput.value = '';
+          form.reset();
+          form.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(function(i) {
+            i.checked = false;
+          });
+          form.querySelectorAll('input[type="text"], input[type="number"], textarea').forEach(function(i) {
+            i.value = '';
+          });
+          var submitBtn = form.querySelector('.quiz-submit-btn');
+          if (submitBtn) {
+            submitBtn.textContent = 'Submit';
+          }
+        }
+
+        // Reset slider to step 0 so user reviews from the first slide
+        if (typeof window.pkByobGoToStep === 'function') {
+          window.pkByobGoToStep(0);
+        } else {
+          var slider = document.getElementById('popup-byob-quiz-slider');
+          if (slider) {
+            slider.style.transform = 'translateX(0%)';
+            var slides = slider.querySelectorAll('.byob-quiz-slide');
+            slides.forEach(function(s, idx) {
+              if (idx === 0) s.classList.add('active');
+              else s.classList.remove('active');
+            });
+          }
+        }
+
+        modal.style.display = 'flex';
+      };
+
+      // Add kitten quiz modal open (opens blank quiz)
+      window.pkOpenAddKittenQuiz = function() {
+        window.pkOpenEditPetModal(null, false);
       };
 
       // Scroll to quiz answers
@@ -3537,7 +4632,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           shouldScrollQuiz = true;
         }
 
-        var validTabs = ['overview', 'kitten', 'subscriptions', 'reviews'];
+        var validTabs = ['overview', 'kitten', 'subscriptions', 'reviews', 'invoice'];
         if (validTabs.indexOf(tabId) === -1) tabId = 'overview';
 
         // Instant DOM pane visibility toggle
@@ -3549,8 +4644,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           target.style.display = 'block';
         }
 
+        if (tabId === 'invoice') {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
         // Update active class on sidebar menu items
-        var activeTabKey = shouldScrollQuiz ? 'quiz-answers' : (shouldScrollWishlist ? 'overview' : tabId);
+        var activeTabKey = (tabId === 'invoice') ? 'overview' : (shouldScrollQuiz ? 'quiz-answers' : (shouldScrollWishlist ? 'overview' : tabId));
         document.querySelectorAll('.pk-sidebar-menu .pk-menu-item').forEach(function(item) {
           if (item.getAttribute('data-tab') === activeTabKey) {
             item.classList.add('active');
@@ -4211,13 +5310,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           var pill = document.getElementById('pk-sub-pill-' + i);
           if (pill) {
             if (i === selectedIndex) {
-              pill.style.background = '#121217';
-              pill.style.color = '#fff';
-              pill.style.borderColor = '#121217';
+              pill.classList.add('active');
             } else {
-              pill.style.background = '#fff';
-              pill.style.color = '#121217';
-              pill.style.borderColor = '#e5e7eb';
+              pill.classList.remove('active');
             }
           }
         }
@@ -4231,6 +5326,290 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
         window.pkAddToCart('49767352369463', btn, 'chicken-broth', 'Chicken Broth', ev);
       };
+
+      // ─── In-Dashboard Invoice View (Adopting Profile Page Design) ───
+      function pkEscapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      window.pkRenderInvoiceHtml = function(order) {
+        if (!order) {
+          return '<div class="pk-card"><p>Order details not found.</p><button type="button" class="pk-outline-btn" onclick="pkBackToOrders(event)">← Back to Orders</button></div>';
+        }
+
+        var itemsHtml = (order.items || []).map(function(item) {
+          var imgUrl = item.imageUrl || window.pkDefaultFallbackImg || '';
+          return (
+            '<div class="pk-invoice-item-row">' +
+              '<div class="pk-invoice-item-left">' +
+                '<div class="pk-invoice-item-thumb">' +
+                  '<img src="' + pkEscapeHtml(imgUrl) + '" alt="' + pkEscapeHtml(item.title) + '" onerror="this.onerror=null;this.src=window.pkDefaultFallbackImg;">' +
+                  '<span class="pk-invoice-item-qty">' + (item.quantity || 1) + '</span>' +
+                '</div>' +
+                '<div>' +
+                  '<div class="pk-invoice-item-title">' + pkEscapeHtml(item.title) + '</div>' +
+                  (item.variantTitle ? '<div class="pk-invoice-item-meta">' + pkEscapeHtml(item.variantTitle) + '</div>' : '') +
+                '</div>' +
+              '</div>' +
+              '<div class="pk-invoice-item-right">' +
+                '<div class="pk-invoice-item-price">' + pkEscapeHtml(item.totalPrice || item.price || '') + '</div>' +
+                (item.quantity > 1 ? '<div style="font-size:12px;color:#71717a;margin-top:2px;">' + pkEscapeHtml(item.unitPrice) + ' each</div>' : '') +
+              '</div>' +
+            '</div>'
+          );
+        }).join('');
+
+        var addr = order.shippingAddress || {};
+        var addrLines = [];
+        if (addr.address1) addrLines.push(pkEscapeHtml(addr.address1));
+        if (addr.address2) addrLines.push(pkEscapeHtml(addr.address2));
+        var cityParts = [];
+        if (addr.city) cityParts.push(addr.city);
+        if (addr.province) cityParts.push(addr.province);
+        var cityLine = cityParts.join(', ');
+        if (addr.zip) cityLine += (cityLine ? ' ' : '') + addr.zip;
+        if (cityLine) addrLines.push(pkEscapeHtml(cityLine));
+        if (addr.country) addrLines.push(pkEscapeHtml(addr.country));
+        var fullAddrStr = addrLines.join('<br>') || 'Address on file';
+
+        var isDelivered = (order.statusText || '').toLowerCase().indexOf('delivered') !== -1;
+        var bannerIconClass = isDelivered ? '' : 'in-transit';
+        var bannerIconSvg = isDelivered
+          ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>'
+          : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>';
+
+        var itemCount = (order.items || []).length;
+        var itemText = itemCount + ' ' + (itemCount === 1 ? 'item' : 'items');
+
+        return (
+          '<!-- Invoice Header Card -->' +
+          '<div class="pk-card pk-invoice-header-card">' +
+            '<div class="pk-invoice-top-nav">' +
+              '<button type="button" class="pk-invoice-back-btn" onclick="pkBackToOrders(event)">' +
+                '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>' +
+                '<span>Back to Orders</span>' +
+              '</button>' +
+              '<div class="pk-invoice-top-actions">' +
+                '<button type="button" class="pk-btn-print-invoice" onclick="window.print()">' +
+                  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>' +
+                  '<span>Print Invoice</span>' +
+                '</button>' +
+              '</div>' +
+            '</div>' +
+
+            '<div class="pk-invoice-title-row">' +
+              '<div>' +
+                '<h2 class="pk-invoice-main-title">Order ' + pkEscapeHtml(order.name) + '</h2>' +
+                '<div class="pk-invoice-date-sub">Confirmed on ' + pkEscapeHtml(order.fullDate || order.date) + '</div>' +
+              '</div>' +
+              '<div class="pk-invoice-badges">' +
+                '<span class="pk-order-pill" style="' + (order.statusBadgeStyle || 'background:#dcfce7; color:#15803d;') + '">' + pkEscapeHtml(order.statusText) + '</span>' +
+                '<span class="pk-order-pill" style="background:#f1f5f9; color:#334155;">' + pkEscapeHtml(order.financialStatus || 'Paid') + '</span>' +
+              '</div>' +
+            '</div>' +
+
+            '<!-- Delivery Status Banner -->' +
+            '<div class="pk-invoice-status-banner">' +
+              '<div class="pk-invoice-status-info">' +
+                '<div class="pk-invoice-status-icon ' + bannerIconClass + '">' +
+                  bannerIconSvg +
+                '</div>' +
+                '<div>' +
+                  '<div class="pk-invoice-status-title">' + pkEscapeHtml(order.statusText) + '</div>' +
+                  '<div class="pk-invoice-status-desc">' + (isDelivered ? 'Your order has been safely delivered.' : 'Your package is in transit via standard shipping.') + '</div>' +
+                '</div>' +
+              '</div>' +
+              '<div style="font-size:13px; font-weight:600; color:#595961;">' +
+                'Tracking via courier partner' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+
+          '<!-- Items Ordered Card -->' +
+          '<div class="pk-card pk-invoice-items-card">' +
+            '<h3 class="pk-section-title" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">' +
+              '<span>Items Ordered</span>' +
+              '<span style="font-size: 13.5px; font-weight: 600; color: #71717a;">' + itemText + '</span>' +
+            '</h3>' +
+
+            '<div class="pk-invoice-items-list">' +
+              itemsHtml +
+            '</div>' +
+
+            '<div class="pk-invoice-summary-table">' +
+              '<div class="pk-invoice-summary-box">' +
+                '<div class="pk-invoice-summary-row">' +
+                  '<span>Subtotal</span>' +
+                  '<span style="font-weight:600;color:#121217;">' + pkEscapeHtml(order.subtotal || order.total) + '</span>' +
+                '</div>' +
+                '<div class="pk-invoice-summary-row">' +
+                  '<span>Shipping</span>' +
+                  '<span style="font-weight:600;color:#121217;">' + pkEscapeHtml(order.shipping || 'Free') + '</span>' +
+                '</div>' +
+                '<div class="pk-invoice-summary-row">' +
+                  '<span>Taxes (GST)</span>' +
+                  '<span style="font-weight:600;color:#121217;">' + pkEscapeHtml(order.taxes || '₹0.00') + '</span>' +
+                '</div>' +
+                '<div class="pk-invoice-summary-row total-row">' +
+                  '<span>Total (INR)</span>' +
+                  '<span style="color:#121217;">' + pkEscapeHtml(order.total) + '</span>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+
+          '<!-- Customer & Delivery Details Grid -->' +
+          '<div class="pk-invoice-details-grid">' +
+            '<div class="pk-card pk-invoice-detail-card">' +
+              '<div class="pk-invoice-detail-header">' +
+                '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#71717a;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>' +
+                '<span>Contact Details</span>' +
+              '</div>' +
+              '<div class="pk-invoice-detail-line pk-invoice-detail-strong">' + pkEscapeHtml(order.contactEmail || 'Customer email on file') + '</div>' +
+              (order.contactPhone ? '<div class="pk-invoice-detail-line" style="margin-top:4px;">' + pkEscapeHtml(order.contactPhone) + '</div>' : '') +
+              '<div class="pk-invoice-detail-line" style="margin-top:8px;font-size:12.5px;color:#71717a;">Order updates & invoice copies are delivered to this email.</div>' +
+            '</div>' +
+
+            '<div class="pk-card pk-invoice-detail-card">' +
+              '<div class="pk-invoice-detail-header">' +
+                '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#71717a;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>' +
+                '<span>Shipping Address</span>' +
+              '</div>' +
+              '<div class="pk-invoice-detail-line pk-invoice-detail-strong">' + pkEscapeHtml(addr.name || 'Valued Customer') + '</div>' +
+              '<div class="pk-invoice-detail-line" style="margin-top:4px;">' + fullAddrStr + '</div>' +
+              (addr.phone ? '<div class="pk-invoice-detail-line" style="margin-top:6px;font-size:13px;color:#595961;">Phone: ' + pkEscapeHtml(addr.phone) + '</div>' : '') +
+            '</div>' +
+
+            '<div class="pk-card pk-invoice-detail-card">' +
+              '<div class="pk-invoice-detail-header">' +
+                '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#71717a;"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>' +
+                '<span>Payment & Method</span>' +
+              '</div>' +
+              '<div class="pk-invoice-detail-line"><span style="color:#71717a;">Method:</span> <strong style="color:#121217;">' + pkEscapeHtml(order.shippingMethod || 'Standard Shipping') + '</strong></div>' +
+              '<div class="pk-invoice-detail-line" style="margin-top:4px;"><span style="color:#71717a;">Payment:</span> <strong style="color:#121217;">' + pkEscapeHtml(order.paymentMethod || 'Pre-paid Online') + '</strong></div>' +
+              '<div class="pk-invoice-detail-line" style="margin-top:4px;"><span style="color:#71717a;">Status:</span> <strong style="color:#15803d;">' + pkEscapeHtml(order.financialStatus || 'Paid') + '</strong></div>' +
+            '</div>' +
+          '</div>' +
+
+          '<!-- Invoice Brand Footer Note -->' +
+          '<div class="pk-card pk-invoice-footer-card">' +
+            '<div>' +
+              '<div style="font-weight:700;font-size:14px;color:#121217;margin-bottom:4px;">Purrkins · Kitten Nutrition Purr-fected</div>' +
+              '<div style="font-size:13px;color:#71717a;">Have questions regarding this order? Contact our support team at <a href="mailto:support@purrkins.com" style="color:#ea580c;text-decoration:underline;">support@purrkins.com</a></div>' +
+            '</div>' +
+            '<button type="button" class="pk-outline-btn" onclick="pkBackToOrders(event)" style="border-radius:20px;padding:8px 22px;font-size:13px;font-weight:700;background:#fff;border:1.5px solid #595961;color:#121217;cursor:pointer;">' +
+              '← Back to Orders' +
+            '</button>' +
+          '</div>'
+        );
+      };
+
+      window.pkViewInvoice = function(orderId, ev) {
+        if (ev) {
+          if (ev.preventDefault) ev.preventDefault();
+          if (ev.stopPropagation) ev.stopPropagation();
+        }
+
+        var order = null;
+        if (window.pkOrdersData) {
+          order = window.pkOrdersData[orderId] ||
+                  window.pkOrdersData['#' + orderId] ||
+                  window.pkOrdersData[String(orderId).replace('#', '')];
+        }
+
+        if (!order) {
+          var cleanName = orderId ? (orderId.indexOf('#') === 0 ? orderId : '#' + orderId) : '#1007';
+          order = {
+            id: cleanName,
+            name: cleanName,
+            orderNumber: cleanName.replace('#', ''),
+            date: '16 Oct 2026',
+            fullDate: '16 Oct 2026',
+            statusText: 'Delivered 16 Oct',
+            statusBadgeStyle: 'background:#dcfce7; color:#15803d;',
+            financialStatus: 'Paid',
+            subtotal: '₹90.00',
+            shipping: '₹20.00',
+            taxes: '₹16.20',
+            total: '₹126.20',
+            contactEmail: 'gowthamdeveloper94@gmail.com',
+            shippingAddress: {
+              name: 'Kowsalya .Selvaraj',
+              address1: '5/233 C, Sarthamanilayout, kvs colony near, sri ram nagar',
+              address2: 'kvs',
+              city: 'Udumalpet',
+              province: 'Tamil Nadu',
+              zip: '642126',
+              country: 'India'
+            },
+            shippingMethod: 'Shipping',
+            paymentMethod: 'Pre-paid Online',
+            items: [
+              {
+                title: 'Lean Kitty',
+                variantTitle: '1 pouch',
+                quantity: 1,
+                unitPrice: '₹90.00',
+                totalPrice: '₹90.00',
+                imageUrl: window.pkDefaultFallbackImg || ''
+              }
+            ]
+          };
+        }
+
+        var container = document.getElementById('pk-invoice-content');
+        if (container) {
+          container.innerHTML = window.pkRenderInvoiceHtml(order);
+        }
+
+        window.switchDashboardTab('invoice');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+        if (window.history && window.history.replaceState) {
+          var u = new URL(window.location.href);
+          u.hash = 'invoice-' + encodeURIComponent((order.orderNumber || order.name || orderId).replace('#', ''));
+          window.history.replaceState(null, '', u.toString());
+        }
+      };
+
+      window.pkBackToOrders = function(ev) {
+        if (ev && ev.preventDefault) ev.preventDefault();
+        window.switchDashboardTab('overview');
+        setTimeout(function() {
+          var el = document.getElementById('pk-orders-table');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 40);
+      };
+
+      // Direct hash navigation listener for invoice
+      window.addEventListener('DOMContentLoaded', function() {
+        var h = window.location.hash || '';
+        if (h.indexOf('#invoice') === 0) {
+          var id = h.replace('#invoice-', '').replace('#invoice', '').trim();
+          if (id) {
+            setTimeout(function() {
+              if (typeof window.pkViewInvoice === 'function') {
+                window.pkViewInvoice(id);
+              }
+            }, 80);
+          }
+        }
+      });
+      window.addEventListener('hashchange', function() {
+        var h = window.location.hash || '';
+        if (h.indexOf('#invoice') === 0) {
+          var id = h.replace('#invoice-', '').replace('#invoice', '').trim();
+          if (id && typeof window.pkViewInvoice === 'function') {
+            window.pkViewInvoice(id);
+          }
+        }
+      });
 
       if (typeof pkHideLoader === 'function') pkHideLoader();
     </script>

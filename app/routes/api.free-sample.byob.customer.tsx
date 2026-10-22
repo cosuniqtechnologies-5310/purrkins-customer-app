@@ -67,10 +67,48 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     // 2. Prepare metaobject fields
-    const fieldsToSet = Object.entries(quiz_data || {}).map(([key, value]) => ({
-      key: key,
-      value: String(value).substring(0, 5000)
-    }));
+    let targetPetId = quiz_data?.pet_id || body.petId;
+    const cleanId = String(targetPetId || "").split("/").pop() || "";
+    if (cleanId && /^\d+$/.test(cleanId)) {
+      targetPetId = `gid://shopify/Metaobject/${cleanId}`;
+    } else {
+      targetPetId = null;
+    }
+
+    const validMetaobjectKeys = ["name", "age", "weight", "gender", "neutered", "body", "activity", "focus", "allergies"];
+    const fieldsToSet = Object.entries(quiz_data || {})
+      .filter(([key]) => validMetaobjectKeys.includes(key))
+      .map(([key, value]) => ({
+        key: key,
+        value: String(value).substring(0, 5000)
+      }));
+
+    if (targetPetId && fieldsToSet.length > 0) {
+      // Update existing Pet Profile Metaobject
+      const moUpdateResponse = await admin.graphql(
+        `#graphql
+        mutation UpdateMetaobject($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message }
+          }
+        }`,
+        {
+          variables: {
+            id: targetPetId,
+            metaobject: { fields: fieldsToSet }
+          }
+        }
+      );
+      const moUpdateData = await moUpdateResponse.json();
+      const moErrors = moUpdateData.data?.metaobjectUpdate?.userErrors;
+      if (moErrors && moErrors.length > 0) {
+        return Response.json({ success: false, message: "Failed to update pet: " + JSON.stringify(moErrors) }, { status: 400 });
+      }
+
+      appCache.delPrefix("customer:");
+      return Response.json({ success: true, message: "Pet details updated successfully!" });
+    }
 
     if (fieldsToSet.length > 0) {
       // 3. Create Pet Profile Metaobject
