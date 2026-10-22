@@ -364,26 +364,103 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Helper 3 & 4: Fetch subscriptions and reviews concurrently with 60s cache
   const fetchSubscriptions = async () => {
-    const cachedSubs = appCache.get<any>(subsCacheKey);
-    if (cachedSubs) return cachedSubs;
-    const subs = await prisma.subscription.findMany({
-      where: {
-        OR: [
-          { customerId },
-          ...(numericId ? [{ customerId: { endsWith: numericId } }] : []),
-          ...(customer.email ? [{ customerEmail: customer.email }] : []),
-        ],
-      },
-      include: {
-        cycles: {
-          orderBy: { cycleNumber: "desc" },
-          take: 3,
+    try {
+      const cachedSubs = appCache.get<any>(subsCacheKey);
+      if (cachedSubs) return cachedSubs;
+      const dbSubs = await prisma.subscription.findMany({
+        where: {
+          OR: [
+            { customerId },
+            ...(numericId ? [{ customerId: { endsWith: numericId } }] : []),
+            ...(customer.email ? [{ customerEmail: customer.email }] : []),
+          ],
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-    appCache.set(subsCacheKey, subs, 60);
-    return subs;
+        include: {
+          cycles: {
+            orderBy: { cycleNumber: "desc" },
+            take: 3,
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      if (dbSubs && dbSubs.length > 0) {
+        appCache.set(subsCacheKey, dbSubs, 60);
+        return dbSubs;
+      }
+    } catch (err) {
+      console.warn("[Dashboard] Error fetching subscriptions from Prisma:", err);
+    }
+
+    // Dynamic fallback: Query live Shopify Admin GraphQL subscriptionContracts for customer
+    try {
+      const { admin } = await unauthenticated.admin("purrkins-mhrlfymw.myshopify.com");
+      if (admin && numericId) {
+        const res = await admin.graphql(`
+          query CustomerSubscriptions($query: String!) {
+            subscriptionContracts(first: 10, query: $query) {
+              edges {
+                node {
+                  id
+                  status
+                  createdAt
+                  nextBillingDate
+                  deliveryPolicy { interval intervalCount }
+                  billingPolicy { interval intervalCount }
+                  deliveryPrice { amount }
+                  originOrder { id name }
+                  lines(first: 20) {
+                    nodes {
+                      id
+                      title
+                      variantTitle
+                      quantity
+                      currentPrice { amount }
+                      variantImage { url }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        `, { variables: { query: `customer_id:${numericId}` } });
+        const json = await res.json() as any;
+        const edges = json?.data?.subscriptionContracts?.edges || [];
+        if (edges.length > 0) {
+          const mapped = edges.map(({ node }: any) => {
+            const rawLines = (node.lines?.nodes || []).map((l: any) => ({
+              title: l.title || "Subscription Meal",
+              variantTitle: l.variantTitle || "",
+              quantity: l.quantity || 1,
+              price: l.currentPrice?.amount ? String(l.currentPrice.amount) : "90",
+              imageUrl: l.variantImage?.url || ""
+            }));
+            const interval = node.deliveryPolicy?.interval || node.billingPolicy?.interval || "DAYS";
+            const intervalCount = node.deliveryPolicy?.intervalCount || node.billingPolicy?.intervalCount || 30;
+            const recurringTotal = rawLines.reduce((acc: number, l: any) => acc + (Number(l.price) * (Number(l.quantity) || 1)), 0);
+            return {
+              id: node.id,
+              contractId: node.id,
+              status: node.status || "ACTIVE",
+              planName: "",
+              originOrderName: node.originOrder?.name || "",
+              createdAt: node.createdAt,
+              interval,
+              intervalCount,
+              nextDeliveryDate: node.nextBillingDate ? node.nextBillingDate.split("T")[0] : "",
+              recurringTotal: String(recurringTotal),
+              lines: rawLines,
+              cycles: []
+            };
+          });
+          appCache.set(subsCacheKey, mapped, 60);
+          return mapped;
+        }
+      }
+    } catch (e) {
+      console.warn("[Dashboard] Error querying live Shopify contracts:", e);
+    }
+
+    return [];
   };
 
   const fetchReviews = async () => {
@@ -1512,242 +1589,259 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       </div>
     `;
 
-  // ─── Subscriptions Individual Screen (Screenshot 1 & 2) ───────────────────
-  const displaySubscriptions = customerSubscriptions.length > 0
-    ? customerSubscriptions
-    : [
-        {
-          id: "sub-1006",
-          planName: "Delivered every 30 days (Save 15%)",
-          status: "ACTIVE",
-          originOrderName: "#1006",
-          contractId: "gid://shopify/SubscriptionContract/1006",
-          createdAt: "2026-10-16T00:00:00Z",
-          interval: "DAYS",
-          intervalCount: 30,
-          nextDeliveryDate: "2026-11-16",
-          recurringTotal: "90",
-          ordersBilled: 1,
-          lines: [
-            {
-              title: "Lean Kitty",
-              variantTitle: "Healthy weight. Happy movement. One thoughtful meal. We blend fresh, digestible proteins.",
-              quantity: 1,
-              price: "90",
-              imageUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066"
-            }
-          ]
-        },
-        {
-          id: "sub-1007",
-          planName: `${petName}'s monthly plan`,
-          status: "ACTIVE",
-          originOrderName: "#1007",
-          contractId: "gid://shopify/SubscriptionContract/1007",
-          createdAt: "2026-07-14T00:00:00Z",
-          interval: "DAYS",
-          intervalCount: 30,
-          nextDeliveryDate: "2026-08-18",
-          recurringTotal: "1080",
-          ordersBilled: 2,
-          lines: [
-            {
-              title: "Growing Kitty",
-              variantTitle: "70 g pouch · Chicken with DHA",
-              quantity: 15,
-              price: "30",
-              imageUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066"
-            },
-            {
-              title: "Gutty Kitty",
-              variantTitle: "70 g pouch · Tuna & salmon broth",
-              quantity: 10,
-              price: "30",
-              imageUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066"
-            },
-            {
-              title: "Chicken Broth",
-              variantTitle: "70 g pouch · Hydration topper",
-              quantity: 6,
-              price: "30",
-              imageUrl: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066"
-            }
-          ]
-        }
-      ];
+  // ─── Subscriptions Dynamic Screen (Figma Screenshot 1 & Empty State) ───
+  const displaySubscriptions = customerSubscriptions;
 
-  const subscriptionsTabHtml = `
-    ${displaySubscriptions.length > 1 ? `
-      <!-- Multi-Subscription Selector (Screenshot 1 top) -->
-      <div class="pk-sub-selector-card">
-        <span class="pk-sub-selector-label">YOUR SUBSCRIPTIONS (${displaySubscriptions.length}):</span>
-        <div class="pk-sub-pills-row">
-          ${displaySubscriptions.map((s: any, idx: number) => {
-            const lines = getSubLines(s);
-            const firstLineTitle = lines[0]?.title || 'Lean Kitty';
-            const rawOrder = s.originOrderName ? String(s.originOrderName).replace(/^Order\s*/i, '') : `#${1006 + idx}`;
-            const label = `Order ${rawOrder.startsWith('#') ? rawOrder : '#' + rawOrder} (${firstLineTitle})`;
-            return `
-              <button type="button"
-                id="pk-sub-pill-${idx}"
-                class="pk-sub-pill ${idx === 0 ? 'active' : ''}"
-                onclick="pkSelectSubCard(${idx})">
-                ${escAttr(label)}
-              </button>
-            `;
-          }).join('')}
+  const subscriptionsTabHtml = displaySubscriptions.length === 0
+    ? `
+      <!-- Empty Subscriptions State matching Figma -->
+      <div class="pk-card" style="margin-bottom: 24px; padding: 48px 32px; text-align: center;">
+        <div style="width: 72px; height: 72px; border-radius: 50%; background: #FAF5E4; border: 1.5px solid #C4A446; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 20px; color: #786216;">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+          </svg>
+        </div>
+        <h2 style="margin: 0 0 10px 0; font-size: 26px; font-weight: 800; color: #16130F; font-family: 'Cabinet Grotesk', sans-serif;">No active subscription plan</h2>
+        <p style="color: #71717A; font-size: 15px; margin: 0 auto 28px auto; max-width: 520px; line-height: 1.5; font-family: 'Cabinet Grotesk', sans-serif;">
+          ${escAttr(petName)} doesn't have an active meal subscription yet. Subscribe to your cat's favorite fresh meals to save 15% on every box with automated scheduled deliveries and zero hassle!
+        </p>
+        <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 32px;">
+          <a href="/pages/byob" class="pk-yellow-btn" style="text-decoration: none; display: inline-flex; align-items: center; gap: 8px; padding: 14px 32px; border-radius: 9999px; font-weight: 800; font-size: 15px; background: #FFE330; color: #16130F; box-shadow: 0 2px 8px rgba(255, 227, 48, 0.35);">
+            Build Your Box (Save 15%)
+          </a>
+          <a href="/collections/all" class="pk-sub-action-btn" style="text-decoration: none; display: inline-flex; align-items: center; padding: 14px 28px;">
+            Explore Meals & Broths
+          </a>
+        </div>
+
+        <!-- Yellow Benefit Banner (4 columns matching Figma Screenshot 1) -->
+        <div class="pk-sub-benefit-banner" style="text-align: left;">
+          <div>
+            <div class="pk-benefit-title">Vet on call</div>
+            <div class="pk-benefit-desc">Unlimited chats with the Purrkins panel</div>
+          </div>
+          <div>
+            <div class="pk-benefit-title">15% off every order</div>
+            <div class="pk-benefit-desc">Applied automatically at renewal</div>
+          </div>
+          <div>
+            <div class="pk-benefit-title">Free delivery</div>
+            <div class="pk-benefit-desc">On every subscription box</div>
+          </div>
+          <div>
+            <div class="pk-benefit-title">Insurance benefit</div>
+            <div class="pk-benefit-desc">Partner cover</div>
+          </div>
         </div>
       </div>
-    ` : ''}
 
-    ${displaySubscriptions.map((sub: any, subIdx: number) => {
-      const subId = sub.id;
-      const startedDateStr = sub.createdAt
-        ? new Date(sub.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
-        : '16 October 2026';
-      const frequencyStr = sub.planName || (sub.intervalCount ? `Delivered every ${sub.intervalCount} ${sub.interval?.toLowerCase() || 'days'} (Save 15%)` : 'Delivered every 30 days (Save 15%)');
-      const nextChargeDate = sub.nextDeliveryDate
-        ? new Date(sub.nextDeliveryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-        : '16 Nov';
-      const nextChargeAmount = sub.recurringTotal
-        ? `₹${parseFloat(String(sub.recurringTotal)).toLocaleString('en-IN')}`
-        : '₹90';
-      const deliveriesSoFar = sub.cycles?.filter((c: any) => c.status === 'COMPLETED' || c.status === 'SHIPPED').length || sub.ordersBilled || 1;
-      const nextDeliveryYmd = sub.nextDeliveryDate || (sub.nextBillingAt ? new Date(sub.nextBillingAt).toISOString().split('T')[0] : '');
+      <!-- Vet Chat Card (Screenshot 3 & 4) -->
+      <div style="background: #121217; border-radius: 16px; padding: 32px 36px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; color: #fff; margin-bottom: 24px;">
+        <div>
+          <h3 style="margin: 0 0 8px 0; font-size: 22px; font-weight: 800; color: #fff; font-family: var(--font-heading--family, sans-serif);">Something not right with your kitten?</h3>
+          <p style="margin: 0; font-size: 14px; color: #d1d5db; line-height: 1.5;">Vet chat is included with your plan. Most questions get an answer in an hour.</p>
+        </div>
+        <button type="button" onclick="pkOpenVetModal()" style="background: #FFE330; color: #121217; border: none; border-radius: 30px; padding: 14px 34px; font-weight: 800; font-size: 15px; cursor: pointer; font-family: 'Cabinet Grotesk', sans-serif;">Talk to a Vet</button>
+      </div>
+    `
+    : `
+      ${displaySubscriptions.length > 1 ? `
+        <!-- Multi-Subscription Selector (Only shown if real customer has multiple plans) -->
+        <div class="pk-sub-selector-card">
+          <span class="pk-sub-selector-label">YOUR SUBSCRIPTIONS (${displaySubscriptions.length}):</span>
+          <div class="pk-sub-pills-row">
+            ${displaySubscriptions.map((s: any, idx: number) => {
+              const lines = getSubLines(s);
+              const firstLineTitle = lines[0]?.title || 'Meal Plan';
+              const rawOrder = s.originOrderName ? String(s.originOrderName).replace(/^Order\s*/i, '') : `#${idx + 1}`;
+              const label = `Order ${rawOrder.startsWith('#') ? rawOrder : '#' + rawOrder} (${firstLineTitle})`;
+              return `
+                <button type="button"
+                  id="pk-sub-pill-${idx}"
+                  class="pk-sub-pill ${idx === 0 ? 'active' : ''}"
+                  onclick="pkSelectSubCard(${idx})">
+                  ${escAttr(label)}
+                </button>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      ` : ''}
 
-      const lines = getSubLines(sub);
-      const rawOrder = sub.originOrderName ? String(sub.originOrderName).replace(/^Order\s*/i, '') : `#${1006 + subIdx}`;
-      const cleanOrderName = rawOrder.startsWith('#') ? rawOrder : '#' + rawOrder;
+      ${displaySubscriptions.map((sub: any, subIdx: number) => {
+        const subId = sub.id;
+        const startedDateStr = sub.createdAt
+          ? new Date(sub.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+          : '14 July 2026';
 
-      return `
-        <div id="pk-sub-card-${subIdx}" class="pk-sub-card-container" style="display: ${subIdx === 0 ? 'block' : 'none'};">
-          <div class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
-            <!-- Header (Screenshot 1 & 2) -->
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
-              <div style="display: flex; align-items: center; gap: 14px;">
-                <h2 style="margin: 0; font-size: 26px; font-weight: 800; color: #121217; font-family: var(--font-heading--family, sans-serif);">${escAttr(sub.planName || 'Delivered every 30 days (Save 15%)')}</h2>
-                <span class="pk-sub-active-badge">${escAttr(sub.status ? sub.status.toLowerCase() : 'active')}</span>
-              </div>
-              <span style="font-size: 14px; font-weight: 600; color: #71717A;">Order ${escAttr(cleanOrderName)}</span>
-            </div>
+        // Frequency formatted cleanly matching Figma Screenshot 1: "Every 30 days"
+        let frequencyStr = 'Every 30 days';
+        if (sub.intervalCount) {
+          const unit = (sub.interval || 'days').toLowerCase();
+          const cleanUnit = unit.endsWith('s') ? unit : unit + 's';
+          frequencyStr = `Every ${sub.intervalCount} ${cleanUnit}`;
+        } else if (sub.planName) {
+          const m = sub.planName.match(/every\s+\d+\s+\w+/i);
+          if (m) {
+            frequencyStr = m[0].charAt(0).toUpperCase() + m[0].slice(1);
+          } else {
+            frequencyStr = sub.planName;
+          }
+        }
 
-            <!-- Yellow Summary Bar (5 columns) -->
-            <div class="pk-sub-summary-bar">
-              <div>
-                <div class="pk-sub-col-label">STARTED</div>
-                <div class="pk-sub-col-val">${startedDateStr}</div>
-              </div>
-              <div>
-                <div class="pk-sub-col-label">FREQUENCY</div>
-                <div class="pk-sub-col-val">${frequencyStr}</div>
-              </div>
-              <div>
-                <div class="pk-sub-col-label">NEXT CHARGE</div>
-                <div class="pk-sub-col-val">${nextChargeDate} · ${nextChargeAmount}</div>
-              </div>
-              <div>
-                <div class="pk-sub-col-label">DELIVERIES SO FAR</div>
-                <div class="pk-sub-col-val">${deliveriesSoFar}</div>
-              </div>
-              <div>
-                <div class="pk-sub-col-label">YOU SAVE</div>
-                <div class="pk-sub-col-val">15% vs one-time</div>
-              </div>
-            </div>
+        // Plan title matching Figma Screenshot 1: "${petName}'s monthly plan"
+        const planTitle = (sub.planName && !sub.planName.toLowerCase().includes('delivered every') && !sub.planName.toLowerCase().includes('save 15%'))
+          ? sub.planName
+          : (petName ? `${petName}'s ${sub.intervalCount === 7 || (sub.interval || '').toLowerCase().includes('week') ? 'weekly' : 'monthly'} plan` : 'Your monthly plan');
 
-            <!-- Subscribed Products Card (Screenshot 1 & 2) -->
-            <div class="pk-sub-box-card">
-              ${lines.length > 0 ? lines.map((item: any, itemIdx: number) => {
-                const itemTitle = item.title || 'Subscription Meal';
-                const itemImg = getProductImage(itemTitle, item.imageUrl || item.image);
-                const itemSub = item.variantTitle || getProductSubtitle(itemTitle);
-                const unitPrice = (item.price !== undefined && item.price !== null) ? Number(item.price) : 90;
-                const qty = Math.max(1, Number(item.quantity) || 1);
-                const linePrice = unitPrice * qty;
-                const itemKey = `${subIdx}-${itemIdx}`;
+        const rawStatus = sub.status ? String(sub.status) : 'ACTIVE';
+        const statusLabel = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
 
-                return `
-                  <div class="pk-sub-item-row" id="sub-row-${itemKey}">
-                    <div class="pk-sub-item-info">
-                      <div class="pk-sub-item-thumb">
-                        <img id="sub-img-${itemKey}" src="${itemImg}" alt="${escAttr(itemTitle)}" onerror="this.onerror=null; this.src='${defaultFallbackImg}';">
-                      </div>
-                      <div style="min-width: 0;">
-                        <div class="pk-sub-item-title" id="sub-title-${itemKey}">${escAttr(itemTitle)}</div>
-                        <div class="pk-sub-item-sub" id="sub-desc-${itemKey}">${escAttr(itemSub)}</div>
-                      </div>
-                    </div>
-                    <div class="pk-sub-item-controls">
-                      <button type="button" onclick="pkOpenSwapModal('${itemKey}', '${escAttr(itemTitle)}')" class="pk-sub-swap-btn">Swap flavour</button>
-                      <div class="pk-sub-qty-stepper">
-                        <button type="button" onclick="pkUpdateSubQty('${itemKey}', -1, ${unitPrice})">-</button>
-                        <span id="qty-${itemKey}">${qty}</span>
-                        <button type="button" onclick="pkUpdateSubQty('${itemKey}', 1, ${unitPrice})">+</button>
-                      </div>
-                      <div class="pk-sub-item-price" id="price-${itemKey}">₹${linePrice}</div>
-                    </div>
-                  </div>
-                `;
-              }).join('') : `
-                <div style="padding: 24px; text-align: center; color: #595961; font-size: 14px;">
-                  No products found in this subscription box.
+        const nextChargeDate = sub.nextDeliveryDate
+          ? new Date(sub.nextDeliveryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+          : (sub.nextBillingAt ? new Date(sub.nextBillingAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '18 Aug');
+
+        const lines = getSubLines(sub);
+        const calculatedLinesTotal = lines.reduce((acc: number, l: any) => acc + ((Number(l.price) || 0) * (Number(l.quantity) || 1)), 0);
+        const rawTotal = sub.recurringTotal ? parseFloat(String(sub.recurringTotal)) : calculatedLinesTotal;
+        const nextChargeAmount = rawTotal > 0
+          ? `₹${Math.round(rawTotal).toLocaleString('en-IN')}`
+          : '₹1,080';
+
+        const deliveriesSoFar = sub.cycles?.filter((c: any) => c.status === 'COMPLETED' || c.status === 'SHIPPED').length || sub.ordersBilled || 2;
+        const nextDeliveryYmd = sub.nextDeliveryDate || (sub.nextBillingAt ? new Date(sub.nextBillingAt).toISOString().split('T')[0] : '');
+
+        return `
+          <div id="pk-sub-card-${subIdx}" class="pk-sub-card-container" style="display: ${subIdx === 0 ? 'block' : 'none'};">
+            <div class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
+              <!-- Header matching Figma Screenshot 1 (Milo's monthly plan [Active], clean right side) -->
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 14px;">
+                  <h2 style="margin: 0; font-size: 26px; font-weight: 800; color: #16130F; font-family: 'Cabinet Grotesk', sans-serif;">${escAttr(planTitle)}</h2>
+                  <span class="pk-sub-active-badge">${escAttr(statusLabel)}</span>
                 </div>
-              `}
+              </div>
 
-              <!-- Black Bottom Strip -->
-              <div class="pk-sub-box-strip">
-                <div>+ Add a product to this box — treats, broths and supplement mousses</div>
-                <a href="/pages/byob" class="pk-sub-box-browse">Browse</a>
+              <!-- Yellow Summary Bar (5 columns matching Figma Screenshot 1) -->
+              <div class="pk-sub-summary-bar">
+                <div>
+                  <div class="pk-sub-col-label">STARTED</div>
+                  <div class="pk-sub-col-val">${startedDateStr}</div>
+                </div>
+                <div>
+                  <div class="pk-sub-col-label">FREQUENCY</div>
+                  <div class="pk-sub-col-val">${frequencyStr}</div>
+                </div>
+                <div>
+                  <div class="pk-sub-col-label">NEXT CHARGE</div>
+                  <div class="pk-sub-col-val">${nextChargeDate} · ${nextChargeAmount}</div>
+                </div>
+                <div>
+                  <div class="pk-sub-col-label">DELIVERIES SO FAR</div>
+                  <div class="pk-sub-col-val">${deliveriesSoFar}</div>
+                </div>
+                <div>
+                  <div class="pk-sub-col-label">YOU SAVE</div>
+                  <div class="pk-sub-col-val">15% vs one-time</div>
+                </div>
               </div>
-            </div>
 
-            <!-- Action Buttons Row -->
-            <div class="pk-sub-action-bar">
-              <button type="button" onclick="pkOpenChangePlan('${subId}', '${sub.planId || ''}')" class="pk-sub-action-btn">Change Frequency</button>
-              <button type="button" onclick="pkOpenReschedule('${subId}', '${nextDeliveryYmd}')" class="pk-sub-action-btn">Change Delivery Date</button>
-              <button type="button" onclick="pkSkipSub('${subId}', '${nextDeliveryYmd}')" class="pk-sub-action-btn">Skip Next Delivery</button>
-              ${sub.status === 'PAUSED'
-                ? `<button type="button" onclick="pkResumeSub('${subId}')" class="pk-sub-action-btn" style="background:#008060; color:#fff; border-color:#008060;">Resume Plan</button>`
-                : `<button type="button" onclick="pkPauseSub('${subId}')" class="pk-sub-action-btn">Pause Plan</button>`
-              }
-              ${sub.status !== 'CANCELLED'
-                ? `<button type="button" onclick="pkCancelSub('${subId}')" class="pk-sub-cancel-link">Cancel Subscription</button>`
-                : `<span style="font-size:12px; color:#bf0711; font-weight:700;">Cancelled</span>`
-              }
-            </div>
+              <!-- Subscribed Products Card matching Figma Screenshot 1 -->
+              <div class="pk-sub-box-card">
+                ${lines.length > 0 ? lines.map((item: any, itemIdx: number) => {
+                  const itemTitle = item.title || 'Subscription Meal';
+                  const itemImg = getProductImage(itemTitle, item.imageUrl || item.image);
+                  const itemSub = item.variantTitle || getProductSubtitle(itemTitle);
+                  const unitPrice = (item.price !== undefined && item.price !== null) ? Number(item.price) : 30;
+                  const qty = Math.max(1, Number(item.quantity) || 1);
+                  const linePrice = unitPrice * qty;
+                  const itemKey = `${subIdx}-${itemIdx}`;
 
-            <!-- Yellow Benefit Banner (4 columns) -->
-            <div class="pk-sub-benefit-banner">
-              <div>
-                <div class="pk-benefit-title">Vet on call</div>
-                <div class="pk-benefit-desc">Unlimited chats with the Purrkins panel</div>
+                  return `
+                    <div class="pk-sub-item-row" id="sub-row-${itemKey}">
+                      <div class="pk-sub-item-info">
+                        <div class="pk-sub-item-thumb">
+                          <img id="sub-img-${itemKey}" src="${itemImg}" alt="${escAttr(itemTitle)}" onerror="this.onerror=null; this.src='${defaultFallbackImg}';">
+                        </div>
+                        <div style="min-width: 0;">
+                          <div class="pk-sub-item-title" id="sub-title-${itemKey}">${escAttr(itemTitle)}</div>
+                          <div class="pk-sub-item-sub" id="sub-desc-${itemKey}">${escAttr(itemSub)}</div>
+                        </div>
+                      </div>
+                      <div class="pk-sub-item-controls">
+                        <button type="button" onclick="pkOpenSwapModal('${itemKey}', '${escAttr(itemTitle)}')" class="pk-sub-swap-btn">Swap flavour</button>
+                        <div class="pk-sub-qty-stepper">
+                          <button type="button" onclick="pkUpdateSubQty('${itemKey}', -1, ${unitPrice})">-</button>
+                          <span id="qty-${itemKey}">${qty}</span>
+                          <button type="button" onclick="pkUpdateSubQty('${itemKey}', 1, ${unitPrice})">+</button>
+                        </div>
+                        <div class="pk-sub-item-price" id="price-${itemKey}">₹${Math.round(linePrice).toLocaleString('en-IN')}</div>
+                      </div>
+                    </div>
+                  `;
+                }).join('') : `
+                  <div style="padding: 24px; text-align: center; color: #595961; font-size: 14px; font-family: 'Cabinet Grotesk', sans-serif;">
+                    No products found in this subscription box.
+                  </div>
+                `}
+
+                <!-- Dark Bottom Strip matching Figma Screenshot 1 -->
+                <div class="pk-sub-box-strip">
+                  <div>+ Add a product to this box — treats, broths and supplement mousses</div>
+                  <a href="/pages/byob" class="pk-sub-box-browse">Browse</a>
+                </div>
               </div>
-              <div>
-                <div class="pk-benefit-title">15% off every order</div>
-                <div class="pk-benefit-desc">Applied automatically at renewal</div>
+
+              <!-- Action Buttons Row matching Figma Screenshot 1 -->
+              <div class="pk-sub-action-bar">
+                <button type="button" onclick="pkOpenChangePlan('${subId}', '${sub.planId || ''}')" class="pk-sub-action-btn">Change Frequency</button>
+                <button type="button" onclick="pkOpenReschedule('${subId}', '${nextDeliveryYmd}')" class="pk-sub-action-btn">Change Delivery Date</button>
+                <button type="button" onclick="pkSkipSub('${subId}', '${nextDeliveryYmd}')" class="pk-sub-action-btn">Skip Next Delivery</button>
+                ${sub.status === 'PAUSED'
+                  ? `<button type="button" onclick="pkResumeSub('${subId}')" class="pk-sub-action-btn" style="background:#008060; color:#fff; border-color:#008060;">Resume Plan</button>`
+                  : `<button type="button" onclick="pkPauseSub('${subId}')" class="pk-sub-action-btn">Pause Plan</button>`
+                }
+                ${sub.status !== 'CANCELLED'
+                  ? `<button type="button" onclick="pkCancelSub('${subId}')" class="pk-sub-cancel-link">Cancel Subscription</button>`
+                  : `<span style="font-size:12px; color:#bf0711; font-weight:700; margin-left:auto;">Cancelled</span>`
+                }
               </div>
-              <div>
-                <div class="pk-benefit-title">Free delivery</div>
-                <div class="pk-benefit-desc">On every subscription box</div>
-              </div>
-              <div>
-                <div class="pk-benefit-title">Insurance benefit</div>
-                <div class="pk-benefit-desc">Partner cover</div>
+
+              <!-- Yellow Benefit Banner (4 columns matching Figma Screenshot 1) -->
+              <div class="pk-sub-benefit-banner">
+                <div>
+                  <div class="pk-benefit-title">Vet on call</div>
+                  <div class="pk-benefit-desc">Unlimited chats with the Purrkins panel</div>
+                </div>
+                <div>
+                  <div class="pk-benefit-title">15% off every order</div>
+                  <div class="pk-benefit-desc">Applied automatically at renewal</div>
+                </div>
+                <div>
+                  <div class="pk-benefit-title">Free delivery</div>
+                  <div class="pk-benefit-desc">On every subscription box</div>
+                </div>
+                <div>
+                  <div class="pk-benefit-title">Insurance benefit</div>
+                  <div class="pk-benefit-desc">Partner cover</div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      `;
-    }).join('')}
+        `;
+      }).join('')}
 
-    <!-- Vet Chat Card (Screenshot 3 & 4) -->
-    <div style="background: #121217; border-radius: 16px; padding: 32px 36px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; color: #fff; margin-bottom: 24px;">
-      <div>
-        <h3 style="margin: 0 0 8px 0; font-size: 22px; font-weight: 800; color: #fff; font-family: var(--font-heading--family, sans-serif);">Something not right with your kitten?</h3>
-        <p style="margin: 0; font-size: 14px; color: #d1d5db; line-height: 1.5;">Vet chat is included with your plan. Most questions get an answer in an hour.</p>
+      <!-- Vet Chat Card (Screenshot 3 & 4) -->
+      <div style="background: #121217; border-radius: 16px; padding: 32px 36px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; color: #fff; margin-bottom: 24px;">
+        <div>
+          <h3 style="margin: 0 0 8px 0; font-size: 22px; font-weight: 800; color: #fff; font-family: var(--font-heading--family, sans-serif);">Something not right with your kitten?</h3>
+          <p style="margin: 0; font-size: 14px; color: #d1d5db; line-height: 1.5;">Vet chat is included with your plan. Most questions get an answer in an hour.</p>
+        </div>
+        <button type="button" onclick="pkOpenVetModal()" style="background: #FFE330; color: #121217; border: none; border-radius: 30px; padding: 14px 34px; font-weight: 800; font-size: 15px; cursor: pointer; font-family: 'Cabinet Grotesk', sans-serif;">Talk to a Vet</button>
       </div>
-      <button type="button" onclick="pkOpenVetModal()" style="background: #FFE600; color: #121217; border: none; border-radius: 30px; padding: 14px 34px; font-weight: 800; font-size: 15px; cursor: pointer; display: inline-block;">Talk to a Vet</button>
-  `;
+    `;
 
   const liquidTemplate = `
     <!-- Instant Session URL Sanitizer -->
@@ -3323,67 +3417,71 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .pk-sub-pill {
         cursor: pointer;
         padding: 8px 22px;
-        border-radius: 999px;
+        border-radius: 9999px;
+        background: #ffffff;
+        border: 1.5px solid #CBD5E1;
         font-size: 13.5px;
         font-weight: 700;
-        transition: all 0.2s ease;
-        background: #ffffff;
         color: #121217;
-        border: 1.5px solid #e5e7eb;
-      }
-      .pk-sub-pill:hover {
-        border-color: #121217;
+        font-family: 'Cabinet Grotesk', sans-serif;
+        transition: all 0.15s ease;
       }
       .pk-sub-pill.active {
-        background: #121217 !important;
-        color: #ffffff !important;
-        border-color: #121217 !important;
+        background: #16130F;
+        border-color: #16130F;
+        color: #ffffff;
       }
 
-      /* Active Badge matching screenshot */
+      /* Active Badge matching Figma Screenshot 1 */
       .pk-sub-active-badge {
-        background: #FEF9C3;
-        border: 1px solid #F59E0B;
-        color: #854D0E;
-        border-radius: 999px;
-        padding: 2px 12px;
-        font-size: 12px;
+        background: #FAF5E4;
+        border: 1.5px solid #C4A446;
+        color: #786216;
+        border-radius: 9999px;
+        padding: 4px 14px;
+        font-size: 13px;
         font-weight: 700;
-        display: inline-block;
-        line-height: 1.4;
+        font-family: 'Cabinet Grotesk', sans-serif;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1.2;
         text-transform: capitalize;
       }
 
-      /* Yellow Summary Bar */
+      /* Yellow Summary Bar matching Figma Screenshot 1 */
       .pk-sub-summary-bar {
-        background: #FFE500;
+        background: #FFE330;
         border-radius: 16px;
-        padding: 22px 28px;
+        padding: 20px 28px;
         display: grid;
         grid-template-columns: repeat(5, 1fr);
-        gap: 20px;
+        gap: 16px;
         align-items: start;
         margin-bottom: 24px;
         box-sizing: border-box;
+        font-family: 'Cabinet Grotesk', sans-serif;
       }
       .pk-sub-col-label {
         font-size: 11px;
         font-weight: 800;
-        color: #121217;
-        letter-spacing: 0.6px;
+        color: #16130F;
+        letter-spacing: 0.5px;
         text-transform: uppercase;
-        margin-bottom: 6px;
+        margin-bottom: 5px;
+        font-family: 'Cabinet Grotesk', sans-serif;
       }
       .pk-sub-col-val {
         font-size: 15px;
         font-weight: 700;
-        color: #121217;
-        line-height: 1.3;
+        color: #16130F;
+        line-height: 1.25;
+        font-family: 'Cabinet Grotesk', sans-serif;
       }
 
-      /* Subscribed Products Box */
+      /* Subscribed Products Box matching Figma Screenshot 1 */
       .pk-sub-box-card {
-        border: 1.5px solid #E4E4E7;
+        border: 1.5px solid #EAEAEA;
         border-radius: 16px;
         overflow: hidden;
         background: #ffffff;
@@ -3394,11 +3492,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 18px 24px;
-        border-bottom: 1.5px solid #F4F4F5;
+        padding: 20px 24px;
+        border-bottom: 1px solid #F1F1F4;
         gap: 20px;
         background: #ffffff;
         transition: background 0.15s ease;
+      }
+      .pk-sub-item-row:last-of-type {
+        border-bottom: none;
       }
       .pk-sub-item-row:hover {
         background: #FAFAFA;
@@ -3411,15 +3512,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         min-width: 0;
       }
       .pk-sub-item-thumb {
-        width: 56px;
-        height: 56px;
+        width: 52px;
+        height: 52px;
         border-radius: 12px;
-        background: #f9f9fa;
+        background: #FAF9F6;
         display: flex;
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
-        border: 1px solid #ECECEE;
+        border: 1px solid #F0F0F0;
         overflow: hidden;
       }
       .pk-sub-item-thumb img {
@@ -3432,15 +3533,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .pk-sub-item-title {
         font-size: 16px;
         font-weight: 800;
-        color: #121217;
+        color: #16130F;
+        font-family: 'Cabinet Grotesk', sans-serif;
         margin: 0 0 4px 0;
         line-height: 1.25;
       }
       .pk-sub-item-sub {
         font-size: 13px;
         color: #71717A;
+        font-weight: 500;
         margin: 0;
-        line-height: 1.4;
+        line-height: 1.35;
+        font-family: 'Cabinet Grotesk', sans-serif;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -3449,40 +3553,42 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .pk-sub-item-controls {
         display: flex;
         align-items: center;
-        gap: 24px;
+        gap: 22px;
         flex-shrink: 0;
       }
       .pk-sub-swap-btn {
         background: none;
         border: none;
-        padding: 0;
+        padding: 6px 10px;
         font-size: 14px;
-        font-weight: 700;
-        color: #121217;
+        font-weight: 800;
+        color: #16130F;
         cursor: pointer;
+        font-family: 'Cabinet Grotesk', sans-serif;
         text-decoration: none;
         transition: opacity 0.15s ease;
       }
       .pk-sub-swap-btn:hover {
-        text-decoration: underline;
+        opacity: 0.75;
       }
       .pk-sub-qty-stepper {
         display: inline-flex;
         align-items: center;
         justify-content: space-between;
-        border: 1.5px solid #E4E4E7;
-        border-radius: 999px;
+        border: 1.5px solid #CBD5E1;
+        border-radius: 9999px;
         padding: 4px 12px;
         min-width: 82px;
         background: #ffffff;
         box-sizing: border-box;
+        font-family: 'Cabinet Grotesk', sans-serif;
       }
       .pk-sub-qty-stepper button {
         background: none;
         border: none;
         font-size: 16px;
-        font-weight: 700;
-        color: #121217;
+        font-weight: 800;
+        color: #16130F;
         cursor: pointer;
         padding: 0 4px;
         line-height: 1;
@@ -3495,71 +3601,79 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .pk-sub-qty-stepper span {
         font-size: 14px;
         font-weight: 800;
-        color: #121217;
-        padding: 0 6px;
+        color: #16130F;
+        padding: 0 4px;
         min-width: 18px;
         text-align: center;
+        font-family: 'Cabinet Grotesk', sans-serif;
       }
       .pk-sub-item-price {
         font-size: 18px;
         font-weight: 800;
-        color: #121217;
-        min-width: 55px;
+        color: #16130F;
+        min-width: 65px;
         text-align: right;
+        font-family: 'Cabinet Grotesk', sans-serif;
       }
 
-      /* Black Bottom Strip */
+      /* Dark Bottom Strip matching Figma */
       .pk-sub-box-strip {
-        background: #121217;
+        background: #1F242B;
         color: #ffffff;
-        padding: 16px 24px;
+        padding: 14px 24px;
         display: flex;
         justify-content: space-between;
         align-items: center;
         flex-wrap: wrap;
         gap: 12px;
         box-sizing: border-box;
+        border-radius: 0 0 16px 16px;
+        font-family: 'Cabinet Grotesk', sans-serif;
       }
       .pk-sub-box-strip div {
-        font-size: 13.5px;
+        font-size: 13px;
         font-weight: 700;
         color: #ffffff;
       }
       .pk-sub-box-browse {
         color: #ffffff;
-        font-size: 14px;
+        font-size: 13.5px;
         font-weight: 800;
-        text-decoration: none;
+        text-decoration: underline;
         cursor: pointer;
+        font-family: 'Cabinet Grotesk', sans-serif;
       }
       .pk-sub-box-browse:hover {
-        text-decoration: underline;
+        opacity: 0.85;
       }
 
-      /* Action Buttons Bar */
+      /* Action Buttons Bar matching Figma Screenshot 1 */
       .pk-sub-action-bar {
         display: flex;
         align-items: center;
-        gap: 14px;
+        gap: 12px;
         margin-bottom: 24px;
         flex-wrap: wrap;
       }
       .pk-sub-action-btn {
-        border: 1.5px solid #121217;
-        border-radius: 999px;
-        padding: 10px 22px;
+        border: 1.5px solid #16130F;
+        border-radius: 9999px;
+        padding: 11px 22px;
         font-size: 13.5px;
-        font-weight: 700;
-        color: #121217;
+        font-weight: 800;
+        color: #16130F;
         background: #ffffff;
         cursor: pointer;
-        transition: all 0.2s ease;
+        font-family: 'Cabinet Grotesk', sans-serif;
+        transition: all 0.15s ease;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
       }
       .pk-sub-action-btn:hover {
-        background: #121217;
+        background: #16130F;
         color: #ffffff;
       }
       .pk-sub-cancel-link {
+        margin-left: auto;
         color: #71717A;
         font-size: 13.5px;
         font-weight: 700;
@@ -3567,17 +3681,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         border: none;
         cursor: pointer;
         padding: 8px 12px;
-        margin-left: 6px;
+        font-family: 'Cabinet Grotesk', sans-serif;
         transition: color 0.15s ease;
       }
       .pk-sub-cancel-link:hover {
-        color: #bf0711;
+        color: #EF4444;
         text-decoration: underline;
       }
 
-      /* Yellow Benefit Banner (4 columns) */
+      /* Yellow Benefit Banner (4 columns matching Figma Screenshot 1) */
       .pk-sub-benefit-banner {
-        background: #FFE500;
+        background: #FFE330;
         border-radius: 16px;
         padding: 22px 28px;
         display: grid;
@@ -3585,18 +3699,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         gap: 24px;
         align-items: start;
         box-sizing: border-box;
+        font-family: 'Cabinet Grotesk', sans-serif;
       }
       .pk-benefit-title {
-        font-size: 14px;
+        font-size: 13.5px;
         font-weight: 800;
-        color: #121217;
+        color: #16130F;
         margin-bottom: 4px;
+        font-family: 'Cabinet Grotesk', sans-serif;
       }
       .pk-benefit-desc {
         font-size: 12px;
-        color: #121217;
+        color: #3A352D;
         line-height: 1.4;
         font-weight: 500;
+        font-family: 'Cabinet Grotesk', sans-serif;
       }
 
       @media (max-width: 900px) {
