@@ -4345,9 +4345,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           var drawer = document.querySelector('theme-drawer#cart-drawer') || document.getElementById('cart-drawer');
           if (drawer) {
             if (drawer.isOpen || drawer.hasAttribute('open')) {
-              if (typeof drawer.open === 'function') {
-                try { drawer.open(); } catch(e) {}
-              }
               return;
             }
             if (typeof drawer.open === 'function') {
@@ -4376,17 +4373,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               return;
             } catch(e) {}
           }
-
-          var panel = drawer ? (drawer.querySelector('dialog') || drawer.querySelector('[ref="panel"]')) : document.querySelector('#cart-drawer dialog');
-          if (panel && typeof panel.showModal === 'function' && !panel.open) {
-            try {
-              if (drawer) drawer.setAttribute('open', '');
-              panel.showModal();
-            } catch(e) {}
-          }
         }
 
-        function triggerCartOpenAndRefresh() {
+        function updateCartBadgeCount() {
           var root = (window.Shopify && window.Shopify.routes && window.Shopify.routes.root) ? window.Shopify.routes.root : '/';
           fetch(root + 'cart.js')
             .then(function(r) { return r.json(); })
@@ -4398,17 +4387,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               });
             })
             .catch(function(){});
-
-          document.dispatchEvent(new CustomEvent('cart:refresh'));
-          document.dispatchEvent(new CustomEvent('cart:updated'));
-          document.documentElement.dispatchEvent(new CustomEvent('cart:build', { bubbles: true }));
-
-          setTimeout(function() {
-            smoothOpenCartDrawer();
-          }, 80);
         }
 
-        function markSuccess() {
+        function markButtonSuccess() {
           if (btn) {
             btn.disabled = false;
             btn.style.opacity = '1';
@@ -4421,7 +4402,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               btn.style.color = origColor;
             }, 1800);
           }
-          triggerCartOpenAndRefresh();
         }
 
         function markFailure(err) {
@@ -4435,21 +4415,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           }
         }
 
-        // Try theme's purrkinsAddToCart pipeline if available
+        // 1. Primary: Use theme's purrkinsAddToCart pipeline which handles standard events & section morphing
         if (typeof window.purrkinsAddToCart === 'function') {
           try {
             if (btn) btn.dataset.originalText = origText;
-            window.purrkinsAddToCart([{ id: numericId, quantity: 1 }], btn);
-            setTimeout(function() {
-              markSuccess();
-            }, 450);
+            Promise.resolve(window.purrkinsAddToCart([{ id: numericId, quantity: 1 }], btn))
+              .then(function() {
+                markButtonSuccess();
+                // Ensure drawer is open after section morphs if not auto-opened
+                setTimeout(function() {
+                  smoothOpenCartDrawer();
+                }, 100);
+              })
+              .catch(function(err) {
+                markFailure(err);
+              });
             return;
           } catch(e) {
-            console.warn('[PURRKINS CART] purrkinsAddToCart threw, using direct fetch:', e);
+            console.warn('[PURRKINS CART] purrkinsAddToCart threw, falling back to direct fetch:', e);
           }
         }
 
-        // Direct fetch to Shopify /cart/add.js
+        // 2. Fallback: Direct fetch to Shopify /cart/add.js with section rendering
         var rootUrl = (window.Shopify && window.Shopify.routes && window.Shopify.routes.root) ? window.Shopify.routes.root : '/';
         var cartItemsComponents = document.querySelectorAll('cart-items-component');
         var sectionIds = ['cart-drawer-section'];
@@ -4474,7 +4461,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         })
         .then(function(res) {
           if (res.ok) return res.json();
-          // Fallback to simple id payload if section rendering fails
           return fetch(rootUrl + 'cart/add.js', {
             method: 'POST',
             headers: {
@@ -4498,7 +4484,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               }
             });
           }
-          markSuccess();
+          markButtonSuccess();
+          updateCartBadgeCount();
+          document.dispatchEvent(new CustomEvent('cart:refresh'));
+          document.documentElement.dispatchEvent(new CustomEvent('cart:build', { bubbles: true }));
+          smoothOpenCartDrawer();
         })
         .catch(function(err) {
           markFailure(err);
@@ -5924,7 +5914,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <div style="background:#FFE330; color:#16130F; font-size:12px; font-weight:700; padding:6px 14px; border-radius:9999px; display:inline-block; width:fit-content; margin-bottom:14px; letter-spacing:-0.1px;">Free 15 Minutes</div>
           
           <!-- Heading -->
-          <h2 style="margin:0 0 10px 0; font-size:38px; font-weight:800; color:#16130F; font-family:'Bricolage Grotesque', sans-serif !important; letter-spacing:-0.8px; line-height:1.12;">Talk to a vet</h2>
+          <h2 style="margin:0 0 10px 0; font-size:38px; font-weight:800; color:#16130F; font-family:'Cabinet Grotesk', sans-serif !important; letter-spacing:-0.8px; line-height:1.12;">Talk to a vet</h2>
           
           <!-- Subtitle -->
           <p style="margin:0 0 24px 0; font-size:14.5px; color:#555B64; line-height:1.45; font-family:'Inter', sans-serif;">Free short call with a Purrkins vet. No purchase needed.</p>
@@ -5965,15 +5955,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             </div>
 
             <!-- Centered Request a Call Button (Matching Figma) -->
-            <button type="submit" id="pk-vet-submit-btn" style="display:block; margin:0 auto; min-width:180px; padding:13px 40px; background:#16130F; color:#fff; border:none; border-radius:9999px; font-size:15px; font-weight:700; font-family:'Bricolage Grotesque',sans-serif; cursor:pointer; text-align:center; box-shadow:0 4px 14px rgba(22,19,15,0.15); transition:transform 0.15s, opacity 0.15s;">Request a Call</button>
+            <button type="submit" id="pk-vet-submit-btn" style="display:block; margin:0 auto; min-width:180px; padding:13px 40px; background:#16130F; color:#fff; border:none; border-radius:9999px; font-size:15px; font-weight:700; font-family:'Cabinet Grotesk',sans-serif; cursor:pointer; text-align:center; box-shadow:0 4px 14px rgba(22,19,15,0.15); transition:transform 0.15s, opacity 0.15s;">Request a Call</button>
             <div style="font-size:12px; color:#8E9298; text-align:center; margin-top:14px; font-family:'Inter',sans-serif;">We'll confirm your slot on WhatsApp within one day.</div>
           </form>
 
           <div id="pk-vet-success-msg" style="display:none; text-align:center; padding:32px 10px;">
             <div style="font-size:42px; margin-bottom:12px;">🎉</div>
-            <h3 style="margin:0 0 8px 0; font-size:22px; font-weight:800; color:#16130F; font-family:'Bricolage Grotesque',sans-serif;">Request Submitted!</h3>
+            <h3 style="margin:0 0 8px 0; font-size:22px; font-weight:800; color:#16130F; font-family:'Cabinet Grotesk',sans-serif;">Request Submitted!</h3>
             <p style="margin:0 0 20px 0; font-size:14px; color:#595961; line-height:1.45; font-family:'Inter',sans-serif;">Our veterinary team has received your details and will connect with you on WhatsApp shortly.</p>
-            <button type="button" onclick="pkCloseVetModal()" style="padding:10px 28px; background:#16130F; color:#fff; border:none; border-radius:9999px; font-size:14px; font-weight:700; font-family:'Bricolage Grotesque',sans-serif; cursor:pointer;">Close</button>
+            <button type="button" onclick="pkCloseVetModal()" style="padding:10px 28px; background:#16130F; color:#fff; border:none; border-radius:9999px; font-size:14px; font-weight:700; font-family:'Cabinet Grotesk',sans-serif; cursor:pointer;">Close</button>
           </div>
         </div>
 
