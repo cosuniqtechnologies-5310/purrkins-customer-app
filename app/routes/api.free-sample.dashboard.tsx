@@ -150,7 +150,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   zip
                   country
                 }
-                orders(first: 5, sortKey: CREATED_AT, reverse: true) {
+                orders(first: 50, sortKey: CREATED_AT, reverse: true) {
                   edges {
                     node {
                       name
@@ -386,90 +386,73 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const customerPets = customer.pets?.references?.nodes || [];
   const pets = customerPets.length > 0
-    ? customerPets.map((p: any, idx: number) => ({
-        id: p.id || `pet-${idx}`,
-        name: p.name?.value || (idx === 0 ? "Milo" : (idx === 1 ? "Kaju" : `Kitten ${idx + 1}`)),
-        headerAge: p.age?.value || (idx === 0 ? "12 Months" : "8 Months"),
-        age: p.age?.value || (idx === 0 ? "5 months" : "8 months"),
-        weight: p.weight?.value ? String(p.weight.value).replace(/[^0-9.]/g, '') : (idx === 0 ? "1.9" : "2.1"),
-        breed: "Indie",
-        gender: p.gender?.value || (idx === 0 ? "Male" : "Female"),
-        neutered: p.neutered?.value || (idx === 0 ? "Neutered" : "Not Neutered"),
-        activityLevel: p.activity?.value || "Playful, indoor only",
-        birthday: idx === 0 ? "14 Mar 2026" : "10 Aug 2025",
-        healthFlags: idx === 0 ? "Sensitive stomach" : "Digestive care",
-        eatingStyle: p.body?.value || (idx === 0 ? "Fussy (prefers fish)" : "Lean"),
-        allergies: idx === 0 ? "None recorded" : "Chicken",
-        loggedWeight: idx === 0 ? "1.9 kg logged on 2 Aug" : "2.1 kg logged on 15 Jul",
-        imageUrl: p.profile?.reference?.image?.url || (idx === 0
-          ? "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop"
-          : "https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=150&h=150&fit=crop"),
-        quizPills: [
-          "Age - 2-8 weeks",
-          "Weight - 1.9 kg",
-          "Male",
-          "Neutered",
-          "2.5 kgs",
-          "Lean",
-          "Playful",
-          "Hairball",
-          "Gut issues"
-        ]
-      }))
+    ? customerPets.map((p: any, idx: number) => {
+        const name = p.name?.value || `Pet ${idx + 1}`;
+        const age = p.age?.value || "";
+        const gender = p.gender?.value || "";
+        const neutered = p.neutered?.value || "";
+        const rawWeight = p.weight?.value ? String(p.weight.value).replace(/[^0-9.]/g, '') : "";
+        const activity = p.activity?.value || "";
+        const body = p.body?.value || "";
+        const focus = p.focus?.value || "";
+        const allergies = p.allergies?.value || "";
+        const imageUrl = p.profile?.reference?.image?.url || "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop";
+
+        // Dynamic quiz pills from actual answered fields only
+        const quizPills: string[] = [];
+        if (age) quizPills.push(`Age: ${age}`);
+        if (rawWeight) quizPills.push(`Weight: ${rawWeight} kg`);
+        if (gender) quizPills.push(gender);
+        if (neutered) quizPills.push(neutered);
+        if (body) quizPills.push(`Body: ${body}`);
+        if (activity) quizPills.push(`Activity: ${activity}`);
+        if (focus) {
+          focus.split(',').forEach((f: string) => {
+            const clean = f.trim();
+            if (clean && !quizPills.includes(clean)) quizPills.push(clean);
+          });
+        }
+        if (allergies && allergies.toLowerCase() !== 'none' && allergies.toLowerCase() !== 'none recorded') {
+          quizPills.push(`Allergies: ${allergies}`);
+        }
+
+        return {
+          id: p.id || `pet-${idx}`,
+          name,
+          headerAge: age || "Profile",
+          age,
+          weight: rawWeight,
+          gender,
+          neutered,
+          activityLevel: activity,
+          healthFlags: focus || "None recorded",
+          eatingStyle: body || "",
+          allergies: allergies || "None recorded",
+          imageUrl,
+          quizPills
+        };
+      })
     : [
         {
           id: "pet-milo",
           name: "Milo",
-          headerAge: "12 Months",
+          headerAge: "5 months",
           age: "5 months",
           weight: "1.9",
-          breed: "Indie",
           gender: "Male",
           neutered: "Neutered",
-          activityLevel: "Playful, indoor only",
-          birthday: "14 Mar 2026",
-          healthFlags: "Sensitive stomach",
-          eatingStyle: "Fussy (prefers fish)",
+          activityLevel: "Playful",
+          healthFlags: "None recorded",
+          eatingStyle: "Lean",
           allergies: "None recorded",
-          loggedWeight: "1.9 kg logged on 2 Aug",
           imageUrl: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop",
           quizPills: [
-            "Age - 2-8 weeks",
-            "Weight - 1.9 kg",
+            "Age: 5 months",
+            "Weight: 1.9 kg",
             "Male",
             "Neutered",
-            "2.5 kgs",
             "Lean",
-            "Playful",
-            "Hairball",
-            "Gut issues"
-          ]
-        },
-        {
-          id: "pet-kaju",
-          name: "Kaju",
-          headerAge: "8 Months",
-          age: "8 months",
-          weight: "2.1",
-          breed: "Indie",
-          gender: "Female",
-          neutered: "Not Neutered",
-          activityLevel: "Playful, indoor only",
-          birthday: "10 Aug 2025",
-          healthFlags: "Digestive care",
-          eatingStyle: "Lean",
-          allergies: "Chicken",
-          loggedWeight: "2.1 kg logged on 15 Jul",
-          imageUrl: "https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=150&h=150&fit=crop",
-          quizPills: [
-            "Age - 8 Months",
-            "Weight - 2.1 kg",
-            "Female",
-            "Not Neutered",
-            "Lean",
-            "Playful",
-            "Digestive Care",
-            "Chicken"
+            "Playful"
           ]
         }
       ];
@@ -557,7 +540,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         </div>
         <div class="pk-order-total">₹1,080</div>
         <div class="pk-order-actions">
-          <button type="button" onclick="pkReorder('PK-10240', this)" class="pk-btn-reorder">Reorder</button>
+          <button type="button" onclick="pkReorder('PK-10240', this, event)" class="pk-btn-reorder">Reorder</button>
           <a href="#" target="_blank" class="pk-btn-invoice">Invoice</a>
         </div>
       </div>
@@ -573,7 +556,54 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         </div>
         <div class="pk-order-total">₹540</div>
         <div class="pk-order-actions">
-          <button type="button" onclick="pkReorder('PK-10102', this)" class="pk-btn-reorder">Reorder</button>
+          <button type="button" onclick="pkReorder('PK-10102', this, event)" class="pk-btn-reorder">Reorder</button>
+          <a href="#" target="_blank" class="pk-btn-invoice">Invoice</a>
+        </div>
+      </div>
+
+      <div class="pk-order-row">
+        <div>
+          <div class="pk-order-id">#PK-10088</div>
+          <div class="pk-order-sub">24 pouches · Hydration box</div>
+        </div>
+        <div class="pk-order-date">28 Jun 2026</div>
+        <div>
+          <span class="pk-order-pill" style="background:#dcfce7; color:#15803d;">Delivered 1 Jul</span>
+        </div>
+        <div class="pk-order-total">₹890</div>
+        <div class="pk-order-actions">
+          <button type="button" onclick="pkReorder('PK-10088', this, event)" class="pk-btn-reorder">Reorder</button>
+          <a href="#" target="_blank" class="pk-btn-invoice">Invoice</a>
+        </div>
+      </div>
+
+      <div class="pk-order-row">
+        <div>
+          <div class="pk-order-id">#PK-10065</div>
+          <div class="pk-order-sub">12 pouches · Kitten trial box</div>
+        </div>
+        <div class="pk-order-date">10 Jun 2026</div>
+        <div>
+          <span class="pk-order-pill" style="background:#dcfce7; color:#15803d;">Delivered 13 Jun</span>
+        </div>
+        <div class="pk-order-total">₹540</div>
+        <div class="pk-order-actions">
+          <button type="button" onclick="pkReorder('PK-10065', this, event)" class="pk-btn-reorder">Reorder</button>
+          <a href="#" target="_blank" class="pk-btn-invoice">Invoice</a>
+        </div>
+      </div>
+
+      <div class="pk-order-row">
+        <div>
+          <div class="pk-order-id">#PK-10042</div>
+          <div class="pk-order-sub">Free Sample Box</div>
+        </div>
+        <div class="pk-order-date">25 May 2026</div>
+        <div>
+          <span class="pk-order-pill" style="background:#dcfce7; color:#15803d;">Delivered 28 May</span>
+        </div>
+        <div class="pk-order-total">₹0</div>
+        <div class="pk-order-actions">
           <a href="#" target="_blank" class="pk-btn-invoice">Invoice</a>
         </div>
       </div>
@@ -652,10 +682,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   if (userWishlistNodes.length > 0) {
     displayWishlist = userWishlistNodes.map((p: any) => {
-      const v = p.variants?.nodes?.[0] || p.variants?.edges?.[0]?.node;
+      const v = p.variants?.nodes?.[0] || p.variants?.edges?.[0]?.node || (Array.isArray(p.variants) ? p.variants[0] : null);
       const vTitle = v?.title || "70g";
       const weight = vTitle.includes("g") ? vTitle.replace(/[^0-9]/g, "") + "g" : "70g";
       const styles = getProductCategoryStyles(p);
+      const rawVid = v?.id ? String(v.id) : '';
+      const cleanVid = rawVid.includes('/') ? rawVid.split('/').pop() || '' : rawVid;
+      const fallbackVid = (p.title || "").toLowerCase().includes("lean") ? "51221448818935"
+        : (p.title || "").toLowerCase().includes("gutty") ? "51172691050743"
+        : (p.title || "").toLowerCase().includes("shiny") || (p.title || "").toLowerCase().includes("mumma") ? "51172688134423"
+        : "49767352369463";
       return {
         id: p.id,
         title: p.title,
@@ -667,7 +703,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         cardColor: styles.cardColor,
         imgUrl: p.featuredImage?.url || v?.image?.url || defaultFallbackImg,
         handle: p.handle,
-        variantId: v?.id ? String(v.id).split('/').pop() : ''
+        variantId: cleanVid || fallbackVid
       };
     });
   } else if (customerWishlistIds.length > 0 && catalogProducts && catalogProducts.length > 0) {
@@ -681,10 +717,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     if (matchedProducts.length > 0) {
       displayWishlist = matchedProducts.map((p: any) => {
-        const v = p.variants?.nodes?.[0] || p.variants?.[0];
+        const v = p.variants?.nodes?.[0] || p.variants?.edges?.[0]?.node || (Array.isArray(p.variants) ? p.variants[0] : null);
         const vTitle = v?.title || "70g";
         const weight = vTitle.includes("g") ? vTitle.replace(/[^0-9]/g, "") + "g" : "70g";
         const styles = getProductCategoryStyles(p);
+        const rawVid = v?.id ? String(v.id) : '';
+        const cleanVid = rawVid.includes('/') ? rawVid.split('/').pop() || '' : rawVid;
+        const fallbackVid = (p.title || "").toLowerCase().includes("lean") ? "51221448818935"
+          : (p.title || "").toLowerCase().includes("gutty") ? "51172691050743"
+          : (p.title || "").toLowerCase().includes("shiny") || (p.title || "").toLowerCase().includes("mumma") ? "51172688134423"
+          : "49767352369463";
         return {
           id: p.id,
           title: p.title,
@@ -696,7 +738,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           cardColor: styles.cardColor,
           imgUrl: p.featuredImage?.url || v?.image?.url || defaultFallbackImg,
           handle: p.handle,
-          variantId: v?.id ? String(v.id).split('/').pop() : ''
+          variantId: cleanVid || fallbackVid
         };
       });
     }
@@ -706,10 +748,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (displayWishlist.length === 0) {
     displayWishlist = (catalogProducts && catalogProducts.length > 0)
       ? catalogProducts.slice(0, 6).map((p: any) => {
-          const v = p.variants?.nodes?.[0] || p.variants?.[0];
+          const v = p.variants?.nodes?.[0] || p.variants?.edges?.[0]?.node || (Array.isArray(p.variants) ? p.variants[0] : null);
           const vTitle = v?.title || "70g";
           const weight = vTitle.includes("g") ? vTitle.replace(/[^0-9]/g, "") + "g" : "70g";
           const styles = getProductCategoryStyles(p);
+          const rawVid = v?.id ? String(v.id) : '';
+          const cleanVid = rawVid.includes('/') ? rawVid.split('/').pop() || '' : rawVid;
+          const fallbackVid = (p.title || "").toLowerCase().includes("lean") ? "51221448818935"
+            : (p.title || "").toLowerCase().includes("gutty") ? "51172691050743"
+            : (p.title || "").toLowerCase().includes("shiny") || (p.title || "").toLowerCase().includes("mumma") ? "51172688134423"
+            : "49767352369463";
           return {
             id: p.id,
             title: p.title,
@@ -721,7 +769,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             cardColor: styles.cardColor,
             imgUrl: p.featuredImage?.url || v?.image?.url || defaultFallbackImg,
             handle: p.handle,
-            variantId: v?.id ? String(v.id).split('/').pop() : ''
+            variantId: cleanVid || fallbackVid
           };
         })
       : [
@@ -735,31 +783,31 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             cardColor: "#2A85C8",
             imgUrl: defaultFallbackImg,
             handle: "chicken-broth",
-            variantId: ""
+            variantId: "49767352369463"
           },
           {
-            title: "Lamb Jerky",
-            price: "99",
+            title: "Lean Kitty",
+            price: "90",
             weight: "70g",
-            desc: "High-protein rewards for active cats",
-            type: "Treats",
-            cardBg: "#FDF0F5",
-            cardColor: "#C0392B",
-            imgUrl: defaultFallbackImg,
-            handle: "lamb-jerky",
-            variantId: ""
-          },
-          {
-            title: "Turkey Stew",
-            price: "79",
-            weight: "70g",
-            desc: "Soft meal for gentle digestion",
+            desc: "Healthy weight. Happy movement. One thoughtful recipe.",
             type: "Wet Food",
             cardBg: "#EBF5FE",
             cardColor: "#2A85C8",
             imgUrl: defaultFallbackImg,
-            handle: "turkey-stew",
-            variantId: ""
+            handle: "lean-kitty",
+            variantId: "51221448818935"
+          },
+          {
+            title: "Shiny Kitty",
+            price: "90",
+            weight: "70g",
+            desc: "Because when they're thriving on the inside, you can see it on the outside.",
+            type: "Wet Food",
+            cardBg: "#EBF5FE",
+            cardColor: "#2A85C8",
+            imgUrl: defaultFallbackImg,
+            handle: "shiny-kitty",
+            variantId: "51172688134423"
           },
           {
             title: "Gutty Kitty",
@@ -771,17 +819,47 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             cardColor: "#D97742",
             imgUrl: defaultFallbackImg,
             handle: "gutty-kitty",
-            variantId: ""
+            variantId: "51172691050743"
+          },
+          {
+            title: "Lamb Jerky",
+            price: "99",
+            weight: "70g",
+            desc: "High-protein rewards for active cats",
+            type: "Treats",
+            cardBg: "#FDF0F5",
+            cardColor: "#C0392B",
+            imgUrl: defaultFallbackImg,
+            handle: "lamb-jerky",
+            variantId: "49767352369463"
+          },
+          {
+            title: "Turkey Stew",
+            price: "79",
+            weight: "70g",
+            desc: "Soft meal for gentle digestion",
+            type: "Wet Food",
+            cardBg: "#EBF5FE",
+            cardColor: "#2A85C8",
+            imgUrl: defaultFallbackImg,
+            handle: "turkey-stew",
+            variantId: "49767352369463"
           }
         ];
   }
 
   // Pre-serialize catalog products for dynamic client-side sync
   const clientCatalogProducts = (catalogProducts || []).map((p: any) => {
-    const v = p.variants?.nodes?.[0] || p.variants?.[0];
+    const v = p.variants?.nodes?.[0] || p.variants?.edges?.[0]?.node || (Array.isArray(p.variants) ? p.variants[0] : null);
     const vTitle = v?.title || "70g";
     const weight = vTitle.includes("g") ? vTitle.replace(/[^0-9]/g, "") + "g" : "70g";
     const styles = getProductCategoryStyles(p);
+    const rawVid = v?.id ? String(v.id) : '';
+    const cleanVid = rawVid.includes('/') ? rawVid.split('/').pop() || '' : rawVid;
+    const fallbackVid = (p.title || "").toLowerCase().includes("lean") ? "51221448818935"
+      : (p.title || "").toLowerCase().includes("gutty") ? "51172691050743"
+      : (p.title || "").toLowerCase().includes("shiny") || (p.title || "").toLowerCase().includes("mumma") ? "51172688134423"
+      : "49767352369463";
     return {
       id: p.id,
       title: p.title,
@@ -792,7 +870,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       cardColor: styles.cardColor,
       badgeText: styles.badgeText,
       image: p.featuredImage?.url || v?.image?.url || defaultFallbackImg,
-      variantId: v?.id ? String(v.id).split('/').pop() : ''
+      handle: p.handle,
+      variantId: cleanVid || fallbackVid
     };
   });
 
@@ -824,7 +903,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 <span class="pk-wishlist-weight">${escAttr(item.weight)}</span>
               </div>
               <p class="pk-wishlist-card-desc">${escAttr(item.desc)}</p>
-              <button type="button" onclick="pkAddToCart('${item.variantId || ''}', this)" class="pk-wishlist-add-btn">Add to Cart</button>
+              <button type="button" data-vid="${escAttr(item.variantId || '')}" data-handle="${escAttr(item.handle || '')}" data-title="${escAttr(item.title || '')}" data-orig-text="Add to Cart" onclick="pkAddToCart(this.dataset.vid, this, this.dataset.handle, this.dataset.title, event)" class="pk-wishlist-add-btn">Add to Cart</button>
             </div>
           </div>
         `).join('')}
@@ -863,57 +942,37 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           </div>
           <div>
             <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Weight</label>
-            <span id="pk-pet-stat-weight" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.weight)} kg</span>
-          </div>
-          <div>
-            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Breed</label>
-            <span id="pk-pet-stat-breed" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.breed || 'Indie')}</span>
+            <span id="pk-pet-stat-weight" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.weight ? initialPet.weight + ' kg' : '—')}</span>
           </div>
           <div>
             <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Sex</label>
-            <span id="pk-pet-stat-sex" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.gender)}, ${escAttr(initialPet.neutered.toLowerCase())}</span>
+            <span id="pk-pet-stat-sex" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.gender || '')}${initialPet.neutered ? ', ' + escAttr(initialPet.neutered.toLowerCase()) : ''}</span>
           </div>
           <div>
             <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Activity Level</label>
-            <span id="pk-pet-stat-activity" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.activityLevel)}</span>
-          </div>
-          <div>
-            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Birthday</label>
-            <span id="pk-pet-stat-bday" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.birthday)}</span>
-          </div>
-          <div>
-            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Health Flags</label>
-            <span id="pk-pet-stat-health" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.healthFlags)}</span>
+            <span id="pk-pet-stat-activity" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.activityLevel || '—')}</span>
           </div>
           <div>
             <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Eating Style</label>
-            <span id="pk-pet-stat-body" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.eatingStyle)}</span>
+            <span id="pk-pet-stat-body" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.eatingStyle || '—')}</span>
+          </div>
+          <div>
+            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Health Flags</label>
+            <span id="pk-pet-stat-health" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.healthFlags || 'None recorded')}</span>
           </div>
           <div>
             <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Allergies</label>
-            <span id="pk-pet-stat-allergies" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.allergies)}</span>
+            <span id="pk-pet-stat-allergies" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.allergies || 'None recorded')}</span>
           </div>
         </div>
-      </div>
-
-      <!-- Yellow Weight Banner (Image 2) -->
-      <div style="background: #FFE330; border-radius: 14px; padding: 16px 22px; display: flex; justify-content: space-between; align-items: center; margin-top: 24px; flex-wrap: wrap; gap: 12px;">
-        <div>
-          <div id="pk-pet-weight-log" style="font-weight: 800; font-size: 15px; color: #121217;">${escAttr(initialPet.loggedWeight)}</div>
-          <div style="font-size: 12.5px; color: #4B4618; margin-top: 2px;">Portions and pack quantities update automatically when you log a new weight.</div>
-        </div>
-        <button type="button" onclick="pkOpenAddKittenQuiz()" style="background: #121217; color: #fff; border: none; border-radius: 20px; padding: 10px 22px; font-weight: 700; font-size: 13px; cursor: pointer;">Log New Weight</button>
       </div>
     </div>
 
     <!-- YOUR QUIZ ANSWERS (Image 2) -->
     <div id="pk-pet-quiz-card" class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
-        <div>
-          <h2 style="margin:0; font-size:24px; font-weight:800; color:#121217; font-family:var(--font-heading--family, sans-serif);">Your quiz answers</h2>
-          <p style="color:#595961; margin:6px 0 0 0; font-size:14px;">Taken 14 July, updated 2 Aug. Everything below is built from these answers.</p>
-        </div>
-        <a href="/pages/byob" class="pk-outline-btn" style="border-radius:30px; padding:8px 20px; font-size:13px; font-weight:700; text-decoration:none; color:#121217; border:1.5px solid #121217; background:#fff;">Retake quiz</a>
+      <div style="margin-bottom:20px;">
+        <h2 style="margin:0; font-size:24px; font-weight:800; color:#121217; font-family:var(--font-heading--family, sans-serif);">Your quiz answers</h2>
+        <p style="color:#595961; margin:6px 0 0 0; font-size:14px;">Personalized for ${escAttr(petName)}. Everything below is built from these answers.</p>
       </div>
 
       <div id="pk-pet-quiz-pills" style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:32px;">
@@ -925,14 +984,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <h3 id="pk-pet-rec-title" style="margin:0 0 18px 0; font-size:22px; font-weight:800; color:#121217; font-family:var(--font-heading--family, sans-serif);">Recommend for ${escAttr(petName)}</h3>
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:20px;">
           ${(catalogProducts && catalogProducts.length > 0 ? catalogProducts.slice(0, 3) : [
-            { title: "Lean Kitty", description: "80g pouch, starter pack, light, tasty nutrition to keep them playful and agile.", variants: { nodes: [{ id: "51221448818935" }] } },
-            { title: "Gutty Kitty", description: "Happy tummies, happy kitties, gentle, easy-to-digest goodness to keep bellies comfortable and content.", variants: { nodes: [{ id: "51172691050743" }] } },
-            { title: "Mumma & Kitty", description: "Nourishing fuel for growing kittens and comforting, energy-rich goodness to help mama cats recover.", variants: { nodes: [{ id: "51172688134423" }] } }
+            { title: "Lean Kitty", description: "80g pouch, starter pack, light, tasty nutrition to keep them playful and agile.", variants: { nodes: [{ id: "51221448818935", price: "90" }] } },
+            { title: "Gutty Kitty", description: "Happy tummies, happy kitties, gentle, easy-to-digest goodness to keep bellies comfortable and content.", variants: { nodes: [{ id: "51172691050743", price: "90" }] } },
+            { title: "Mumma & Kitty", description: "Nourishing fuel for growing kittens and comforting, energy-rich goodness to help mama cats recover.", variants: { nodes: [{ id: "51172688134423", price: "90" }] } }
           ]).map((recP: any, rIdx: number) => {
             const rTitle = recP.title || "Kitten Meal";
             const rImg = recP.featuredImage?.url || recP.variants?.nodes?.[0]?.image?.url || defaultFallbackImg;
             const rDesc = recP.description ? (recP.description.length > 90 ? recP.description.substring(0, 87) + '...' : recP.description) : '80g pouch, light, tasty nutrition to keep them playful and agile.';
-            const rVarId = recP.variants?.nodes?.[0]?.id ? String(recP.variants.nodes[0].id).split('/').pop() : '';
+            const rawRVarId = recP.variants?.nodes?.[0]?.id ? String(recP.variants.nodes[0].id) : '';
+            const cleanRVarId = rawRVarId.includes('/') ? rawRVarId.split('/').pop() || '' : rawRVarId;
+            const rFallbackVid = rTitle.toLowerCase().includes("lean") ? "51221448818935"
+              : rTitle.toLowerCase().includes("gutty") ? "51172691050743"
+              : rTitle.toLowerCase().includes("shiny") || rTitle.toLowerCase().includes("mumma") ? "51172688134423"
+              : "49767352369463";
+            const rVarId = cleanRVarId || rFallbackVid;
+            const rawRPrice = recP.variants?.nodes?.[0]?.price
+              || recP.variants?.edges?.[0]?.node?.price
+              || (Array.isArray(recP.variants) ? recP.variants[0]?.price : null)
+              || recP.priceRange?.minVariantPrice?.amount
+              || (rTitle.toLowerCase().includes("combo") ? "179" : "90");
+            const cleanRPrice = parseFloat(String(rawRPrice || "90")).toFixed(0);
+            const rBtnText = `₹${cleanRPrice} · Add to Cart`;
             const isSubscribed = subscribedTitles.has(rTitle.toLowerCase().trim());
             const bgColors = ['#E8F4FE', '#FFF1EB', '#E6F8F0'];
             const bg = bgColors[rIdx % bgColors.length];
@@ -947,7 +1019,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 ${isSubscribed ? `
                   <button type="button" onclick="switchDashboardTab('subscriptions')" style="background:#121217; color:#fff; border:none; border-radius:20px; padding:10px 22px; font-weight:700; font-size:13px; cursor:pointer; width:fit-content;">In Your Box</button>
                 ` : `
-                  <button type="button" onclick="pkAddToCart('${rVarId}', this)" style="background:#121217; color:#fff; border:none; border-radius:20px; padding:10px 22px; font-weight:700; font-size:13px; cursor:pointer; width:fit-content;">Add to Cart</button>
+                  <button type="button" 
+                    data-vid="${escAttr(rVarId)}" 
+                    data-title="${escAttr(rTitle)}" 
+                    data-price="${cleanRPrice}" 
+                    data-orig-text="${escAttr(rBtnText)}" 
+                    onclick="pkAddToCart(this.dataset.vid, this, '', this.dataset.title, event)" 
+                    style="background:#121217; color:#fff; border:none; border-radius:20px; padding:10px 22px; font-weight:700; font-size:13px; cursor:pointer; width:fit-content; transition:background 0.2s, opacity 0.2s;">${rBtnText}</button>
                 `}
               </div>
             `;
@@ -1317,7 +1395,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .pk-dashboard-wrapper {
         max-width: 1336px;
         margin: 0 auto;
-        padding: 0 20px;
+        padding: 44px 20px 80px;
         font-family: var(--font-body--family, sans-serif);
         color: #121217;
       }
@@ -1711,6 +1789,69 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .pk-view-all-orders-btn:hover {
         background: #f4f4f5;
       }
+      /* Orders Pagination Styles (3 per page) */
+      .pk-pagination-wrap {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid #f0f1f3;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .pk-pagination-info {
+        font-size: 13px;
+        color: #71717a;
+        font-weight: 500;
+      }
+      .pk-pagination-controls {
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .pk-page-btn {
+        min-width: 36px;
+        height: 36px;
+        padding: 0 10px;
+        border-radius: 8px;
+        border: 1.5px solid #E4E4E7;
+        background: #fff;
+        color: #121217;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s ease;
+        font-family: inherit;
+        user-select: none;
+      }
+      .pk-page-btn:hover:not(:disabled):not(.active) {
+        background: #f4f4f5;
+        border-color: #d4d4d8;
+        transform: translateY(-1px);
+      }
+      .pk-page-btn.active {
+        background: #FFE600;
+        color: #121217;
+        border-color: #FFE600;
+        font-weight: 800;
+      }
+      .pk-page-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+        pointer-events: none;
+        background: #fafafa;
+        border-color: #eee;
+      }
+      .pk-page-ellipsis {
+        padding: 0 4px;
+        color: #a1a1aa;
+        font-size: 13px;
+        font-weight: 600;
+      }
 
       /* Subscriptions View Styles (Screenshot 2 & 3) */
       .pk-sub-summary-bar {
@@ -1992,6 +2133,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         line-height: 1.6;
       }
       @media (max-width: 900px) {
+        .pk-dashboard-wrapper {
+          padding: 24px 16px 60px;
+        }
         .pk-dashboard-layout {
           grid-template-columns: 1fr;
         }
@@ -2016,7 +2160,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .pk-dashboard-wrapper {
         max-width: 1336px;
         margin: 0 auto;
-        padding: 0 20px;
+        padding: 44px 20px 80px;
         font-family: var(--font-body--family, sans-serif);
         color: #121217;
       }
@@ -2771,7 +2915,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             <!-- Orders (Image 1) -->
             <div class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
               <h3 class="pk-section-title" style="margin-bottom: 20px;">Orders</h3>
-              <div class="pk-orders-table">
+              <div class="pk-orders-table" id="pk-orders-table">
                 <div class="pk-orders-header">
                   <div>ORDER</div>
                   <div>DATE</div>
@@ -2779,11 +2923,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   <div>TOTAL</div>
                   <div></div>
                 </div>
-                ${ordersHtml}
+                <div id="pk-orders-list">
+                  ${ordersHtml}
+                </div>
               </div>
-              <div style="margin-top: 18px;">
-                <button type="button" onclick="window.location.href='/account'" class="pk-view-all-orders-btn">View all orders</button>
-              </div>
+              <div id="pk-orders-pagination" class="pk-pagination-wrap"></div>
             </div>
 
             <!-- Delivery Addresses (Image 1) -->
@@ -2861,6 +3005,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           target.style.display = 'block';
         }
 
+        // Initialize orders pagination whenever overview tab is shown
+        if (tabId === 'overview' && typeof window.pkInitOrdersPagination === 'function') {
+          setTimeout(function() { window.pkInitOrdersPagination(); }, 10);
+        }
+
         // Update active class on sidebar menu items
         var activeTabKey = shouldScrollQuiz ? 'quiz-answers' : (shouldScrollWishlist ? 'overview' : tabId);
         document.querySelectorAll('.pk-sidebar-menu .pk-menu-item').forEach(function(item) {
@@ -2904,6 +3053,80 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       function switchDashboardTab(tabId, ev) {
         window.switchDashboardTab(tabId, ev);
       }
+
+      // Orders Pagination Controller (3 orders per page)
+      window.pkOrdersCurrentPage = 1;
+      window.pkOrdersPerPage = 3;
+
+      window.pkInitOrdersPagination = function() {
+        var rows = document.querySelectorAll('#pk-orders-list .pk-order-row');
+        var container = document.getElementById('pk-orders-pagination');
+        if (!container) return;
+
+        var totalOrders = rows.length;
+        if (totalOrders === 0) {
+          container.style.display = 'none';
+          return;
+        }
+
+        var perPage = window.pkOrdersPerPage || 3;
+        var totalPages = Math.ceil(totalOrders / perPage);
+
+        if (window.pkOrdersCurrentPage > totalPages) window.pkOrdersCurrentPage = totalPages;
+        if (window.pkOrdersCurrentPage < 1) window.pkOrdersCurrentPage = 1;
+        var curPage = window.pkOrdersCurrentPage;
+
+        // Show only the 3 rows corresponding to the active page
+        rows.forEach(function(row, idx) {
+          var startIdx = (curPage - 1) * perPage;
+          var endIdx = startIdx + perPage;
+          if (idx >= startIdx && idx < endIdx) {
+            row.style.display = '';
+          } else {
+            row.style.display = 'none';
+          }
+        });
+
+        // Hide pagination controls if only 1 page
+        if (totalPages <= 1) {
+          container.style.display = 'none';
+          return;
+        }
+
+        container.style.display = 'flex';
+
+        var startCount = (curPage - 1) * perPage + 1;
+        var endCount = Math.min(curPage * perPage, totalOrders);
+        var infoHtml = '<span class="pk-pagination-info">Showing ' + startCount + '–' + endCount + ' of ' + totalOrders + ' orders</span>';
+
+        var controlsHtml = '<div class="pk-pagination-controls">';
+
+        // Previous button
+        controlsHtml += '<button type="button" class="pk-page-btn prev" ' + (curPage === 1 ? 'disabled' : '') + ' onclick="pkGoToOrdersPage(' + (curPage - 1) + ')" aria-label="Previous Page">‹</button>';
+
+        for (var p = 1; p <= totalPages; p++) {
+          if (totalPages <= 7 || p === 1 || p === totalPages || (p >= curPage - 1 && p <= curPage + 1)) {
+            controlsHtml += '<button type="button" class="pk-page-btn ' + (p === curPage ? 'active' : '') + '" onclick="pkGoToOrdersPage(' + p + ')">' + p + '</button>';
+          } else if (p === curPage - 2 || p === curPage + 2) {
+            controlsHtml += '<span class="pk-page-ellipsis">...</span>';
+          }
+        }
+
+        // Next button
+        controlsHtml += '<button type="button" class="pk-page-btn next" ' + (curPage === totalPages ? 'disabled' : '') + ' onclick="pkGoToOrdersPage(' + (curPage + 1) + ')" aria-label="Next Page">›</button>';
+        controlsHtml += '</div>';
+
+        container.innerHTML = infoHtml + controlsHtml;
+      };
+
+      window.pkGoToOrdersPage = function(page) {
+        window.pkOrdersCurrentPage = page;
+        window.pkInitOrdersPagination();
+        var table = document.getElementById('pk-orders-table');
+        if (table && table.getBoundingClientRect().top < 0) {
+          table.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      };
 
       // Robust Wishlist Slider Controller (Early defined on window)
       window.pkSlideWishlist = function(sliderId, dir, ev) {
@@ -2980,6 +3203,240 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         window.pkSlideWishlist(sId, d, e);
       });
 
+      // ─── Global Robust Add to Cart Engine (Wishlist, Recs & Reorder) ─────
+      window.pkAddToCart = function(variantId, btn, handle, title, ev) {
+        if (ev) {
+          if (ev.preventDefault) ev.preventDefault();
+          if (ev.stopPropagation) ev.stopPropagation();
+        }
+
+        // 1. Resolve variant ID from args, dataset, or card context
+        var vid = variantId || (btn && (btn.getAttribute('data-vid') || (btn.dataset && btn.dataset.vid))) || '';
+        var cleanVid = String(vid || '').replace(/[^0-9]/g, '');
+
+        var prodHandle = handle || (btn && (btn.getAttribute('data-handle') || (btn.dataset && btn.dataset.handle))) || '';
+        var prodTitle = title || (btn && (btn.getAttribute('data-title') || (btn.dataset && btn.dataset.title))) || '';
+
+        // If title wasn't passed directly, extract from parent card
+        if (!prodTitle && btn && btn.closest) {
+          var card = btn.closest('.pk-wishlist-card') || btn.closest('.pk-rec-box') || btn.closest('.pk-order-row');
+          if (card) {
+            var tEl = card.querySelector('.pk-wishlist-card-title, h4, .pk-order-title');
+            if (tEl && tEl.textContent) prodTitle = tEl.textContent.trim();
+          }
+        }
+
+        // Search catalog cache for variant ID if cleanVid is missing or incomplete
+        if ((!cleanVid || cleanVid.length < 5) && window.pkCatalogProducts && Array.isArray(window.pkCatalogProducts)) {
+          var matchedProd = window.pkCatalogProducts.find(function(p) {
+            if (prodHandle && p.handle && p.handle.toLowerCase() === prodHandle.toLowerCase()) return true;
+            if (prodTitle && p.title && p.title.toLowerCase().trim() === prodTitle.toLowerCase().trim()) return true;
+            return false;
+          });
+          if (matchedProd && matchedProd.variantId) {
+            cleanVid = String(matchedProd.variantId).replace(/[^0-9]/g, '');
+          }
+        }
+
+        // Fallback to known live Shopify store variant IDs
+        if (!cleanVid || cleanVid.length < 5) {
+          var tLower = (prodTitle + ' ' + prodHandle).toLowerCase();
+          if (tLower.indexOf('lean') !== -1) {
+            cleanVid = '51221448818935';
+          } else if (tLower.indexOf('gutty') !== -1) {
+            cleanVid = '51172691050743';
+          } else if (tLower.indexOf('shiny') !== -1 || tLower.indexOf('mumma') !== -1) {
+            cleanVid = '51172688134423';
+          } else {
+            cleanVid = '49767352369463'; // Chicken Broth default
+          }
+        }
+
+        var numericId = parseInt(cleanVid, 10);
+
+        // Immediate visual feedback on clicked button
+        var origText = (btn && btn.dataset && btn.dataset.origText) ? btn.dataset.origText : (btn ? btn.textContent.trim() : 'Add to Cart');
+        var origBg = '';
+        var origColor = '';
+        if (btn) {
+          origBg = btn.style.backgroundColor || '';
+          origColor = btn.style.color || '';
+          btn.dataset.origText = origText;
+          btn.dataset.originalText = origText;
+          btn.disabled = true;
+          btn.style.opacity = '0.75';
+          btn.textContent = 'Adding...';
+        }
+
+        function smoothOpenCartDrawer() {
+          var drawer = document.querySelector('theme-drawer#cart-drawer') || document.getElementById('cart-drawer');
+          if (drawer) {
+            if (drawer.isOpen || drawer.hasAttribute('open')) {
+              if (typeof drawer.open === 'function') {
+                try { drawer.open(); } catch(e) {}
+              }
+              return;
+            }
+            if (typeof drawer.open === 'function') {
+              try {
+                drawer.open();
+                return;
+              } catch(e) {
+                console.warn('[PURRKINS CART] drawer.open error:', e);
+              }
+            }
+          }
+
+          var trigger = document.querySelector('[data-testid="cart-drawer-trigger"]') ||
+                        document.querySelector('[aria-controls="cart-drawer"]') ||
+                        document.getElementById('cart-icon-bubble');
+          if (trigger) {
+            try {
+              trigger.click();
+              return;
+            } catch(e) {}
+          }
+
+          if (window.Shopify && window.Shopify.actions && typeof window.Shopify.actions.openCart === 'function') {
+            try {
+              window.Shopify.actions.openCart();
+              return;
+            } catch(e) {}
+          }
+
+          var panel = drawer ? (drawer.querySelector('dialog') || drawer.querySelector('[ref="panel"]')) : document.querySelector('#cart-drawer dialog');
+          if (panel && typeof panel.showModal === 'function' && !panel.open) {
+            try {
+              if (drawer) drawer.setAttribute('open', '');
+              panel.showModal();
+            } catch(e) {}
+          }
+        }
+
+        function triggerCartOpenAndRefresh() {
+          var root = (window.Shopify && window.Shopify.routes && window.Shopify.routes.root) ? window.Shopify.routes.root : '/';
+          fetch(root + 'cart.js')
+            .then(function(r) { return r.json(); })
+            .then(function(cart) {
+              var count = cart.item_count || 0;
+              document.querySelectorAll('#cart-icon-bubble .cart-badge, .cart-count-bubble, [data-cart-count], .cart-badge, [data-testid="cart-count"], .header-actions__cart-icon .cart-bubble').forEach(function(badge) {
+                badge.textContent = count;
+                badge.style.display = count > 0 ? '' : 'none';
+              });
+            })
+            .catch(function(){});
+
+          document.dispatchEvent(new CustomEvent('cart:refresh'));
+          document.dispatchEvent(new CustomEvent('cart:updated'));
+          document.documentElement.dispatchEvent(new CustomEvent('cart:build', { bubbles: true }));
+
+          setTimeout(function() {
+            smoothOpenCartDrawer();
+          }, 80);
+        }
+
+        function markSuccess() {
+          if (btn) {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.textContent = 'Added ✓';
+            btn.style.backgroundColor = '#16a34a';
+            btn.style.color = '#ffffff';
+            setTimeout(function() {
+              btn.textContent = origText;
+              btn.style.backgroundColor = origBg;
+              btn.style.color = origColor;
+            }, 1800);
+          }
+          triggerCartOpenAndRefresh();
+        }
+
+        function markFailure(err) {
+          console.warn('[PURRKINS CART] Add to cart error:', err);
+          if (btn) {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.textContent = origText;
+            btn.style.backgroundColor = origBg;
+            btn.style.color = origColor;
+          }
+        }
+
+        // Try theme's purrkinsAddToCart pipeline if available
+        if (typeof window.purrkinsAddToCart === 'function') {
+          try {
+            if (btn) btn.dataset.originalText = origText;
+            window.purrkinsAddToCart([{ id: numericId, quantity: 1 }], btn);
+            setTimeout(function() {
+              markSuccess();
+            }, 450);
+            return;
+          } catch(e) {
+            console.warn('[PURRKINS CART] purrkinsAddToCart threw, using direct fetch:', e);
+          }
+        }
+
+        // Direct fetch to Shopify /cart/add.js
+        var rootUrl = (window.Shopify && window.Shopify.routes && window.Shopify.routes.root) ? window.Shopify.routes.root : '/';
+        var cartItemsComponents = document.querySelectorAll('cart-items-component');
+        var sectionIds = ['cart-drawer-section'];
+        cartItemsComponents.forEach(function(item) {
+          if (item && item.dataset && item.dataset.sectionId && sectionIds.indexOf(item.dataset.sectionId) === -1) {
+            sectionIds.push(item.dataset.sectionId);
+          }
+        });
+
+        fetch(rootUrl + 'cart/add.js', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: JSON.stringify({
+            items: [{ id: numericId, quantity: 1 }],
+            sections: sectionIds.join(','),
+            sections_url: rootUrl
+          })
+        })
+        .then(function(res) {
+          if (res.ok) return res.json();
+          // Fallback to simple id payload if section rendering fails
+          return fetch(rootUrl + 'cart/add.js', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ id: numericId, quantity: 1 })
+          }).then(function(r2) {
+            if (!r2.ok) throw new Error('Shopify rejected add to cart with status ' + r2.status);
+            return r2.json();
+          });
+        })
+        .then(function(data) {
+          if (data && data.sections) {
+            Object.keys(data.sections).forEach(function(secId) {
+              var targetSec = document.getElementById('shopify-section-' + secId) ||
+                              document.querySelector('[data-section-id="' + secId + '"]');
+              if (targetSec) {
+                targetSec.innerHTML = data.sections[secId];
+              }
+            });
+          }
+          markSuccess();
+        })
+        .catch(function(err) {
+          markFailure(err);
+        });
+      };
+
+      // Ensure pkAddToCart is accessible globally and in inline handler scopes
+      function pkAddToCart(variantId, btn, handle, title, ev) {
+        window.pkAddToCart(variantId, btn, handle, title, ev);
+      }
+
       // Pets data for instant client-side switching
       window.pkPetsData = ${JSON.stringify(pets)};
 
@@ -3007,34 +3464,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         if (imgEl && pet.imageUrl) imgEl.src = pet.imageUrl;
 
         var ageEl = document.getElementById('pk-pet-stat-age');
-        if (ageEl) ageEl.textContent = pet.age;
+        if (ageEl) ageEl.textContent = pet.age || '—';
 
         var weightEl = document.getElementById('pk-pet-stat-weight');
-        if (weightEl) weightEl.textContent = pet.weight + ' kg';
-
-        var breedEl = document.getElementById('pk-pet-stat-breed');
-        if (breedEl) breedEl.textContent = pet.breed || 'Indie';
+        if (weightEl) weightEl.textContent = pet.weight ? (pet.weight + ' kg') : '—';
 
         var sexEl = document.getElementById('pk-pet-stat-sex');
-        if (sexEl) sexEl.textContent = pet.gender + ', ' + (pet.neutered || '').toLowerCase();
+        if (sexEl) {
+          var sexText = pet.gender || '';
+          if (pet.neutered) sexText += (sexText ? ', ' : '') + String(pet.neutered).toLowerCase();
+          sexEl.textContent = sexText || '—';
+        }
 
         var actEl = document.getElementById('pk-pet-stat-activity');
-        if (actEl) actEl.textContent = pet.activityLevel || 'Playful, indoor only';
-
-        var bdayEl = document.getElementById('pk-pet-stat-bday');
-        if (bdayEl) bdayEl.textContent = pet.birthday || '14 Mar 2026';
-
-        var healthEl = document.getElementById('pk-pet-stat-health');
-        if (healthEl) healthEl.textContent = pet.healthFlags || 'Sensitive stomach';
+        if (actEl) actEl.textContent = pet.activityLevel || '—';
 
         var bodyEl = document.getElementById('pk-pet-stat-body');
-        if (bodyEl) bodyEl.textContent = pet.eatingStyle || 'Fussy (prefers fish)';
+        if (bodyEl) bodyEl.textContent = pet.eatingStyle || '—';
+
+        var healthEl = document.getElementById('pk-pet-stat-health');
+        if (healthEl) healthEl.textContent = pet.healthFlags || 'None recorded';
 
         var allergEl = document.getElementById('pk-pet-stat-allergies');
         if (allergEl) allergEl.textContent = pet.allergies || 'None recorded';
-
-        var weightLogEl = document.getElementById('pk-pet-weight-log');
-        if (weightLogEl) weightLogEl.textContent = pet.loggedWeight || (pet.weight + ' kg logged on 2 Aug');
 
         // Update Recommendations Header
         var recTitleEl = document.getElementById('pk-pet-rec-title');
@@ -3150,6 +3602,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           hash = params.get('tab') || '';
         }
         window.switchDashboardTab(hash || 'overview');
+        if (typeof window.pkInitOrdersPagination === 'function') {
+          window.pkInitOrdersPagination();
+        }
         setTimeout(function() {
           if (typeof pkHideLoader === 'function') pkHideLoader();
         }, 80);
@@ -3226,7 +3681,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                     '<span class="pk-wishlist-weight">' + (p.weight || '70g') + '</span>' +
                   '</div>' +
                   '<p class="pk-wishlist-card-desc">' + (p.desc || 'Real broth for daily hydration') + '</p>' +
-                  '<button type="button" data-vid="' + vId + '" onclick="pkAddToCart(this.dataset.vid, this)" class="pk-wishlist-add-btn">Add to Cart</button>' +
+                  '<button type="button" data-vid="' + vId + '" data-handle="' + (p.handle || '') + '" data-title="' + (p.title || '') + '" data-orig-text="Add to Cart" onclick="pkAddToCart(this.dataset.vid, this, this.dataset.handle, this.dataset.title, event)" class="pk-wishlist-add-btn">Add to Cart</button>' +
                 '</div>' +
               '</div>';
             }).join('');
@@ -3262,41 +3717,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           window.pkInitDynamicWishlist();
         }
       }, 120);
-
-      // Global Add to Cart helper for Wishlist and Recommendations
-      window.pkAddToCart = function(variantId, btn) {
-        if (!variantId) {
-          window.location.href = '/collections/all';
-          return;
-        }
-        if (btn) {
-          btn.disabled = true;
-          btn.textContent = 'Adding...';
-        }
-        fetch('/cart/add.js', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items: [{ id: variantId, quantity: 1 }] })
-        })
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-          if (btn) {
-            btn.disabled = false;
-            btn.textContent = 'Added ✓';
-            setTimeout(function() { btn.textContent = 'Add to Cart'; }, 1500);
-          }
-          var cartBubble = document.getElementById('cart-icon-bubble');
-          if (cartBubble) cartBubble.click();
-          document.dispatchEvent(new CustomEvent('cart:refresh'));
-        })
-        .catch(function(err) {
-          console.error('Add to cart error', err);
-          if (btn) {
-            btn.disabled = false;
-            btn.textContent = 'Add to Cart';
-          }
-        });
-      };
 
       // ─── Header account icon fix ───────────────────────────────
       (function fixHeaderIcon() {
@@ -3804,30 +4224,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       };
 
       // ─── Reorder Handler (Screenshot 1) ─────────────────────────
-      window.pkReorder = function(orderName, btn) {
-        if (btn) {
-          btn.disabled = true;
-          btn.textContent = 'Adding...';
+      window.pkReorder = function(orderName, btn, ev) {
+        if (ev) {
+          if (ev.preventDefault) ev.preventDefault();
+          if (ev.stopPropagation) ev.stopPropagation();
         }
-        fetch('/cart/add.js', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items: [{ id: 49767352369463, quantity: 1 }] })
-        })
-        .then(function(r) { return r.json(); })
-        .then(function() {
-          if (btn) {
-            btn.disabled = false;
-            btn.textContent = 'Added ✓';
-            setTimeout(function() { btn.textContent = 'Reorder'; }, 1500);
-          }
-          var cartBubble = document.getElementById('cart-icon-bubble');
-          if (cartBubble) cartBubble.click();
-          document.dispatchEvent(new CustomEvent('cart:refresh'));
-        })
-        .catch(function() {
-          window.location.href = '/collections/all';
-        });
+        window.pkAddToCart('49767352369463', btn, 'chicken-broth', 'Chicken Broth', ev);
       };
 
       if (typeof pkHideLoader === 'function') pkHideLoader();
