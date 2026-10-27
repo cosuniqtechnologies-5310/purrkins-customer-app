@@ -1700,38 +1700,51 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // ─── Customer Reviews Fetch & Render ─────────────────────
   const reviewsHtml = customerReviews.length > 0
     ? `
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
-        <h3 class="pk-section-title" style="margin:0;">My Product Reviews</h3>
-        <span style="font-size:13px; font-weight:700; background:#EBF4F6; color:#0e6251; padding:4px 12px; border-radius:20px;">${customerReviews.length} Review${customerReviews.length === 1 ? '' : 's'}</span>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 24px; flex-wrap:wrap; gap:12px;">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <h2 style="margin:0; font-size:24px; font-weight:800; font-family:'Cabinet Grotesk', sans-serif; color:#121217;">My Product Reviews</h2>
+          <span style="font-size:13px; font-weight:700; background:#EBF4F6; color:#0e6251; padding:4px 12px; border-radius:20px;">${customerReviews.length} Review${customerReviews.length === 1 ? '' : 's'}</span>
+        </div>
+        <button type="button" onclick="pkOpenOrderReview('Purrkins Kitten Meal', 'kitten-fresh-salmon')" class="pk-yellow-btn" style="text-decoration:none; padding:10px 22px; border-radius:9999px; font-weight:800; font-size:13.5px; background:#FFE330; color:#16130F; border:none; cursor:pointer; font-family:'Cabinet Grotesk', sans-serif;">
+          ★ Write a Review
+        </button>
       </div>
-      <div style="display:flex; flex-direction:column; gap:16px;">
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:20px;">
         ${customerReviews.map((r: any) => `
-          <div style="border:1.5px solid #eaeaea; border-radius:12px; padding:18px; background:#fff;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-              <div style="color:#d97706; font-size:16px;">${'★'.repeat(r.rating)}${'☆'.repeat(Math.max(0, 5 - r.rating))}</div>
-              <span style="font-size:11px; font-weight:800; background:${r.status === 'published' ? '#e3f1df' : '#fef3d6'}; color:${r.status === 'published' ? '#108043' : '#916a00'}; padding:3px 8px; border-radius:10px; text-transform:uppercase;">${r.status}</span>
+          <div style="border:1.5px solid #eaeaea; border-radius:14px; padding:22px; background:#fff; display:flex; flex-direction:column; justify-content:space-between; gap:14px; box-shadow:0 1px 4px rgba(0,0,0,0.02);">
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <div style="color:#d97706; font-size:16px; letter-spacing:2px;">${'★'.repeat(r.rating)}${'☆'.repeat(Math.max(0, 5 - r.rating))}</div>
+                <span style="font-size:11px; font-weight:800; background:${r.status === 'published' ? '#e3f1df' : '#fef3d6'}; color:${r.status === 'published' ? '#108043' : '#916a00'}; padding:3px 10px; border-radius:12px; text-transform:uppercase; letter-spacing:0.5px;">${r.status}</span>
+              </div>
+              <h4 style="margin:0 0 6px 0; font-size:16px; font-weight:800; color:#121217; font-family:'Cabinet Grotesk', sans-serif;">${escAttr(r.title)}</h4>
+              <p style="margin:0; font-size:14px; color:#595961; line-height:1.5; font-family:'Cabinet Grotesk', sans-serif;">${escAttr(r.body)}</p>
             </div>
-            <h4 style="margin:0 0 4px 0; font-size:15px; font-weight:800; color:#121217;">${escAttr(r.title)}</h4>
-            <p style="margin:0; font-size:13px; color:#595961; line-height:1.4;">${escAttr(r.body)}</p>
-            <div style="font-size:11px; color:#8c9196; margin-top:8px;">
-              Reviewed on ${new Date(r.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+            <div style="font-size:12px; color:#8c9196; padding-top:10px; border-top:1px solid #f4f4f5; display:flex; justify-content:space-between; align-items:center;">
+              <span>Reviewed on ${new Date(r.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+              <span style="color:#121217; font-weight:700;">Verified Purchase</span>
             </div>
           </div>
         `).join('')}
       </div>
     `
     : `
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h3 class="pk-section-title" style="margin:0;">My Product Reviews</h3>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+        <h2 style="margin:0; font-size:24px; font-weight:800; font-family:'Cabinet Grotesk', sans-serif; color:#121217;">My Product Reviews</h2>
       </div>
-      <p style="color:#595961; margin:16px 0 0 0; line-height:1.5;">You haven't submitted any reviews yet. Share your experience with Purrkins kitten meals to help fellow cat parents!</p>
-      <div style="margin-top:16px;">
-        <button onclick="pkOpenOrderReview('Purrkins Kitten Meal', 'kitten-fresh-salmon')" class="pk-outline-btn" style="cursor:pointer; font-size:13px; padding:8px 20px; background:none;">★ Write a Review</button>
+      <div style="text-align:center; padding:48px 24px; background:#fafafa; border-radius:14px; border:1.5px dashed #e4e4e7;">
+        <div style="font-size:32px; margin-bottom:12px;">★</div>
+        <h3 style="margin:0 0 8px 0; font-size:18px; font-weight:800; color:#121217; font-family:'Cabinet Grotesk', sans-serif;">No reviews submitted yet</h3>
+        <p style="color:#71717A; margin:0 auto 20px auto; max-width:440px; font-size:14px; line-height:1.5; font-family:'Cabinet Grotesk', sans-serif;">Share your honest feedback on your cat's favorite meals to help other kitten parents!</p>
+        <button onclick="pkOpenOrderReview('Purrkins Kitten Meal', 'kitten-fresh-salmon')" class="pk-yellow-btn" style="text-decoration:none; padding:12px 28px; border-radius:9999px; font-weight:800; font-size:14px; background:#FFE330; color:#16130F; border:none; cursor:pointer; font-family:'Cabinet Grotesk', sans-serif;">
+          ★ Write Your First Review
+        </button>
       </div>
     `;
 
   // ─── Subscriptions Dynamic Screen (Figma Screenshot 1 & Empty State) ───
   const displaySubscriptions = customerSubscriptions;
+  const defaultDiscountPercent = availablePlans?.[0]?.discountPercent || 15;
 
   const subscriptionsTabHtml = displaySubscriptions.length === 0
     ? `
@@ -1746,11 +1759,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         </div>
         <h2 style="margin: 0 0 10px 0; font-size: 26px; font-weight: 800; color: #16130F; font-family: 'Cabinet Grotesk', sans-serif;">No active subscription plan</h2>
         <p style="color: #71717A; font-size: 15px; margin: 0 auto 28px auto; max-width: 520px; line-height: 1.5; font-family: 'Cabinet Grotesk', sans-serif;">
-          ${escAttr(petName)} doesn't have an active meal subscription yet. Subscribe to your cat's favorite fresh meals to save 15% on every box with automated scheduled deliveries and zero hassle!
+          ${escAttr(petName)} doesn't have an active meal subscription yet. Subscribe to your cat's favorite fresh meals to save ${defaultDiscountPercent}% on every box with automated scheduled deliveries and zero hassle!
         </p>
         <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 32px;">
           <a href="/pages/byob" class="pk-yellow-btn" style="text-decoration: none; display: inline-flex; align-items: center; gap: 8px; padding: 14px 32px; border-radius: 9999px; font-weight: 800; font-size: 15px; background: #FFE330; color: #16130F; box-shadow: 0 2px 8px rgba(255, 227, 48, 0.35);">
-            Build Your Box (Save 15%)
+            Build Your Box (Save ${defaultDiscountPercent}%)
           </a>
           <a href="/collections/all" class="pk-sub-action-btn" style="text-decoration: none; display: inline-flex; align-items: center; padding: 14px 28px;">
             Explore Meals & Broths
@@ -1764,7 +1777,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             <div class="pk-benefit-desc">Unlimited chats with the Purrkins panel</div>
           </div>
           <div>
-            <div class="pk-benefit-title">15% off every order</div>
+            <div class="pk-benefit-title">${defaultDiscountPercent}% off every order</div>
             <div class="pk-benefit-desc">Applied automatically at renewal</div>
           </div>
           <div>
@@ -1793,14 +1806,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         const rawStatus = activeSub?.status ? String(activeSub.status) : 'ACTIVE';
         const statusLabel = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
 
-        // Earliest start date across subscriptions
-        let startedDateStr = '14 July 2026';
+        // Earliest start date across customer subscriptions
+        let startedDateStr = '—';
         const validCreatedDates = displaySubscriptions
           .map((s: any) => s.createdAt ? new Date(s.createdAt) : null)
           .filter((d: any): d is Date => d !== null && !isNaN(d.getTime()));
         if (validCreatedDates.length > 0) {
           validCreatedDates.sort((a: Date, b: Date) => a.getTime() - b.getTime());
           startedDateStr = validCreatedDates[0].toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+        } else if (activeSub?.anchorDate) {
+          const d = new Date(activeSub.anchorDate + 'T00:00:00');
+          if (!isNaN(d.getTime())) {
+            startedDateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+          }
         }
 
         // Frequency formatted cleanly matching Figma Screenshot 1: "Every 30 days"
@@ -1823,8 +1841,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           ? activeSub.planName
           : (petName ? `${petName}'s ${activeSub?.intervalCount === 7 || (activeSub?.interval || '').toLowerCase().includes('week') ? 'weekly' : 'monthly'} plan` : 'Your monthly plan');
 
-        // Next charge date & Ymd
-        let nextChargeDate = '18 Aug';
+        // Next charge date & Ymd from customer subscriptions
+        let nextChargeDate = '—';
         let earliestNextYmd = '';
         const validNextDates: { date: Date; ymd: string }[] = [];
         displaySubscriptions.forEach((s: any) => {
@@ -1842,77 +1860,89 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           earliestNextYmd = validNextDates[0].ymd;
         }
 
-        // Deliveries so far
-        let maxDeliveries = 0;
+        // Deliveries so far (dynamically calculated from customer backend completed cycles, orders billed, origin orders, or fulfilled orders)
+        let deliveriesSoFar = 0;
         displaySubscriptions.forEach((s: any) => {
-          const count = s.cycles?.filter((c: any) => c.status === 'COMPLETED' || c.status === 'SHIPPED').length || s.ordersBilled || 0;
-          if (count > maxDeliveries) maxDeliveries = count;
+          const completedCycles = s.cycles?.filter((c: any) => c.status === 'COMPLETED' || c.status === 'SHIPPED' || c.status === 'DELIVERED').length || 0;
+          const billed = s.ordersBilled || 0;
+          if (completedCycles > deliveriesSoFar) deliveriesSoFar = completedCycles;
+          if (billed > deliveriesSoFar) deliveriesSoFar = billed;
         });
-        const deliveriesSoFar = maxDeliveries > 0 ? maxDeliveries : 2;
+        if (deliveriesSoFar === 0) {
+          const originOrderIds = new Set(displaySubscriptions.map((s: any) => s.originOrderId || s.originOrderName).filter(Boolean));
+          if (originOrderIds.size > 0) {
+            deliveriesSoFar = originOrderIds.size;
+          } else {
+            const fulfilledCount = (customer.orders?.edges || []).filter((e: any) => {
+              const status = (e.node?.displayFulfillmentStatus || '').toUpperCase();
+              return status === 'FULFILLED';
+            }).length;
+            deliveriesSoFar = fulfilledCount;
+          }
+        }
 
-        // Flatten ALL line items across all subscriptions into ONE unified list
-        const allItems: any[] = [];
+        // Dynamic plan discount percentage from active subscription plan
+        let discountPercent = 15;
+        if (activeSub?.planId && Array.isArray(availablePlans)) {
+          const matchedPlan = availablePlans.find((p: any) => p.id === activeSub.planId || p.sellingPlanId === activeSub.sellingPlanId);
+          if (matchedPlan?.discountPercent) discountPercent = matchedPlan.discountPercent;
+        } else if (activeSub?.planName) {
+          const m = activeSub.planName.match(/(\d+)%/);
+          if (m) discountPercent = Number(m[1]);
+        }
+        const youSaveStr = `${discountPercent}% vs one-time`;
+
+        // Consolidate identical subscription items so quantity increases in one row instead of showing multiple rows of the same product
+        const consolidatedMap = new Map<string, any>();
         displaySubscriptions.forEach((sub: any, sIdx: number) => {
           const lines = getSubLines(sub);
           lines.forEach((item: any, lIdx: number) => {
             const itemTitle = item.title || 'Subscription Meal';
-            const itemImg = getProductImage(itemTitle, item.imageUrl || item.image);
-            const itemSub = getProductSubtitle(itemTitle, item.variantTitle);
+            const groupKey = String(item.variantId || itemTitle).toLowerCase().trim();
             const unitPrice = (item.price !== undefined && item.price !== null && !isNaN(Number(item.price)))
               ? Number(item.price)
-              : 30;
+              : 90;
             const qty = Math.max(1, Number(item.quantity) || 1);
-            const linePrice = unitPrice * qty;
-            const itemKey = `${sIdx}-${lIdx}`;
 
-            allItems.push({
-              itemKey,
-              contractId: sub.id,
-              subIndex: sIdx,
-              itemIndex: lIdx,
-              title: itemTitle,
-              subtitle: itemSub,
-              image: itemImg,
-              unitPrice,
-              qty,
-              linePrice
-            });
+            if (consolidatedMap.has(groupKey)) {
+              const existing = consolidatedMap.get(groupKey);
+              existing.qty += qty;
+              existing.linePrice += unitPrice * qty;
+              if (sub.id && !existing.subIds.includes(sub.id)) {
+                existing.subIds.push(sub.id);
+              }
+            } else {
+              const itemImg = getProductImage(itemTitle, item.imageUrl || item.image);
+              const itemSub = getProductSubtitle(itemTitle, item.variantTitle);
+              consolidatedMap.set(groupKey, {
+                itemKey: `sub-item-${consolidatedMap.size}`,
+                subIds: sub.id ? [sub.id] : [],
+                title: itemTitle,
+                subtitle: itemSub,
+                image: itemImg,
+                unitPrice,
+                qty,
+                linePrice: unitPrice * qty
+              });
+            }
           });
         });
 
-        // Demo fallback items if customer had subscription contracts but no line items parsed
-        const displayItems = allItems.length > 0 ? allItems : [
+        const allItems = Array.from(consolidatedMap.values());
+
+        // Real display items from customer subscriptions (no hardcoded fake fallback items)
+        const displayItems = allItems.length > 0 ? allItems : (activeSub ? [
           {
             itemKey: '0-0',
-            contractId: activeSub?.id || 'demo',
-            title: 'Growing Kitty',
-            subtitle: '70 g pouch · Chicken with DHA',
-            image: getProductImage('Growing Kitty'),
-            unitPrice: 30,
-            qty: 15,
-            linePrice: 450
-          },
-          {
-            itemKey: '0-1',
-            contractId: activeSub?.id || 'demo',
-            title: 'Gutty Kitty',
-            subtitle: '70 g pouch · Tuna & salmon broth',
-            image: getProductImage('Gutty Kitty'),
-            unitPrice: 30,
-            qty: 10,
-            linePrice: 300
-          },
-          {
-            itemKey: '0-2',
-            contractId: activeSub?.id || 'demo',
-            title: 'Chicken Broth',
-            subtitle: '70 g pouch · Hydration topper',
-            image: getProductImage('Chicken Broth'),
-            unitPrice: 30,
-            qty: 6,
-            linePrice: 180
+            subIds: [activeSub.id],
+            title: activeSub.planName || 'Subscription Meal Box',
+            subtitle: 'Kitten nutrition plan',
+            image: defaultFallbackImg,
+            unitPrice: Number(activeSub.recurringTotal) || 90,
+            qty: 1,
+            linePrice: Number(activeSub.recurringTotal) || 90
           }
-        ];
+        ] : []);
 
         // Grand total from all items
         const grandTotal = displayItems.reduce((sum: number, it: any) => sum + it.linePrice, 0);
@@ -1951,7 +1981,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               </div>
               <div>
                 <div class="pk-sub-col-label">YOU SAVE</div>
-                <div class="pk-sub-col-val">15% vs one-time</div>
+                <div class="pk-sub-col-val">${youSaveStr}</div>
               </div>
             </div>
 
@@ -2009,7 +2039,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 <div class="pk-benefit-desc">Unlimited chats with the Purrkins panel</div>
               </div>
               <div>
-                <div class="pk-benefit-title">15% off every order</div>
+                <div class="pk-benefit-title">${discountPercent}% off every order</div>
                 <div class="pk-benefit-desc">Applied automatically at renewal</div>
               </div>
               <div>
@@ -2104,7 +2134,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         --font-body--family: 'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       }
       .pk-dashboard-wrapper {
+        width: 100%;
         max-width: 1336px;
+        box-sizing: border-box;
         margin: 0 auto;
         padding: 44px 20px 80px;
         font-family: 'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -2146,8 +2178,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         border-bottom: none;
       }
       .pk-dashboard-layout {
+        width: 100%;
+        box-sizing: border-box;
         display: grid;
-        grid-template-columns: 280px 1fr;
+        grid-template-columns: 280px minmax(0, 1fr);
         gap: 40px;
         align-items: start;
       }
@@ -2247,11 +2281,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
       
       .pk-dashboard-content {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
         display: flex;
         flex-direction: column;
         gap: 30px;
       }
+      .pk-tab-pane {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+      }
       .pk-card {
+        width: 100%;
+        box-sizing: border-box;
         background: #fff;
         border: 1px solid #eaeaea;
         border-radius: 16px;
@@ -3327,8 +3371,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
 
       .pk-dashboard-layout {
+        width: 100%;
+        box-sizing: border-box;
         display: grid;
-        grid-template-columns: 280px 1fr;
+        grid-template-columns: 280px minmax(0, 1fr);
         gap: 40px;
         align-items: start;
         font-family: 'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -4203,6 +4249,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             <a href="#kitten" data-tab="kitten" onclick="switchDashboardTab('kitten', event); return false;" class="pk-menu-item"><span class="pk-dot"></span> Kitten's Profile</a>
             <a href="#quiz-answers" data-tab="quiz-answers" onclick="switchDashboardTab('quiz-answers', event); return false;" class="pk-menu-item"><span class="pk-dot"></span> Your Quiz Answers</a>
             <a href="#subscriptions" data-tab="subscriptions" onclick="switchDashboardTab('subscriptions', event); return false;" class="pk-menu-item"><span class="pk-dot"></span> Subscriptions ${customerSubscriptions.length > 0 ? `<span class="pk-badge">${customerSubscriptions.length}</span>` : ''}</a>
+            <a href="#reviews" data-tab="reviews" onclick="switchDashboardTab('reviews', event); return false;" class="pk-menu-item"><span class="pk-dot"></span> My Reviews</a>
             <a href="#vet" onclick="pkOpenVetModal(event); return false;" class="pk-menu-item"><span class="pk-dot"></span> Talk to a Vet</a>
           </div>
 
@@ -4327,8 +4374,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           </div>
 
           <!-- TAB 4: MY REVIEWS -->
-          <div id="pk-tab-reviews" class="pk-tab-pane" style="display: none;">
-            <div class="pk-card">
+          <div id="pk-tab-reviews" class="pk-tab-pane" style="display: none; width: 100%; box-sizing: border-box;">
+            <div class="pk-card" style="padding: 28px 32px; width: 100%; box-sizing: border-box;">
               ${reviewsHtml}
             </div>
           </div>
@@ -6014,7 +6061,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         var newQty = Math.max(1, currentQty + delta);
         qtyEl.textContent = newQty;
 
-        var price = (unitPrice !== undefined && unitPrice !== null && !isNaN(unitPrice)) ? Number(unitPrice) : 30;
+        var price = (unitPrice !== undefined && unitPrice !== null && !isNaN(unitPrice)) ? Number(unitPrice) : 90;
         var newPrice = newQty * price;
         if (priceEl) {
           priceEl.textContent = '₹' + Math.round(newPrice).toLocaleString('en-IN');
