@@ -5,6 +5,25 @@ import nodemailer from "nodemailer";
 import jwt from "jsonwebtoken";
 import { getLoaderHtml } from "../loader-snippet";
 
+// Reusable nodemailer transporter with connection pooling for rapid email delivery
+let cachedTransporter: ReturnType<typeof nodemailer.createTransport> | null = null;
+
+function getTransporter() {
+  if (!cachedTransporter) {
+    cachedTransporter = nodemailer.createTransport({
+      service: "gmail",
+      pool: true,
+      maxConnections: 3,
+      maxMessages: 100,
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD,
+      },
+    });
+  }
+  return cachedTransporter;
+}
+
 export const action = async ({ request }: ActionFunctionArgs) => {
   console.log("=== APP PROXY ACTION CALLED ===");
   const url = new URL(request.url);
@@ -26,46 +45,50 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const email = (formData.get("email") as string).trim().toLowerCase();
 
   if (intent === "send_otp") {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    // Delete any existing OTPs for this email first
-    await prisma.oTP.deleteMany({ where: { email } });
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return new Response(JSON.stringify({ success: false, error: "Please enter a valid email address." }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
 
-    await prisma.oTP.create({
-      data: {
-        email,
-        code,
-        expiresAt: new Date(Date.now() + 15 * 60000), // 15 minutes
-      }
-    });
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
 
     try {
-      const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          user: process.env.GMAIL_USER,
-          pass: process.env.GMAIL_APP_PASSWORD
-        }
-      });
+      const transporter = getTransporter();
 
-      await transporter.sendMail({
+      const dbPromise = prisma.oTP.deleteMany({ where: { email } }).then(() =>
+        prisma.oTP.create({
+          data: {
+            email,
+            code,
+            expiresAt: new Date(Date.now() + 15 * 60000), // 15 minutes
+          },
+        })
+      );
+
+      const mailPromise = transporter.sendMail({
         from: `"Purrkins" <${process.env.GMAIL_USER}>`,
         to: email,
         subject: `Your Purrkins Login Code - ${new Date().toLocaleTimeString()}`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
             <h2 style="color: #121217; text-align: center;">Purrkins Login</h2>
-            <p style="font-size: 16px; color: #595961; text-align: center;">Use the following 6-digit code to log in to your account. This code expires in 10 minutes.</p>
+            <p style="font-size: 16px; color: #595961; text-align: center;">Use the following 6-digit code to log in to your account. This code expires in 15 minutes.</p>
             <div style="background-color: #f4f4f5; padding: 15px; border-radius: 8px; text-align: center; margin: 20px 0;">
               <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #000;">${code}</span>
             </div>
             <p style="font-size: 14px; color: #8c8c9a; text-align: center;">If you didn't request this, you can safely ignore this email.</p>
           </div>
-        `
+        `,
       });
-      console.log(`Email sent successfully to ${email}`);
+
+      // Run database write and email sending concurrently for maximum speed
+      await Promise.all([dbPromise, mailPromise]);
+      console.log(`Email and OTP sent successfully to ${email}`);
     } catch (e) {
       console.error("Email send failed:", e);
+      cachedTransporter = null; // Reset pool on failure so next request recreates a clean connection
       return new Response(JSON.stringify({ success: false, error: "Failed to send email. Check Gmail credentials." }), { status: 500 });
     }
 
@@ -304,6 +327,58 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         opacity: 0.5;
         cursor: not-allowed;
       }
+      .pk-btn-arrow-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .pk-btn-loader {
+        display: none;
+        align-items: center;
+        justify-content: center;
+      }
+      .pk-inline-input-btn.loading .pk-btn-arrow-icon {
+        display: none;
+      }
+      .pk-inline-input-btn.loading .pk-btn-loader {
+        display: inline-flex;
+      }
+      .pk-inline-input-btn.loading {
+        cursor: wait !important;
+        opacity: 1 !important;
+      }
+      .pk-inline-input-btn.loading:hover {
+        transform: translateY(-50%) !important;
+      }
+      .pk-spinner {
+        animation: pk-spin 0.75s linear infinite;
+      }
+      @keyframes pk-spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      #otp-sending-status {
+        display: none;
+        color: #0056b3;
+        font-size: 14px;
+        font-weight: 600;
+        margin-top: -15px;
+        margin-bottom: 20px;
+        align-items: center;
+        gap: 8px;
+      }
+      .pk-pulse-dot {
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        background-color: #0056b3;
+        border-radius: 50%;
+        animation: pk-pulse 1s ease-in-out infinite;
+      }
+      @keyframes pk-pulse {
+        0%, 100% { opacity: 0.3; transform: scale(0.8); }
+        50% { opacity: 1; transform: scale(1.3); }
+      }
       .pk-checkbox-group {
         display: flex;
         align-items: center;
@@ -429,8 +504,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               <div class="pk-inline-input-group">
                 <input type="email" name="email" id="otp-email" placeholder="Email" required autocomplete="email">
                 <button type="submit" class="pk-inline-input-btn" id="otp-send-btn" aria-label="Submit">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                  <span class="pk-btn-arrow-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                  </span>
+                  <span class="pk-btn-loader">
+                    <svg class="pk-spinner" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0056b3" stroke-width="2.5" stroke-linecap="round">
+                      <circle cx="12" cy="12" r="9" stroke="rgba(0, 86, 179, 0.2)" stroke-width="2.5" fill="none"></circle>
+                      <path d="M12 3a9 9 0 0 1 9 9"></path>
+                    </svg>
+                  </span>
                 </button>
+              </div>
+
+              <div id="otp-sending-status">
+                <span class="pk-pulse-dot"></span>
+                Sending verification code...
               </div>
 
               <div class="pk-checkbox-group">
@@ -474,15 +562,35 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         var displayEmail = document.getElementById('display-email');
         var currentEmail = '';
 
+        // Loader & State Helper
+        function setSendingOtpLoading(isLoading) {
+          var btn = document.getElementById('otp-send-btn');
+          var input = document.getElementById('otp-email');
+          var status = document.getElementById('otp-sending-status');
+          if (btn) {
+            btn.disabled = isLoading;
+            if (isLoading) {
+              btn.classList.add('loading');
+            } else {
+              btn.classList.remove('loading');
+            }
+          }
+          if (input) {
+            input.disabled = isLoading;
+          }
+          if (status) {
+            status.style.display = isLoading ? 'flex' : 'none';
+          }
+        }
+
         // Step 1: Handle Email Submission
         if(emailForm) {
           emailForm.addEventListener('submit', function(e) {
             e.preventDefault();
-            var btn = document.getElementById('otp-send-btn');
-            btn.disabled = true;
+            setSendingOtpLoading(true);
             document.getElementById('otp-error').style.display = 'none';
 
-            currentEmail = emailInput.value;
+            currentEmail = emailInput.value.trim();
             
             var formData = new FormData();
             formData.append('intent', 'send_otp');
@@ -491,7 +599,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             fetch(window.location.pathname, { method: 'POST', body: formData })
             .then(function(r) { return r.json(); })
             .then(function(data) {
-              btn.disabled = false;
+              setSendingOtpLoading(false);
               if(data.success) {
                 emailForm.style.display = 'none';
                 verifyForm.style.display = 'block';
@@ -504,7 +612,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               }
             })
             .catch(function(e) {
-              btn.disabled = false;
+              setSendingOtpLoading(false);
               document.getElementById('otp-error').innerText = 'Network error. Try again.';
               document.getElementById('otp-error').style.display = 'block';
             });
@@ -648,8 +756,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             e.preventDefault();
             verifyForm.style.display = 'none';
             emailForm.style.display = 'block';
+            setSendingOtpLoading(false);
             otpInputs.forEach(function(i) { i.value = ''; });
             document.getElementById('verify-error').style.display = 'none';
+            if (emailInput) emailInput.focus();
           });
         }
       })();
