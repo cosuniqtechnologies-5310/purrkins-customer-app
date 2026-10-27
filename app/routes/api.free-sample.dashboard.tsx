@@ -531,6 +531,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Escape values placed inside HTML attributes so quotes/angle brackets can't break the form
   const escAttr = (v: any) => String(v ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+  const getEstimatedBirthday = (ageStr: string): string => {
+    if (!ageStr) return "14 Mar 2026";
+    const num = parseInt(ageStr.replace(/[^0-9]/g, ''));
+    if (isNaN(num)) return "14 Mar 2026";
+    const d = new Date();
+    if (ageStr.toLowerCase().includes("month")) {
+      d.setMonth(d.getMonth() - num);
+    } else if (ageStr.toLowerCase().includes("week")) {
+      d.setDate(d.getDate() - (num * 7));
+    } else if (ageStr.toLowerCase().includes("year")) {
+      d.setFullYear(d.getFullYear() - num);
+    }
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  };
+
   const customerPets = customer.pets?.references?.nodes || [];
   const pets = customerPets.length > 0
     ? customerPets.map((p: any, idx: number) => {
@@ -543,6 +559,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         const body = p.body?.value || "";
         const focus = p.focus?.value || "";
         const allergies = p.allergies?.value || "";
+        const breed = p.breed?.value || "Indie";
+        const birthday = p.birthday?.value || p.dob?.value || getEstimatedBirthday(age);
         const imageUrl = p.profile?.reference?.image?.url || "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop";
 
         // Dynamic quiz pills from actual answered fields only
@@ -571,6 +589,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           weight: rawWeight,
           gender,
           neutered,
+          breed,
+          birthday,
           activity,
           activityLevel: activity,
           body,
@@ -591,12 +611,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           weight: "1.9",
           gender: "Male",
           neutered: "Neutered",
-          activity: "Playful",
-          activityLevel: "Playful",
-          body: "Lean",
-          eatingStyle: "Lean",
-          focus: "",
-          healthFlags: "None recorded",
+          breed: "Indie",
+          birthday: "14 Mar 2026",
+          activity: "Playful, indoor only",
+          activityLevel: "Playful, indoor only",
+          body: "Fussy (prefers fish)",
+          eatingStyle: "Fussy (prefers fish)",
+          focus: "Sensitive stomach",
+          healthFlags: "Sensitive stomach",
           allergies: "None recorded",
           imageUrl: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop",
           quizPills: [
@@ -1377,65 +1399,63 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       <button type="button" onclick="pkOpenEditPetModal(null, false)" class="pk-pet-add-btn">+ Add Kitten</button>
     </div>
 
-    <!-- Kitten Overview Profile Card (Image 2) -->
+    <!-- Kitten Overview Profile Card (Exact Figma Design matching Screenshot 1) -->
     <div class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-        <h2 id="pk-pet-profile-title" style="margin:0; font-size:26px; font-weight:800; font-family:var(--font-heading--family, sans-serif); color:#121217;">${escAttr(petName)}'s profile</h2>
-        <button type="button" onclick="pkOpenEditPetModal(null, true)" class="pk-outline-btn" style="border-radius:30px; padding:8px 22px; font-size:13px; font-weight:700; color:#121217; border:1.5px solid #121217; background:#fff; cursor:pointer;">Edit Details</button>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+        <h2 id="pk-pet-profile-title" style="margin:0; font-size:24px; font-weight:800; font-family:var(--font-heading--family, sans-serif); color:#121217;">${escAttr(petName)}'s profile</h2>
+        
+        <button type="button" onclick="pkOpenEditPetModal(null, true)" class="pk-outline-btn" style="border-radius:30px; padding:8px 24px; font-size:13px; font-weight:700; color:#121217; border:1.5px solid #121217; background:#fff; cursor:pointer; transition:all 0.15s ease;">Edit Details</button>
       </div>
-        <!-- Kitten Avatar Container with isolated photo frame & badge -->
-        <div style="display:flex; flex-direction:column; align-items:center; flex-shrink:0;">
-          <div style="position:relative; width:124px; height:124px;">
-            <div class="pk-avatar" id="pk-pet-avatar-box" onclick="document.getElementById('pk-pet-avatar-file-input').click()" style="width:100%; height:100%; overflow:hidden; border-radius:20px; background:#f4f4f5; display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; box-shadow:0 3px 12px rgba(0,0,0,0.08); border:1px solid rgba(0,0,0,0.06); transition:transform 0.2s ease, box-shadow 0.2s ease;" title="Click to change kitten photo">
-              <img id="pk-pet-profile-img" src="${escAttr(initialPet.imageUrl)}" alt="${escAttr(petName)}" style="width:100%; height:100%; object-fit:cover; display:block;" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop';">
-              <!-- Hover overlay with camera icon -->
-              <div class="pk-avatar-hover-overlay" style="position:absolute; inset:0; background:rgba(0,0,0,0.45); display:flex; flex-direction:column; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s ease; color:#fff; font-size:11.5px; font-weight:700; gap:4px; backdrop-filter:blur(2px);">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                <span>Change</span>
-              </div>
-            </div>
-            <!-- Floating camera button strictly anchored to image corner -->
-            <button type="button" onclick="document.getElementById('pk-pet-avatar-file-input').click()" style="position:absolute; bottom:-4px; right:-4px; width:34px; height:34px; background:#121217; border:2.5px solid #fff; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,0.22); transition:transform 0.15s ease, background 0.15s ease; padding:0; z-index:5;" title="Change Kitten Photo">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            </button>
-          </div>
-          <input type="file" id="pk-pet-avatar-file-input" accept="image/png, image/jpeg, image/webp" style="display:none;" onchange="handlePetAvatarChange(event)">
-          <!-- Clean button below photo with proper breathing room and edit icon -->
-          <div style="margin-top:10px; text-align:center;">
-            <button type="button" onclick="document.getElementById('pk-pet-avatar-file-input').click()" id="pk-pet-upload-text" style="background:#f4f4f5; border:1px solid #e5e5e7; border-radius:20px; padding:5px 14px; font-size:12px; font-weight:700; color:#121217; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:all 0.15s ease;">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              <span>Change Photo</span>
-            </button>
-          </div>
+
+      <!-- Main Horizontal Row: Photo on Left, 3x3 Stats Grid on Right -->
+      <div style="display:flex; gap:36px; align-items:center;">
+        <!-- Clean Pet Photo (Exact Figma Design: rounded square, no clutter) -->
+        <div onclick="pkOpenEditPetModal(null, true)" style="width:115px; height:115px; flex-shrink:0; border-radius:18px; overflow:hidden; background:#FFF6DE; box-shadow:0 2px 10px rgba(0,0,0,0.06); cursor:pointer; position:relative;" title="Click to edit details">
+          <img id="pk-pet-profile-img" src="${escAttr(initialPet.imageUrl)}" alt="${escAttr(petName)}" style="width:100%; height:100%; object-fit:cover; display:block;" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop';">
         </div>
-        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:16px 24px; flex-grow:1;">
+
+        <!-- 3-Column Stats Grid (Exact Figma Design) -->
+        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:18px 36px; flex-grow:1;">
+          <!-- Row 1: Age, Weight, Breed -->
           <div>
-            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Age</label>
-            <span id="pk-pet-stat-age" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.age)}</span>
+            <div style="font-size:13px; color:#8e8e93; font-weight:500; margin-bottom:4px;">Age</div>
+            <div id="pk-pet-stat-age" style="font-weight:700; font-size:14.5px; color:#121217;">${escAttr(initialPet.age || '—')}</div>
           </div>
           <div>
-            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Weight</label>
-            <span id="pk-pet-stat-weight" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.weight ? initialPet.weight + ' kg' : '—')}</span>
+            <div style="font-size:13px; color:#8e8e93; font-weight:500; margin-bottom:4px;">Weight</div>
+            <div id="pk-pet-stat-weight" style="font-weight:700; font-size:14.5px; color:#121217;">${escAttr(initialPet.weight ? initialPet.weight + ' kg' : '—')}</div>
           </div>
           <div>
-            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Sex</label>
-            <span id="pk-pet-stat-sex" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.gender || '')}${initialPet.neutered ? ', ' + escAttr(initialPet.neutered.toLowerCase()) : ''}</span>
+            <div style="font-size:13px; color:#8e8e93; font-weight:500; margin-bottom:4px;">Breed</div>
+            <div id="pk-pet-stat-breed" style="font-weight:700; font-size:14.5px; color:#121217;">${escAttr(initialPet.breed || 'Indie')}</div>
+          </div>
+
+          <!-- Row 2: Sex, Activity Level, Birthday -->
+          <div>
+            <div style="font-size:13px; color:#8e8e93; font-weight:500; margin-bottom:4px;">Sex</div>
+            <div id="pk-pet-stat-sex" style="font-weight:700; font-size:14.5px; color:#121217;">${escAttr(initialPet.gender || '')}${initialPet.neutered ? ', ' + escAttr(initialPet.neutered.toLowerCase()) : ''}</div>
           </div>
           <div>
-            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Activity Level</label>
-            <span id="pk-pet-stat-activity" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.activityLevel || '—')}</span>
+            <div style="font-size:13px; color:#8e8e93; font-weight:500; margin-bottom:4px;">Activity Level</div>
+            <div id="pk-pet-stat-activity" style="font-weight:700; font-size:14.5px; color:#121217;">${escAttr(initialPet.activityLevel || initialPet.activity || '—')}</div>
           </div>
           <div>
-            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Eating Style</label>
-            <span id="pk-pet-stat-body" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.eatingStyle || '—')}</span>
+            <div style="font-size:13px; color:#8e8e93; font-weight:500; margin-bottom:4px;">Birthday</div>
+            <div id="pk-pet-stat-birthday" style="font-weight:700; font-size:14.5px; color:#121217;">${escAttr(initialPet.birthday || '—')}</div>
+          </div>
+
+          <!-- Row 3: Health Flags, Eating Style, Allergies -->
+          <div>
+            <div style="font-size:13px; color:#8e8e93; font-weight:500; margin-bottom:4px;">Health Flags</div>
+            <div id="pk-pet-stat-health" style="font-weight:700; font-size:14.5px; color:#121217;">${escAttr(initialPet.healthFlags || initialPet.focus || 'None recorded')}</div>
           </div>
           <div>
-            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Health Flags</label>
-            <span id="pk-pet-stat-health" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.healthFlags || 'None recorded')}</span>
+            <div style="font-size:13px; color:#8e8e93; font-weight:500; margin-bottom:4px;">Eating Style</div>
+            <div id="pk-pet-stat-body" style="font-weight:700; font-size:14.5px; color:#121217;">${escAttr(initialPet.eatingStyle || initialPet.body || '—')}</div>
           </div>
           <div>
-            <label style="display:block; font-size:11px; text-transform:uppercase; color:#888; font-weight:700; letter-spacing:0.5px; margin-bottom:4px;">Allergies</label>
-            <span id="pk-pet-stat-allergies" style="font-weight:700; font-size:14px; color:#121217;">${escAttr(initialPet.allergies || 'None recorded')}</span>
+            <div style="font-size:13px; color:#8e8e93; font-weight:500; margin-bottom:4px;">Allergies</div>
+            <div id="pk-pet-stat-allergies" style="font-weight:700; font-size:14.5px; color:#121217;">${escAttr(initialPet.allergies || 'None recorded')}</div>
           </div>
         </div>
       </div>
@@ -4297,9 +4317,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
 
         // Ensure loader is completely hidden immediately
-        if (typeof pkHideLoader === 'function') pkHideLoader();
-        var loader = document.getElementById('pk-cat-loader-overlay');
-        if (loader) loader.style.display = 'none';
+        if (typeof window.pkHideLoader === 'function') window.pkHideLoader();
+        else if (typeof pkHideLoader === 'function') pkHideLoader();
+        var loader = document.getElementById('pk-loader-overlay') || document.getElementById('pk-cat-loader-overlay');
+        if (loader) {
+          loader.classList.add('pk-loader-hidden');
+          loader.style.display = 'none';
+        }
       };
 
       // Ensure switchDashboardTab is also directly accessible in inline scopes
@@ -4714,6 +4738,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         var weightEl = document.getElementById('pk-pet-stat-weight');
         if (weightEl) weightEl.textContent = pet.weight ? (pet.weight + ' kg') : '—';
 
+        var breedEl = document.getElementById('pk-pet-stat-breed');
+        if (breedEl) breedEl.textContent = pet.breed || 'Indie';
+
         var sexEl = document.getElementById('pk-pet-stat-sex');
         if (sexEl) {
           var sexText = pet.gender || '';
@@ -4723,6 +4750,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
         var actEl = document.getElementById('pk-pet-stat-activity');
         if (actEl) actEl.textContent = pet.activityLevel || pet.activity || '—';
+
+        var bdayEl = document.getElementById('pk-pet-stat-birthday');
+        if (bdayEl) bdayEl.textContent = pet.birthday || '—';
 
         var bodyEl = document.getElementById('pk-pet-stat-body');
         if (bodyEl) bodyEl.textContent = pet.eatingStyle || pet.body || '—';
@@ -4925,6 +4955,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           allergInput.value = (al && al !== 'None recorded') ? al : '';
         }
 
+        var breedInput = document.getElementById('pk-edit-pet-breed');
+        if (breedInput) breedInput.value = pet.breed || 'Indie';
+
+        var bdayInput = document.getElementById('pk-edit-pet-birthday');
+        if (bdayInput) bdayInput.value = pet.birthday || '—';
+
         var modalImg = document.getElementById('pk-modal-pet-img');
         if (modalImg) modalImg.src = pet.imageUrl || 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop';
 
@@ -4964,6 +5000,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         var token = localStorage.getItem('pk_session') || '';
 
         function doUpdate(newFileId, newImageUrl) {
+          var breedVal = document.getElementById('pk-edit-pet-breed') ? document.getElementById('pk-edit-pet-breed').value.trim() : '';
+          var bdayVal = document.getElementById('pk-edit-pet-birthday') ? document.getElementById('pk-edit-pet-birthday').value.trim() : '';
+
           var payload = {
             pet_id: petId,
             name: document.getElementById('pk-edit-pet-name').value.trim(),
@@ -4976,6 +5015,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             focus: document.getElementById('pk-edit-pet-focus').value.trim(),
             allergies: document.getElementById('pk-edit-pet-allergies').value.trim()
           };
+          if (breedVal) payload.breed = breedVal;
+          if (bdayVal) payload.birthday = bdayVal;
           if (newFileId) {
             payload.profileFileId = newFileId;
           }
@@ -5000,6 +5041,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 activePet.weight = payload.weight;
                 activePet.gender = payload.gender;
                 activePet.neutered = payload.neutered;
+                if (breedVal) activePet.breed = breedVal;
+                if (bdayVal) activePet.birthday = bdayVal;
                 activePet.body = payload.body;
                 activePet.eatingStyle = payload.body;
                 activePet.activity = payload.activity;
@@ -5153,9 +5196,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
 
         // Ensure loader is completely hidden immediately
-        if (typeof pkHideLoader === 'function') pkHideLoader();
-        var loader = document.getElementById('pk-cat-loader-overlay');
-        if (loader) loader.style.display = 'none';
+        if (typeof window.pkHideLoader === 'function') window.pkHideLoader();
+        else if (typeof pkHideLoader === 'function') pkHideLoader();
+        var loader = document.getElementById('pk-loader-overlay') || document.getElementById('pk-cat-loader-overlay');
+        if (loader) {
+          loader.classList.add('pk-loader-hidden');
+          loader.style.display = 'none';
+        }
       };
 
       // Handle direct hash navigation and back/forward buttons
@@ -5199,11 +5246,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         if (typeof window.pkInitOrdersPagination === 'function') {
           window.pkInitOrdersPagination();
         }
-        setTimeout(function() {
-          if (typeof pkHideLoader === 'function') pkHideLoader();
-        }, 80);
-        var loader = document.getElementById('pk-cat-loader-overlay');
-        if (loader) loader.style.display = 'none';
+        function doHideLoader() {
+          if (typeof window.pkHideLoader === 'function') window.pkHideLoader();
+          else if (typeof pkHideLoader === 'function') pkHideLoader();
+          var loader = document.getElementById('pk-loader-overlay') || document.getElementById('pk-cat-loader-overlay');
+          if (loader) {
+            loader.classList.add('pk-loader-hidden');
+            loader.style.display = 'none';
+          }
+        }
+        doHideLoader();
+        setTimeout(doHideLoader, 80);
+        setTimeout(doHideLoader, 300);
 
         // Migrate any session wishlist items to customer storage if present
         try {
@@ -5550,6 +5604,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       document.addEventListener('click', function(e) {
         var a = e.target && e.target.closest ? e.target.closest('a') : null;
         if (!a) return;
+        if (a.id === 'purrkins-header-user-btn' || a.closest('#purrkins-header-user-wrap') || a.closest('#purrkins-user-dropdown')) return;
         var rawHref = a.getAttribute('href') || '';
         if (rawHref.startsWith('#') || rawHref.startsWith('javascript:')) return;
         if (a.hasAttribute('onclick') && !rawHref.startsWith('/')) return;
@@ -6262,6 +6317,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 <option value="Chubby">Chubby</option>
                 <option value="Ideal">Ideal</option>
               </select>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+            <div>
+              <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Breed</label>
+              <input type="text" id="pk-edit-pet-breed" placeholder="e.g. Indie, Persian" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Birthday</label>
+              <input type="text" id="pk-edit-pet-birthday" placeholder="e.g. 14 Mar 2026" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box;">
             </div>
           </div>
 
