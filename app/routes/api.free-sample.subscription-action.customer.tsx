@@ -97,75 +97,80 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     const numericId = customerId.split("/").pop();
-    const sub = await prisma.subscription.findFirst({
+    const idList = String(subscriptionId).split(",").map((s) => s.trim()).filter(Boolean);
+    const subs = await prisma.subscription.findMany({
       where: {
-        id: subscriptionId,
+        id: { in: idList },
         OR: [
           { customerId },
           ...(numericId ? [{ customerId: { endsWith: numericId } }] : []),
         ],
       },
-    });
+    }); 
 
-    if (!sub) {
+    if (subs.length === 0) {
       return Response.json({ success: false, message: "Subscription not found or unauthorized" }, { status: 404 });
     }
 
-    const shop = sub.shop;
-
-    switch (actionType) {
-      case "skip": {
-        await skipNextDelivery(shop, sub.id);
-        appCache.delPrefix("customer:");
-        return Response.json({ success: true, message: "Next delivery skipped successfully." });
-      }
-
-      case "reschedule": {
-        if (!deliveryDate) {
-          return Response.json({ success: false, message: "Delivery date is required." }, { status: 400 });
+    for (const sub of subs) {
+      const shop = sub.shop;
+      switch (actionType) {
+        case "skip": {
+          await skipNextDelivery(shop, sub.id);
+          break;
         }
-        await rescheduleDelivery(shop, sub.id, deliveryDate, Boolean(applyToFuture));
-        appCache.delPrefix("customer:");
-        return Response.json({ success: true, message: "Delivery date updated successfully." });
-      }
 
-      case "change_frequency": {
-        if (!planId) {
-          return Response.json({ success: false, message: "Plan is required." }, { status: 400 });
+        case "reschedule": {
+          if (!deliveryDate) {
+            return Response.json({ success: false, message: "Delivery date is required." }, { status: 400 });
+          }
+          await rescheduleDelivery(shop, sub.id, deliveryDate, Boolean(applyToFuture));
+          break;
         }
-        await changeFrequency(shop, sub.id, planId);
-        appCache.delPrefix("customer:");
-        return Response.json({ success: true, message: "Subscription delivery frequency updated." });
-      }
 
-      case "set_weekday": {
-        const day = preferredWeekday === null || preferredWeekday === undefined || preferredWeekday === "" ? null : Number(preferredWeekday);
-        await setPreferredWeekday(shop, sub.id, day);
-        appCache.delPrefix("customer:");
-        return Response.json({ success: true, message: "Preferred delivery day updated." });
-      }
+        case "change_frequency": {
+          if (!planId) {
+            return Response.json({ success: false, message: "Plan is required." }, { status: 400 });
+          }
+          await changeFrequency(shop, sub.id, planId);
+          break;
+        }
 
-      case "pause": {
-        await pauseSubscription(shop, sub.id, reason || "CUSTOMER");
-        appCache.delPrefix("customer:");
-        return Response.json({ success: true, message: "Subscription paused. You can resume anytime." });
-      }
+        case "set_weekday": {
+          const day = preferredWeekday === null || preferredWeekday === undefined || preferredWeekday === "" ? null : Number(preferredWeekday);
+          await setPreferredWeekday(shop, sub.id, day);
+          break;
+        }
 
-      case "resume": {
-        await resumeSubscription(shop, sub.id);
-        appCache.delPrefix("customer:");
-        return Response.json({ success: true, message: "Subscription resumed successfully!" });
-      }
+        case "pause": {
+          await pauseSubscription(shop, sub.id, reason || "CUSTOMER");
+          break;
+        }
 
-      case "cancel": {
-        await cancelSubscription(shop, sub.id, reason || "Customer requested cancellation");
-        appCache.delPrefix("customer:");
-        return Response.json({ success: true, message: "Subscription cancelled." });
-      }
+        case "resume": {
+          await resumeSubscription(shop, sub.id);
+          break;
+        }
 
-      default:
-        return Response.json({ success: false, message: `Unknown action: ${actionType}` }, { status: 400 });
+        case "cancel": {
+          await cancelSubscription(shop, sub.id, reason || "Customer requested cancellation");
+          break;
+        }
+
+        default:
+          return Response.json({ success: false, message: `Unknown action: ${actionType}` }, { status: 400 });
+      }
     }
+
+    appCache.delPrefix("customer:");
+
+    if (actionType === "skip") return Response.json({ success: true, message: "Next delivery skipped successfully." });
+    if (actionType === "reschedule") return Response.json({ success: true, message: "Delivery date updated successfully." });
+    if (actionType === "change_frequency") return Response.json({ success: true, message: "Subscription delivery frequency updated." });
+    if (actionType === "set_weekday") return Response.json({ success: true, message: "Preferred delivery day updated." });
+    if (actionType === "pause") return Response.json({ success: true, message: "Subscription paused. You can resume anytime." });
+    if (actionType === "resume") return Response.json({ success: true, message: "Subscription resumed successfully!" });
+    if (actionType === "cancel") return Response.json({ success: true, message: "Subscription cancelled." });
   } catch (error: any) {
     console.error("[SubscriptionAction] Error:", error);
     const message = error instanceof SubscriptionError ? error.message : (error?.message || "Internal server error");

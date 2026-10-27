@@ -393,9 +393,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const getProductSubtitle = (title: string, variantTitle?: string): string => {
     if (variantTitle && variantTitle !== "Default Title" && !variantTitle.includes("Default")) {
-      return `70 g pouch · ${variantTitle}`;
+      return variantTitle.includes("·") || variantTitle.includes("pouch") ? variantTitle : `70 g pouch · ${variantTitle}`;
     }
     const t = String(title || "").toLowerCase().trim();
+    if (t.includes("growing")) return "70 g pouch · Chicken with DHA";
+    if (t.includes("gutty")) return "70 g pouch · Tuna & salmon broth";
+    if (t.includes("broth")) return "70 g pouch · Hydration topper";
+    if (t.includes("lean")) return "70 g pouch · Healthy weight & agile movement";
+    if (t.includes("shiny") || t.includes("mumma")) return "70 g pouch · Nourishing energy & coat care";
     for (const [key, info] of dynamicProductMap.entries()) {
       if (t.includes(key) || key.includes(t)) {
         if (info.subtitle) return info.subtitle;
@@ -1409,9 +1414,62 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
       <!-- Main Horizontal Row: Photo on Left, 3x3 Stats Grid on Right -->
       <div style="display:flex; gap:36px; align-items:center;">
-        <!-- Clean Pet Photo (Exact Figma Design: rounded square, no clutter) -->
-        <div onclick="pkOpenEditPetModal(null, true)" style="width:115px; height:115px; flex-shrink:0; border-radius:18px; overflow:hidden; background:#FFF6DE; box-shadow:0 2px 10px rgba(0,0,0,0.06); cursor:pointer; position:relative;" title="Click to edit details">
-          <img id="pk-pet-profile-img" src="${escAttr(initialPet.imageUrl)}" alt="${escAttr(petName)}" style="width:100%; height:100%; object-fit:cover; display:block;" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop';">
+        <!-- Clean Pet Photo with Direct Upload Option -->
+        <div class="pk-pet-avatar-wrapper" style="position:relative; flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:8px;">
+          <div
+            id="pk-pet-avatar-box"
+            class="pk-pet-avatar-box"
+            onclick="document.getElementById('pk-pet-file-input').click()"
+            style="width:115px; height:115px; border-radius:18px; overflow:hidden; background:#FFF6DE; box-shadow:0 2px 10px rgba(0,0,0,0.06); cursor:pointer; position:relative; transition:transform 0.15s ease, box-shadow 0.15s ease;"
+            title="Click to upload kitten photo"
+          >
+            <img
+              id="pk-pet-profile-img"
+              src="${escAttr(initialPet.imageUrl)}"
+              alt="${escAttr(petName)}"
+              style="width:100%; height:100%; object-fit:cover; display:block;"
+              onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop';"
+            >
+            <!-- Hover overlay -->
+            <div
+              class="pk-pet-hover-overlay"
+              style="position:absolute; inset:0; background:rgba(0,0,0,0.42); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; opacity:0; transition:opacity 0.2s ease;"
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+              <span style="color:#fff; font-size:11px; font-weight:700; letter-spacing:0.2px;">Upload</span>
+            </div>
+          </div>
+
+          <!-- Camera Badge Icon on bottom right of the photo -->
+          <div
+            onclick="document.getElementById('pk-pet-file-input').click()"
+            style="position:absolute; top:88px; right:-4px; width:30px; height:30px; background:#121217; border:2.5px solid #fff; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.25); transition:transform 0.15s ease;"
+            title="Upload kitten photo"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+          </div>
+
+          <input
+            type="file"
+            id="pk-pet-file-input"
+            accept="image/png, image/jpeg, image/webp"
+            style="display:none;"
+            onchange="handlePetAvatarChange(event)"
+          >
+          <button
+            type="button"
+            onclick="document.getElementById('pk-pet-file-input').click()"
+            id="pk-pet-upload-text"
+            style="background:none; border:none; padding:0; font-size:12px; font-weight:700; color:#121217; cursor:pointer; text-decoration:underline; font-family:inherit; white-space:nowrap;"
+          >
+            Change Photo
+          </button>
         </div>
 
         <!-- 3-Column Stats Grid (Exact Figma Design) -->
@@ -1729,202 +1787,252 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <button type="button" onclick="pkOpenVetModal()" style="background: #FFE330; color: #121217; border: none; border-radius: 30px; padding: 14px 34px; font-weight: 800; font-size: 15px; cursor: pointer; font-family: 'Cabinet Grotesk', sans-serif;">Talk to a Vet</button>
       </div>
     `
-    : `
-      ${displaySubscriptions.length > 1 ? `
-        <!-- Multi-Subscription Selector (Only shown if real customer has multiple plans) -->
-        <div class="pk-sub-selector-card">
-          <span class="pk-sub-selector-label">YOUR SUBSCRIPTIONS (${displaySubscriptions.length}):</span>
-          <div class="pk-sub-pills-row">
-            ${displaySubscriptions.map((s: any, idx: number) => {
-              const lines = getSubLines(s);
-              const firstLineTitle = lines[0]?.title || 'Meal Plan';
-              const rawOrder = s.originOrderName ? String(s.originOrderName).replace(/^Order\s*/i, '') : `#${idx + 1}`;
-              const label = `Order ${rawOrder.startsWith('#') ? rawOrder : '#' + rawOrder} (${firstLineTitle})`;
-              return `
-                <button type="button"
-                  id="pk-sub-pill-${idx}"
-                  class="pk-sub-pill ${idx === 0 ? 'active' : ''}"
-                  onclick="pkSelectSubCard(${idx})">
-                  ${escAttr(label)}
-                </button>
-              `;
-            }).join('')}
-          </div>
-        </div>
-      ` : ''}
+    : (() => {
+        // Find primary active subscription for frequency & status
+        const activeSub = displaySubscriptions.find((s: any) => s.status === 'ACTIVE') || displaySubscriptions[0];
+        const rawStatus = activeSub?.status ? String(activeSub.status) : 'ACTIVE';
+        const statusLabel = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
 
-      ${displaySubscriptions.map((sub: any, subIdx: number) => {
-        const subId = sub.id;
-        const startedDateStr = sub.createdAt
-          ? new Date(sub.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
-          : '14 July 2026';
+        // Earliest start date across subscriptions
+        let startedDateStr = '14 July 2026';
+        const validCreatedDates = displaySubscriptions
+          .map((s: any) => s.createdAt ? new Date(s.createdAt) : null)
+          .filter((d: any): d is Date => d !== null && !isNaN(d.getTime()));
+        if (validCreatedDates.length > 0) {
+          validCreatedDates.sort((a: Date, b: Date) => a.getTime() - b.getTime());
+          startedDateStr = validCreatedDates[0].toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+        }
 
         // Frequency formatted cleanly matching Figma Screenshot 1: "Every 30 days"
         let frequencyStr = 'Every 30 days';
-        if (sub.intervalCount) {
-          const unit = (sub.interval || 'days').toLowerCase();
+        if (activeSub?.intervalCount) {
+          const unit = (activeSub.interval || 'days').toLowerCase();
           const cleanUnit = unit.endsWith('s') ? unit : unit + 's';
-          frequencyStr = `Every ${sub.intervalCount} ${cleanUnit}`;
-        } else if (sub.planName) {
-          const m = sub.planName.match(/every\s+\d+\s+\w+/i);
+          frequencyStr = `Every ${activeSub.intervalCount} ${cleanUnit}`;
+        } else if (activeSub?.planName) {
+          const m = activeSub.planName.match(/every\s+\d+\s+\w+/i);
           if (m) {
             frequencyStr = m[0].charAt(0).toUpperCase() + m[0].slice(1);
           } else {
-            frequencyStr = sub.planName;
+            frequencyStr = activeSub.planName;
           }
         }
 
         // Plan title matching Figma Screenshot 1: "${petName}'s monthly plan"
-        const planTitle = (sub.planName && !sub.planName.toLowerCase().includes('delivered every') && !sub.planName.toLowerCase().includes('save 15%'))
-          ? sub.planName
-          : (petName ? `${petName}'s ${sub.intervalCount === 7 || (sub.interval || '').toLowerCase().includes('week') ? 'weekly' : 'monthly'} plan` : 'Your monthly plan');
+        const planTitle = (activeSub?.planName && !activeSub.planName.toLowerCase().includes('delivered every') && !activeSub.planName.toLowerCase().includes('save 15%'))
+          ? activeSub.planName
+          : (petName ? `${petName}'s ${activeSub?.intervalCount === 7 || (activeSub?.interval || '').toLowerCase().includes('week') ? 'weekly' : 'monthly'} plan` : 'Your monthly plan');
 
-        const rawStatus = sub.status ? String(sub.status) : 'ACTIVE';
-        const statusLabel = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
+        // Next charge date & Ymd
+        let nextChargeDate = '18 Aug';
+        let earliestNextYmd = '';
+        const validNextDates: { date: Date; ymd: string }[] = [];
+        displaySubscriptions.forEach((s: any) => {
+          const dateStr = s.nextDeliveryDate || (s.nextBillingAt ? s.nextBillingAt.split('T')[0] : '');
+          if (dateStr) {
+            const d = new Date(dateStr + (dateStr.includes('T') ? '' : 'T00:00:00'));
+            if (!isNaN(d.getTime())) {
+              validNextDates.push({ date: d, ymd: dateStr.includes('T') ? dateStr.split('T')[0] : dateStr });
+            }
+          }
+        });
+        if (validNextDates.length > 0) {
+          validNextDates.sort((a: any, b: any) => a.date.getTime() - b.date.getTime());
+          nextChargeDate = validNextDates[0].date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+          earliestNextYmd = validNextDates[0].ymd;
+        }
 
-        const nextChargeDate = sub.nextDeliveryDate
-          ? new Date(sub.nextDeliveryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-          : (sub.nextBillingAt ? new Date(sub.nextBillingAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '18 Aug');
+        // Deliveries so far
+        let maxDeliveries = 0;
+        displaySubscriptions.forEach((s: any) => {
+          const count = s.cycles?.filter((c: any) => c.status === 'COMPLETED' || c.status === 'SHIPPED').length || s.ordersBilled || 0;
+          if (count > maxDeliveries) maxDeliveries = count;
+        });
+        const deliveriesSoFar = maxDeliveries > 0 ? maxDeliveries : 2;
 
-        const lines = getSubLines(sub);
-        const calculatedLinesTotal = lines.reduce((acc: number, l: any) => acc + ((Number(l.price) || 0) * (Number(l.quantity) || 1)), 0);
-        const rawTotal = sub.recurringTotal ? parseFloat(String(sub.recurringTotal)) : calculatedLinesTotal;
-        const nextChargeAmount = rawTotal > 0
-          ? `₹${Math.round(rawTotal).toLocaleString('en-IN')}`
-          : '₹1,080';
+        // Flatten ALL line items across all subscriptions into ONE unified list
+        const allItems: any[] = [];
+        displaySubscriptions.forEach((sub: any, sIdx: number) => {
+          const lines = getSubLines(sub);
+          lines.forEach((item: any, lIdx: number) => {
+            const itemTitle = item.title || 'Subscription Meal';
+            const itemImg = getProductImage(itemTitle, item.imageUrl || item.image);
+            const itemSub = getProductSubtitle(itemTitle, item.variantTitle);
+            const unitPrice = (item.price !== undefined && item.price !== null && !isNaN(Number(item.price)))
+              ? Number(item.price)
+              : 30;
+            const qty = Math.max(1, Number(item.quantity) || 1);
+            const linePrice = unitPrice * qty;
+            const itemKey = `${sIdx}-${lIdx}`;
 
-        const deliveriesSoFar = sub.cycles?.filter((c: any) => c.status === 'COMPLETED' || c.status === 'SHIPPED').length || sub.ordersBilled || 2;
-        const nextDeliveryYmd = sub.nextDeliveryDate || (sub.nextBillingAt ? new Date(sub.nextBillingAt).toISOString().split('T')[0] : '');
+            allItems.push({
+              itemKey,
+              contractId: sub.id,
+              subIndex: sIdx,
+              itemIndex: lIdx,
+              title: itemTitle,
+              subtitle: itemSub,
+              image: itemImg,
+              unitPrice,
+              qty,
+              linePrice
+            });
+          });
+        });
+
+        // Demo fallback items if customer had subscription contracts but no line items parsed
+        const displayItems = allItems.length > 0 ? allItems : [
+          {
+            itemKey: '0-0',
+            contractId: activeSub?.id || 'demo',
+            title: 'Growing Kitty',
+            subtitle: '70 g pouch · Chicken with DHA',
+            image: getProductImage('Growing Kitty'),
+            unitPrice: 30,
+            qty: 15,
+            linePrice: 450
+          },
+          {
+            itemKey: '0-1',
+            contractId: activeSub?.id || 'demo',
+            title: 'Gutty Kitty',
+            subtitle: '70 g pouch · Tuna & salmon broth',
+            image: getProductImage('Gutty Kitty'),
+            unitPrice: 30,
+            qty: 10,
+            linePrice: 300
+          },
+          {
+            itemKey: '0-2',
+            contractId: activeSub?.id || 'demo',
+            title: 'Chicken Broth',
+            subtitle: '70 g pouch · Hydration topper',
+            image: getProductImage('Chicken Broth'),
+            unitPrice: 30,
+            qty: 6,
+            linePrice: 180
+          }
+        ];
+
+        // Grand total from all items
+        const grandTotal = displayItems.reduce((sum: number, it: any) => sum + it.linePrice, 0);
+        const nextChargeAmount = `₹${Math.round(grandTotal).toLocaleString('en-IN')}`;
+
+        // All subscription IDs for synchronized batch actions
+        const allSubIdsStr = displaySubscriptions.map((s: any) => s.id).join(',');
 
         return `
-          <div id="pk-sub-card-${subIdx}" class="pk-sub-card-container" style="display: ${subIdx === 0 ? 'block' : 'none'};">
-            <div class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
-              <!-- Header matching Figma Screenshot 1 (Milo's monthly plan [Active], clean right side) -->
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
-                <div style="display: flex; align-items: center; gap: 14px;">
-                  <h2 style="margin: 0; font-size: 26px; font-weight: 800; color: #16130F; font-family: 'Cabinet Grotesk', sans-serif;">${escAttr(planTitle)}</h2>
-                  <span class="pk-sub-active-badge">${escAttr(statusLabel)}</span>
-                </div>
+          <div class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
+            <!-- Header matching Figma Screenshot 1 (${petName}'s monthly plan [Active]) -->
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <h2 style="margin: 0; font-size: 26px; font-weight: 800; color: #16130F; font-family: 'Cabinet Grotesk', sans-serif;">${escAttr(planTitle)}</h2>
+                <span class="pk-sub-active-badge">${escAttr(statusLabel)}</span>
               </div>
+            </div>
 
-              <!-- Yellow Summary Bar (5 columns matching Figma Screenshot 1) -->
-              <div class="pk-sub-summary-bar">
-                <div>
-                  <div class="pk-sub-col-label">STARTED</div>
-                  <div class="pk-sub-col-val">${startedDateStr}</div>
-                </div>
-                <div>
-                  <div class="pk-sub-col-label">FREQUENCY</div>
-                  <div class="pk-sub-col-val">${frequencyStr}</div>
-                </div>
-                <div>
-                  <div class="pk-sub-col-label">NEXT CHARGE</div>
-                  <div class="pk-sub-col-val">${nextChargeDate} · ${nextChargeAmount}</div>
-                </div>
-                <div>
-                  <div class="pk-sub-col-label">DELIVERIES SO FAR</div>
-                  <div class="pk-sub-col-val">${deliveriesSoFar}</div>
-                </div>
-                <div>
-                  <div class="pk-sub-col-label">YOU SAVE</div>
-                  <div class="pk-sub-col-val">15% vs one-time</div>
-                </div>
+            <!-- Yellow Summary Bar (5 columns matching Figma Screenshot 1) -->
+            <div class="pk-sub-summary-bar">
+              <div>
+                <div class="pk-sub-col-label">STARTED</div>
+                <div class="pk-sub-col-val">${startedDateStr}</div>
               </div>
+              <div>
+                <div class="pk-sub-col-label">FREQUENCY</div>
+                <div class="pk-sub-col-val">${frequencyStr}</div>
+              </div>
+              <div>
+                <div class="pk-sub-col-label">NEXT CHARGE</div>
+                <div class="pk-sub-col-val" id="pk-sub-next-charge-val">${nextChargeDate} · <span id="pk-sub-total-val">${nextChargeAmount}</span></div>
+              </div>
+              <div>
+                <div class="pk-sub-col-label">DELIVERIES SO FAR</div>
+                <div class="pk-sub-col-val">${deliveriesSoFar}</div>
+              </div>
+              <div>
+                <div class="pk-sub-col-label">YOU SAVE</div>
+                <div class="pk-sub-col-val">15% vs one-time</div>
+              </div>
+            </div>
 
-              <!-- Subscribed Products Card matching Figma Screenshot 1 -->
-              <div class="pk-sub-box-card">
-                ${lines.length > 0 ? lines.map((item: any, itemIdx: number) => {
-                  const itemTitle = item.title || 'Subscription Meal';
-                  const itemImg = getProductImage(itemTitle, item.imageUrl || item.image);
-                  const itemSub = item.variantTitle || getProductSubtitle(itemTitle);
-                  const unitPrice = (item.price !== undefined && item.price !== null) ? Number(item.price) : 30;
-                  const qty = Math.max(1, Number(item.quantity) || 1);
-                  const linePrice = unitPrice * qty;
-                  const itemKey = `${subIdx}-${itemIdx}`;
-
-                  return `
-                    <div class="pk-sub-item-row" id="sub-row-${itemKey}">
-                      <div class="pk-sub-item-info">
-                        <div class="pk-sub-item-thumb">
-                          <img id="sub-img-${itemKey}" src="${itemImg}" alt="${escAttr(itemTitle)}" onerror="this.onerror=null; this.src='${defaultFallbackImg}';">
-                        </div>
-                        <div style="min-width: 0;">
-                          <div class="pk-sub-item-title" id="sub-title-${itemKey}">${escAttr(itemTitle)}</div>
-                          <div class="pk-sub-item-sub" id="sub-desc-${itemKey}">${escAttr(itemSub)}</div>
-                        </div>
-                      </div>
-                      <div class="pk-sub-item-controls">
-                        <button type="button" onclick="pkOpenSwapModal('${itemKey}', '${escAttr(itemTitle)}')" class="pk-sub-swap-btn">Swap flavour</button>
-                        <div class="pk-sub-qty-stepper">
-                          <button type="button" onclick="pkUpdateSubQty('${itemKey}', -1, ${unitPrice})">-</button>
-                          <span id="qty-${itemKey}">${qty}</span>
-                          <button type="button" onclick="pkUpdateSubQty('${itemKey}', 1, ${unitPrice})">+</button>
-                        </div>
-                        <div class="pk-sub-item-price" id="price-${itemKey}">₹${Math.round(linePrice).toLocaleString('en-IN')}</div>
-                      </div>
+            <!-- Subscribed Products Card (ALL products in ONE table matching Figma Screenshot 1) -->
+            <div class="pk-sub-box-card">
+              ${displayItems.map((item: any) => `
+                <div class="pk-sub-item-row" id="sub-row-${item.itemKey}">
+                  <div class="pk-sub-item-info">
+                    <div class="pk-sub-item-thumb">
+                      <img id="sub-img-${item.itemKey}" src="${item.image}" alt="${escAttr(item.title)}" onerror="this.onerror=null; this.src='${defaultFallbackImg}';">
                     </div>
-                  `;
-                }).join('') : `
-                  <div style="padding: 24px; text-align: center; color: #595961; font-size: 14px; font-family: 'Cabinet Grotesk', sans-serif;">
-                    No products found in this subscription box.
+                    <div style="min-width: 0;">
+                      <div class="pk-sub-item-title" id="sub-title-${item.itemKey}">${escAttr(item.title)}</div>
+                      <div class="pk-sub-item-sub" id="sub-desc-${item.itemKey}">${escAttr(item.subtitle)}</div>
+                    </div>
                   </div>
-                `}
-
-                <!-- Dark Bottom Strip matching Figma Screenshot 1 -->
-                <div class="pk-sub-box-strip">
-                  <div>+ Add a product to this box — treats, broths and supplement mousses</div>
-                  <a href="/pages/byob" class="pk-sub-box-browse">Browse</a>
+                  <div class="pk-sub-item-controls">
+                    <button type="button" onclick="pkOpenSwapModal('${item.itemKey}', '${escAttr(item.title)}')" class="pk-sub-swap-btn">Swap flavour</button>
+                    <div class="pk-sub-qty-stepper">
+                      <button type="button" onclick="pkUpdateSubQty('${item.itemKey}', -1, ${item.unitPrice})">-</button>
+                      <span id="qty-${item.itemKey}">${item.qty}</span>
+                      <button type="button" onclick="pkUpdateSubQty('${item.itemKey}', 1, ${item.unitPrice})">+</button>
+                    </div>
+                    <div class="pk-sub-item-price" id="price-${item.itemKey}" data-line-total="${item.linePrice}">₹${Math.round(item.linePrice).toLocaleString('en-IN')}</div>
+                  </div>
                 </div>
+              `).join('')}
+
+              <!-- Dark Bottom Strip matching Figma Screenshot 1 -->
+              <div class="pk-sub-box-strip">
+                <div>+ Add a product to this box — treats, broths and supplement mousses</div>
+                <a href="/pages/byob" class="pk-sub-box-browse">Browse</a>
               </div>
+            </div>
 
-              <!-- Action Buttons Row matching Figma Screenshot 1 -->
-              <div class="pk-sub-action-bar">
-                <button type="button" onclick="pkOpenChangePlan('${subId}', '${sub.planId || ''}')" class="pk-sub-action-btn">Change Frequency</button>
-                <button type="button" onclick="pkOpenReschedule('${subId}', '${nextDeliveryYmd}')" class="pk-sub-action-btn">Change Delivery Date</button>
-                <button type="button" onclick="pkSkipSub('${subId}', '${nextDeliveryYmd}')" class="pk-sub-action-btn">Skip Next Delivery</button>
-                ${sub.status === 'PAUSED'
-                  ? `<button type="button" onclick="pkResumeSub('${subId}')" class="pk-sub-action-btn" style="background:#008060; color:#fff; border-color:#008060;">Resume Plan</button>`
-                  : `<button type="button" onclick="pkPauseSub('${subId}')" class="pk-sub-action-btn">Pause Plan</button>`
-                }
-                ${sub.status !== 'CANCELLED'
-                  ? `<button type="button" onclick="pkCancelSub('${subId}')" class="pk-sub-cancel-link">Cancel Subscription</button>`
-                  : `<span style="font-size:12px; color:#bf0711; font-weight:700; margin-left:auto;">Cancelled</span>`
-                }
+            <!-- Action Buttons Row matching Figma Screenshot 1 -->
+            <div class="pk-sub-action-bar">
+              <button type="button" onclick="pkOpenChangePlan('${allSubIdsStr}', '${activeSub?.planId || ''}')" class="pk-sub-action-btn">Change Frequency</button>
+              <button type="button" onclick="pkOpenReschedule('${allSubIdsStr}', '${earliestNextYmd}')" class="pk-sub-action-btn">Change Delivery Date</button>
+              <button type="button" onclick="pkSkipSub('${allSubIdsStr}', '${earliestNextYmd}')" class="pk-sub-action-btn">Skip Next Delivery</button>
+              ${activeSub?.status === 'PAUSED'
+                ? `<button type="button" onclick="pkResumeSub('${allSubIdsStr}')" class="pk-sub-action-btn" style="background:#008060; color:#fff; border-color:#008060;">Resume Plan</button>`
+                : `<button type="button" onclick="pkPauseSub('${allSubIdsStr}')" class="pk-sub-action-btn">Pause Plan</button>`
+              }
+              ${activeSub?.status !== 'CANCELLED'
+                ? `<button type="button" onclick="pkCancelSub('${allSubIdsStr}')" class="pk-sub-cancel-link">Cancel Subscription</button>`
+                : `<span style="font-size:12px; color:#bf0711; font-weight:700; margin-left:auto;">Cancelled</span>`
+              }
+            </div>
+
+            <!-- Yellow Benefit Banner (4 columns matching Figma Screenshot 1) -->
+            <div class="pk-sub-benefit-banner">
+              <div>
+                <div class="pk-benefit-title">Vet on call</div>
+                <div class="pk-benefit-desc">Unlimited chats with the Purrkins panel</div>
               </div>
-
-              <!-- Yellow Benefit Banner (4 columns matching Figma Screenshot 1) -->
-              <div class="pk-sub-benefit-banner">
-                <div>
-                  <div class="pk-benefit-title">Vet on call</div>
-                  <div class="pk-benefit-desc">Unlimited chats with the Purrkins panel</div>
-                </div>
-                <div>
-                  <div class="pk-benefit-title">15% off every order</div>
-                  <div class="pk-benefit-desc">Applied automatically at renewal</div>
-                </div>
-                <div>
-                  <div class="pk-benefit-title">Free delivery</div>
-                  <div class="pk-benefit-desc">On every subscription box</div>
-                </div>
-                <div>
-                  <div class="pk-benefit-title">Insurance benefit</div>
-                  <div class="pk-benefit-desc">Partner cover</div>
-                </div>
+              <div>
+                <div class="pk-benefit-title">15% off every order</div>
+                <div class="pk-benefit-desc">Applied automatically at renewal</div>
+              </div>
+              <div>
+                <div class="pk-benefit-title">Free delivery</div>
+                <div class="pk-benefit-desc">On every subscription box</div>
+              </div>
+              <div>
+                <div class="pk-benefit-title">Insurance benefit</div>
+                <div class="pk-benefit-desc">Partner cover</div>
               </div>
             </div>
           </div>
-        `;
-      }).join('')}
 
-      <!-- Vet Chat Card (Screenshot 3 & 4) -->
-      <div style="background: #121217; border-radius: 16px; padding: 32px 36px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; color: #fff; margin-bottom: 24px;">
-        <div>
-          <h3 style="margin: 0 0 8px 0; font-size: 22px; font-weight: 800; color: #fff; font-family: var(--font-heading--family, sans-serif);">Something not right with your kitten?</h3>
-          <p style="margin: 0; font-size: 14px; color: #d1d5db; line-height: 1.5;">Vet chat is included with your plan. Most questions get an answer in an hour.</p>
-        </div>
-        <button type="button" onclick="pkOpenVetModal()" style="background: #FFE330; color: #121217; border: none; border-radius: 30px; padding: 14px 34px; font-weight: 800; font-size: 15px; cursor: pointer; font-family: 'Cabinet Grotesk', sans-serif;">Talk to a Vet</button>
-      </div>
-    `;
+          <!-- Vet Chat Card (Screenshot 3 & 4) -->
+          <div style="background: #121217; border-radius: 16px; padding: 32px 36px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; color: #fff; margin-bottom: 24px;">
+            <div>
+              <h3 style="margin: 0 0 8px 0; font-size: 22px; font-weight: 800; color: #fff; font-family: var(--font-heading--family, sans-serif);">Something not right with your kitten?</h3>
+              <p style="margin: 0; font-size: 14px; color: #d1d5db; line-height: 1.5;">Vet chat is included with your plan. Most questions get an answer in an hour.</p>
+            </div>
+            <button type="button" onclick="pkOpenVetModal()" style="background: #FFE330; color: #121217; border: none; border-radius: 30px; padding: 14px 34px; font-weight: 800; font-size: 15px; cursor: pointer; font-family: 'Cabinet Grotesk', sans-serif;">Talk to a Vet</button>
+          </div>
+        `;
+      })();
 
   const liquidTemplate = `
     <!-- Instant Session URL Sanitizer -->
@@ -2041,11 +2149,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         display: grid;
         grid-template-columns: 280px 1fr;
         gap: 40px;
+        align-items: start;
       }
       .pk-dashboard-sidebar {
         display: flex;
         flex-direction: column;
         gap: 20px;
+        position: sticky;
+        top: 24px;
       }
       .pk-sidebar-menu {
         background: #fff;
@@ -2178,6 +2289,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         box-shadow: 0 4px 14px rgba(0,0,0,0.1);
       }
       .pk-avatar:hover .pk-avatar-hover-overlay {
+        opacity: 1 !important;
+      }
+      .pk-pet-avatar-box:hover {
+        transform: scale(1.02);
+        box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+      }
+      .pk-pet-avatar-box:hover .pk-pet-hover-overlay {
         opacity: 1 !important;
       }
       .pk-form-row {
@@ -3212,12 +3330,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         display: grid;
         grid-template-columns: 280px 1fr;
         gap: 40px;
+        align-items: start;
         font-family: 'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
       }
       .pk-dashboard-sidebar {
         display: flex;
         flex-direction: column;
         gap: 20px;
+        position: sticky;
+        top: 24px;
         font-family: 'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
       }
       .pk-sidebar-menu {
@@ -4274,8 +4395,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           target.style.display = 'block';
         }
 
-        if (tabId === 'invoice') {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+        // Reset scroll position to top when switching tabs (unless jumping to wishlist or quiz)
+        if (!shouldScrollWishlist && !shouldScrollQuiz) {
+          window.scrollTo(0, 0);
+          document.documentElement.scrollTop = 0;
+          document.body.scrollTop = 0;
         }
 
         // Initialize orders pagination whenever overview tab is shown
@@ -4730,7 +4854,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         if (titleEl) titleEl.textContent = pet.name + "'s profile";
         
         var imgEl = document.getElementById('pk-pet-profile-img');
-        if (imgEl && pet.imageUrl) imgEl.src = pet.imageUrl;
+        var cachedPetImg = null;
+        if (pet.id) {
+          try { cachedPetImg = localStorage.getItem('pk_pet_avatar_' + pet.id); } catch(e) {}
+        }
+        var targetPetImg = cachedPetImg || pet.imageUrl;
+        if (imgEl && targetPetImg) imgEl.src = targetPetImg;
 
         var ageEl = document.getElementById('pk-pet-stat-age');
         if (ageEl) ageEl.textContent = pet.age || '—';
@@ -4816,6 +4945,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           .then(function(data) {
             if (data && data.success && data.avatarUrl) {
               activePet.imageUrl = data.avatarUrl;
+              if (data.petId) activePet.id = data.petId;
+              if (activePet.id) {
+                try { localStorage.setItem('pk_pet_avatar_' + activePet.id, data.avatarUrl); } catch(e) {}
+              }
               if (petImg) petImg.src = data.avatarUrl;
               var activePillImg = document.querySelector('.pk-pet-pill.active .pk-pet-avatar img');
               if (activePillImg) activePillImg.src = data.avatarUrl;
@@ -5158,8 +5291,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           target.style.display = 'block';
         }
 
-        if (tabId === 'invoice') {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+        // Reset scroll position to top when switching tabs (unless jumping to wishlist or quiz)
+        if (!shouldScrollWishlist && !shouldScrollQuiz) {
+          window.scrollTo(0, 0);
+          document.documentElement.scrollTop = 0;
+          document.body.scrollTop = 0;
         }
 
         // Update active class on sidebar menu items
@@ -5222,11 +5358,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             }
           }
           window.switchDashboardTab(rawHash || 'overview');
+          if (!rawHash.includes('wishlist') && !rawHash.includes('quiz')) {
+            window.scrollTo(0, 0);
+            document.documentElement.scrollTop = 0;
+            document.body.scrollTop = 0;
+          }
         }
       });
 
       // Initialize on initial page load
       (function initDashboard() {
+        if ('scrollRestoration' in history) {
+          try { history.scrollRestoration = 'manual'; } catch (e) {}
+        }
         var rawHash = window.location.hash ? window.location.hash.replace('#', '') : '';
         if (!rawHash) {
           var params = new URLSearchParams(window.location.search);
@@ -5243,9 +5387,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         } else {
           window.switchDashboardTab(rawHash || 'overview');
         }
+        if (!rawHash.includes('wishlist') && !rawHash.includes('quiz')) {
+          window.scrollTo(0, 0);
+          document.documentElement.scrollTop = 0;
+          document.body.scrollTop = 0;
+        }
         if (typeof window.pkInitOrdersPagination === 'function') {
           window.pkInitOrdersPagination();
         }
+
+        // Restore cached pet avatar if present
+        try {
+          var initialPets = window.pkPetsData || [];
+          if (initialPets.length > 0 && initialPets[0].id) {
+            var cPetImg = localStorage.getItem('pk_pet_avatar_' + initialPets[0].id);
+            var petProfileImg = document.getElementById('pk-pet-profile-img');
+            if (cPetImg && petProfileImg) {
+              petProfileImg.src = cPetImg;
+              var pillImg = document.querySelector('.pk-pet-pill.active .pk-pet-avatar img');
+              if (pillImg) pillImg.src = cPetImg;
+            }
+          }
+        } catch(e) {}
         function doHideLoader() {
           if (typeof window.pkHideLoader === 'function') window.pkHideLoader();
           else if (typeof pkHideLoader === 'function') pkHideLoader();
@@ -5851,9 +6014,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         var newQty = Math.max(1, currentQty + delta);
         qtyEl.textContent = newQty;
 
-        var price = (unitPrice !== undefined && unitPrice !== null && !isNaN(unitPrice)) ? Number(unitPrice) : 90;
+        var price = (unitPrice !== undefined && unitPrice !== null && !isNaN(unitPrice)) ? Number(unitPrice) : 30;
         var newPrice = newQty * price;
-        if (priceEl) priceEl.textContent = '₹' + Math.round(newPrice);
+        if (priceEl) {
+          priceEl.textContent = '₹' + Math.round(newPrice).toLocaleString('en-IN');
+          priceEl.setAttribute('data-line-total', String(newPrice));
+        }
+
+        // Dynamically recalculate yellow summary bar grand total
+        var allPriceEls = document.querySelectorAll('.pk-sub-item-price');
+        var sum = 0;
+        for (var i = 0; i < allPriceEls.length; i++) {
+          var pAttr = allPriceEls[i].getAttribute('data-line-total');
+          var p = pAttr ? parseFloat(pAttr) : parseFloat(allPriceEls[i].textContent.replace(/[^0-9.]/g, '') || '0');
+          if (!isNaN(p)) sum += p;
+        }
+        var totalEl = document.getElementById('pk-sub-total-val');
+        if (totalEl && sum > 0) {
+          totalEl.textContent = '₹' + Math.round(sum).toLocaleString('en-IN');
+        }
       };
 
       // ─── Multi-Subscription Card Selector ───────────────────────
