@@ -359,19 +359,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
       #otp-sending-status {
         display: none;
-        color: #0056b3;
-        font-size: 14px;
-        font-weight: 600;
-        margin-top: -15px;
-        margin-bottom: 20px;
         align-items: center;
         gap: 8px;
+        color: #121217;
+        font-size: 13px;
+        font-weight: 600;
+        background: #f4f4f5;
+        border: 1px solid #e4e4e7;
+        padding: 6px 14px;
+        border-radius: 20px;
+        width: fit-content;
+        margin-top: -12px;
+        margin-bottom: 20px;
       }
       .pk-pulse-dot {
         display: inline-block;
         width: 7px;
         height: 7px;
-        background-color: #0056b3;
+        background-color: #121217;
         border-radius: 50%;
         animation: pk-pulse 1s ease-in-out infinite;
       }
@@ -429,13 +434,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         margin-bottom: 30px;
       }
       .pk-otp-change {
-        color: #0056b3;
-        text-decoration: none;
+        color: #121217;
+        font-weight: 700;
+        text-decoration: underline;
         margin-left: 8px;
         cursor: pointer;
       }
       .pk-otp-change:hover {
-        text-decoration: underline;
+        opacity: 0.7;
       }
       .pk-otp-inputs {
         display: flex;
@@ -508,8 +514,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
                   </span>
                   <span class="pk-btn-loader">
-                    <svg class="pk-spinner" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0056b3" stroke-width="2.5" stroke-linecap="round">
-                      <circle cx="12" cy="12" r="9" stroke="rgba(0, 86, 179, 0.2)" stroke-width="2.5" fill="none"></circle>
+                    <svg class="pk-spinner" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#121217" stroke-width="2.5" stroke-linecap="round">
+                      <circle cx="12" cy="12" r="9" stroke="rgba(18, 18, 23, 0.15)" stroke-width="2.5" fill="none"></circle>
                       <path d="M12 3a9 9 0 0 1 9 9"></path>
                     </svg>
                   </span>
@@ -546,7 +552,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 <input type="text" maxlength="1" pattern="[0-9]*" inputmode="numeric" required autocomplete="off">
               </div>
               
-              <div id="verifying-text" style="display: none; color: #0056b3; font-weight: 600; margin-top: 10px;">Verifying...</div>
+              <div id="verifying-text" style="display: none; color: #121217; font-weight: 700; margin-top: 14px; font-size: 14px;">Verifying code...</div>
             </form>
           </div>
         </div>

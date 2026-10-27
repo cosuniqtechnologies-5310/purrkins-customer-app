@@ -123,9 +123,36 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 firstName
                 lastName
                 email
-                phone
+                avatarCustomer: metafield(namespace: "custom", key: "avatarcustomer") {
+                  value
+                  type
+                  reference {
+                    ... on MediaImage {
+                      image { url }
+                    }
+                  }
+                }
                 avatar: metafield(namespace: "custom", key: "avatar") {
                   value
+                  type
+                  reference {
+                    ... on MediaImage {
+                      image { url }
+                    }
+                  }
+                }
+                profilePhoto: metafield(namespace: "custom", key: "profile_photo") {
+                  value
+                  type
+                  reference {
+                    ... on MediaImage {
+                      image { url }
+                    }
+                  }
+                }
+                profileImage: metafield(namespace: "custom", key: "profile_image") {
+                  value
+                  type
                   reference {
                     ... on MediaImage {
                       image { url }
@@ -328,14 +355,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
   const customer = customerData;
-  let customerAvatarUrl = customer.avatar?.value || "";
-  if (customer.avatar?.reference?.image?.url) {
-    customerAvatarUrl = customer.avatar.reference.image.url;
-  } else if (customer.avatar?.reference?.url) {
-    customerAvatarUrl = customer.avatar.reference.url;
-  }
-  if (customerAvatarUrl.includes("shopify-staged-uploads.storage.googleapis.com")) {
-    customerAvatarUrl = "";
+  let customerAvatarUrl = "";
+  const avatarMf = customer.avatarCustomer || customer.avatar || customer.profilePhoto || customer.profileImage;
+  if (avatarMf?.reference?.image?.url) {
+    customerAvatarUrl = avatarMf.reference.image.url;
+  } else if (avatarMf?.reference?.url) {
+    customerAvatarUrl = avatarMf.reference.url;
+  } else if (avatarMf?.value && typeof avatarMf.value === "string" && avatarMf.value.startsWith("http") && !avatarMf.value.includes("shopify-staged-uploads")) {
+    customerAvatarUrl = avatarMf.value;
   }
 
   // Build dynamic product map from live Shopify API products
@@ -1356,23 +1383,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <h2 id="pk-pet-profile-title" style="margin:0; font-size:26px; font-weight:800; font-family:var(--font-heading--family, sans-serif); color:#121217;">${escAttr(petName)}'s profile</h2>
         <button type="button" onclick="pkOpenEditPetModal(null, true)" class="pk-outline-btn" style="border-radius:30px; padding:8px 22px; font-size:13px; font-weight:700; color:#121217; border:1.5px solid #121217; background:#fff; cursor:pointer;">Edit Details</button>
       </div>
-      <div style="display:flex; gap:32px; align-items:flex-start; flex-wrap:wrap;">
-        <div class="pk-avatar-wrapper" style="position: relative; flex-shrink: 0;">
-          <div class="pk-avatar" id="pk-pet-avatar-box" onclick="document.getElementById('pk-pet-avatar-file-input').click()" style="width:130px; height:130px; overflow:hidden; border-radius:18px; background:#f4f4f5; display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; box-shadow:0 2px 8px rgba(0,0,0,0.06); transition:transform 0.15s ease;" title="Click to change kitten photo">
-            <img id="pk-pet-profile-img" src="${escAttr(initialPet.imageUrl)}" alt="${escAttr(petName)}" style="width:100%; height:100%; object-fit:cover;" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop';">
-            <!-- Hover overlay with camera icon -->
-            <div class="pk-avatar-hover-overlay" style="position:absolute; inset:0; background:rgba(0,0,0,0.45); display:flex; flex-direction:column; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s ease; color:#fff; font-size:12px; font-weight:700; gap:4px;">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              <span>Change Photo</span>
+        <!-- Kitten Avatar Container with isolated photo frame & badge -->
+        <div style="display:flex; flex-direction:column; align-items:center; flex-shrink:0;">
+          <div style="position:relative; width:124px; height:124px;">
+            <div class="pk-avatar" id="pk-pet-avatar-box" onclick="document.getElementById('pk-pet-avatar-file-input').click()" style="width:100%; height:100%; overflow:hidden; border-radius:20px; background:#f4f4f5; display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; box-shadow:0 3px 12px rgba(0,0,0,0.08); border:1px solid rgba(0,0,0,0.06); transition:transform 0.2s ease, box-shadow 0.2s ease;" title="Click to change kitten photo">
+              <img id="pk-pet-profile-img" src="${escAttr(initialPet.imageUrl)}" alt="${escAttr(petName)}" style="width:100%; height:100%; object-fit:cover; display:block;" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop';">
+              <!-- Hover overlay with camera icon -->
+              <div class="pk-avatar-hover-overlay" style="position:absolute; inset:0; background:rgba(0,0,0,0.45); display:flex; flex-direction:column; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s ease; color:#fff; font-size:11.5px; font-weight:700; gap:4px; backdrop-filter:blur(2px);">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <span>Change</span>
+              </div>
             </div>
-          </div>
-          <!-- Camera badge icon on bottom right -->
-          <div onclick="document.getElementById('pk-pet-avatar-file-input').click()" style="position:absolute; bottom:-3px; right:-3px; width:30px; height:30px; background:#121217; border:2.5px solid #fff; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.25); transition:transform 0.15s ease;" title="Upload kitten photo">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <!-- Floating camera button strictly anchored to image corner -->
+            <button type="button" onclick="document.getElementById('pk-pet-avatar-file-input').click()" style="position:absolute; bottom:-4px; right:-4px; width:34px; height:34px; background:#121217; border:2.5px solid #fff; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,0.22); transition:transform 0.15s ease, background 0.15s ease; padding:0; z-index:5;" title="Change Kitten Photo">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </button>
           </div>
           <input type="file" id="pk-pet-avatar-file-input" accept="image/png, image/jpeg, image/webp" style="display:none;" onchange="handlePetAvatarChange(event)">
-          <div style="margin-top:6px; text-align:center;">
-            <button type="button" onclick="document.getElementById('pk-pet-avatar-file-input').click()" id="pk-pet-upload-text" style="background:none; border:none; padding:0; font-size:12px; font-weight:700; color:#121217; cursor:pointer; text-decoration:underline;">Change Photo</button>
+          <!-- Clean button below photo with proper breathing room and edit icon -->
+          <div style="margin-top:10px; text-align:center;">
+            <button type="button" onclick="document.getElementById('pk-pet-avatar-file-input').click()" id="pk-pet-upload-text" style="background:#f4f4f5; border:1px solid #e5e5e7; border-radius:20px; padding:5px 14px; font-size:12px; font-weight:700; color:#121217; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:all 0.15s ease;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <span>Change Photo</span>
+            </button>
           </div>
         </div>
         <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:16px 24px; flex-grow:1;">

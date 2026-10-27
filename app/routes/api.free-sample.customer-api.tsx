@@ -262,7 +262,7 @@ async function handleRequest(request: Request) {
 
     // 3. Customer Avatar Metafield
     const avatar = String(body.avatar || "").trim();
-    if (avatar) {
+    if (avatar && avatar.startsWith("http") && !avatar.includes("shopify-staged-uploads") && !avatar.startsWith("data:")) {
       try {
         await shopifyGql(accessToken, `
           mutation setCustomerAvatar($metafields: [MetafieldsSetInput!]!) {
@@ -302,23 +302,67 @@ async function handleRequest(request: Request) {
 
       const { fileId, cdnUrl } = await uploadFileToShopify(accessToken, file, filename, "Customer Profile Photo");
 
-      // Save CDN URL into customer metafield custom.avatar
-      await shopifyGql(accessToken, `
-        mutation setCustomerAvatar($metafields: [MetafieldsSetInput!]!) {
-          metafieldsSet(metafields: $metafields) {
-            metafields { id value }
-            userErrors { field message }
+      // Save avatar: try file_reference first (standard for File metafields), fallback to single_line_text_field
+      let saveSuccess = false;
+      if (fileId) {
+        const fileRefRes = await shopifyGql(accessToken, `
+          mutation setCustomerAvatarFile($metafields: [MetafieldsSetInput!]!) {
+            metafieldsSet(metafields: $metafields) {
+              metafields { id value type }
+              userErrors { field message }
+            }
           }
+        `, {
+          metafields: [
+            {
+              ownerId: `gid://shopify/Customer/${numericId}`,
+              namespace: "custom",
+              key: "avatarcustomer",
+              type: "file_reference",
+              value: fileId
+            },
+            {
+              ownerId: `gid://shopify/Customer/${numericId}`,
+              namespace: "custom",
+              key: "avatar",
+              type: "file_reference",
+              value: fileId
+            }
+          ]
+        });
+        const errs = fileRefRes.data?.metafieldsSet?.userErrors;
+        if (!errs || errs.length === 0) {
+          saveSuccess = true;
         }
-      `, {
-        metafields: [{
-          ownerId: `gid://shopify/Customer/${numericId}`,
-          namespace: "custom",
-          key: "avatar",
-          type: "single_line_text_field",
-          value: cdnUrl
-        }]
-      });
+      }
+
+      if (!saveSuccess) {
+        await shopifyGql(accessToken, `
+          mutation setCustomerAvatarText($metafields: [MetafieldsSetInput!]!) {
+            metafieldsSet(metafields: $metafields) {
+              metafields { id value }
+              userErrors { field message }
+            }
+          }
+        `, {
+          metafields: [
+            {
+              ownerId: `gid://shopify/Customer/${numericId}`,
+              namespace: "custom",
+              key: "avatarcustomer",
+              type: "single_line_text_field",
+              value: cdnUrl
+            },
+            {
+              ownerId: `gid://shopify/Customer/${numericId}`,
+              namespace: "custom",
+              key: "avatar",
+              type: "single_line_text_field",
+              value: cdnUrl
+            }
+          ]
+        });
+      }
 
       appCache.delPrefix("customer:");
       return json({ success: true, avatarUrl: cdnUrl, fileId });
