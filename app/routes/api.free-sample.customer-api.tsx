@@ -61,6 +61,95 @@ function json(body: object, status = 200) {
   });
 }
 
+// Helper: Upload a file to Shopify Files and retrieve the public CDN URL and file ID
+async function uploadFileToShopify(accessToken: string, file: File, filename: string, alt: string) {
+  const mime = file.type || "image/jpeg";
+  const stagedRes = await shopifyGql(accessToken, `
+    mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+      stagedUploadsCreate(input: $input) {
+        stagedTargets {
+          url
+          resourceUrl
+          parameters { name value }
+        }
+        userErrors { field message }
+      }
+    }
+  `, {
+    input: [{
+      filename: filename || "upload.jpg",
+      mimeType: mime,
+      resource: "IMAGE",
+      httpMethod: "POST"
+    }]
+  });
+
+  const target = stagedRes.data?.stagedUploadsCreate?.stagedTargets?.[0];
+  if (!target) {
+    throw new Error("Failed to create staged upload target in Shopify");
+  }
+
+  const uploadForm = new FormData();
+  target.parameters.forEach((p: any) => uploadForm.append(p.name, p.value));
+  uploadForm.append("file", file);
+  const uploadRes = await fetch(target.url, { method: "POST", body: uploadForm });
+  if (!uploadRes.ok) {
+    throw new Error("Failed to upload image file to Shopify staging bucket");
+  }
+
+  // Create permanent file in Shopify Files
+  const fileCreateRes = await shopifyGql(accessToken, `
+    mutation fileCreate($files: [FileCreateInput!]!) {
+      fileCreate(files: $files) {
+        files {
+          id
+          fileStatus
+          alt
+          ... on MediaImage {
+            image {
+              url
+            }
+          }
+        }
+        userErrors { field message }
+      }
+    }
+  `, {
+    files: [{
+      alt: alt || "Uploaded Image",
+      contentType: "IMAGE",
+      originalSource: target.resourceUrl
+    }]
+  });
+
+  const newFile = fileCreateRes.data?.fileCreate?.files?.[0];
+  const newFileId = newFile?.id;
+  let cdnUrl = newFile?.image?.url || "";
+
+  // Poll for MediaImage URL if not immediately ready
+  if (!cdnUrl && newFileId) {
+    for (let i = 0; i < 5; i++) {
+      await new Promise((r) => setTimeout(r, 600));
+      const nodeRes = await shopifyGql(accessToken, `
+        query getMediaUrl($id: ID!) {
+          node(id: $id) {
+            ... on MediaImage {
+              image { url }
+            }
+          }
+        }
+      `, { id: newFileId });
+      const u = nodeRes.data?.node?.image?.url;
+      if (u) {
+        cdnUrl = u;
+        break;
+      }
+    }
+  }
+
+  return { fileId: newFileId, cdnUrl: cdnUrl || target.resourceUrl };
+}
+
 async function handleRequest(request: Request) {
   const url = new URL(request.url);
   const intent = url.searchParams.get("intent");
@@ -200,57 +289,20 @@ async function handleRequest(request: Request) {
     return json({ success: true });
   }
 
-  // UPLOAD AVATAR
+  // UPLOAD AVATAR (Customer Profile Image)
   if (intent === "upload_avatar") {
     try {
       const formData = await request.formData();
       const file = formData.get("avatar") as File | null;
-      const filename = (formData.get("filename") as string) || "profile.jpg";
+      const filename = (formData.get("filename") as string) || file?.name || "profile.jpg";
 
       if (!file) {
         return json({ success: false, error: "No file provided" }, 400);
       }
 
-      const arrayBuf = await file.arrayBuffer();
-      const b64 = Buffer.from(arrayBuf).toString("base64");
-      const mime = file.type || "image/jpeg";
-      let finalUrl = `data:${mime};base64,${b64}`;
+      const { fileId, cdnUrl } = await uploadFileToShopify(accessToken, file, filename, "Customer Profile Photo");
 
-      try {
-        const stagedRes = await shopifyGql(accessToken, `
-          mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
-            stagedUploadsCreate(input: $input) {
-              stagedTargets {
-                url
-                resourceUrl
-                parameters { name value }
-              }
-              userErrors { field message }
-            }
-          }
-        `, {
-          input: [{
-            filename,
-            mimeType: mime,
-            resource: "IMAGE",
-            httpMethod: "POST"
-          }]
-        });
-
-        const target = stagedRes.data?.stagedUploadsCreate?.stagedTargets?.[0];
-        if (target) {
-          const uploadForm = new FormData();
-          target.parameters.forEach((p: any) => uploadForm.append(p.name, p.value));
-          uploadForm.append("file", file);
-          const uploadRes = await fetch(target.url, { method: "POST", body: uploadForm });
-          if (uploadRes.ok && target.resourceUrl) {
-            finalUrl = target.resourceUrl;
-          }
-        }
-      } catch (e) {
-        console.warn("Shopify staged upload failed, using data URL fallback:", e);
-      }
-
+      // Save CDN URL into customer metafield custom.avatar
       await shopifyGql(accessToken, `
         mutation setCustomerAvatar($metafields: [MetafieldsSetInput!]!) {
           metafieldsSet(metafields: $metafields) {
@@ -264,15 +316,122 @@ async function handleRequest(request: Request) {
           namespace: "custom",
           key: "avatar",
           type: "single_line_text_field",
-          value: finalUrl
+          value: cdnUrl
         }]
       });
 
       appCache.delPrefix("customer:");
-      return json({ success: true, avatarUrl: finalUrl });
+      return json({ success: true, avatarUrl: cdnUrl, fileId });
     } catch (err: any) {
       console.error("Error in upload_avatar:", err);
       return json({ success: false, error: err.message || "Failed to upload avatar" }, 500);
+    }
+  }
+
+  // UPLOAD PET AVATAR (Kitten Profile Image)
+  if (intent === "upload_pet_avatar") {
+    try {
+      const formData = await request.formData();
+      const file = formData.get("avatar") as File | null;
+      let petId = (formData.get("pet_id") as string) || "";
+      const filename = (formData.get("filename") as string) || file?.name || "kitten.jpg";
+
+      if (!file) {
+        return json({ success: false, error: "No file provided" }, 400);
+      }
+      if (!petId) {
+        return json({ success: false, error: "Pet ID is required" }, 400);
+      }
+      if (!petId.includes("gid://shopify/Metaobject/")) {
+        petId = `gid://shopify/Metaobject/${petId.split("/").pop()}`;
+      }
+
+      const { fileId, cdnUrl } = await uploadFileToShopify(accessToken, file, filename, "Pet Profile Photo");
+
+      if (fileId) {
+        // Link file reference to the pet_profile metaobject's "profile" field
+        const moUpdateRes = await shopifyGql(accessToken, `
+          mutation UpdatePetImage($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+            metaobjectUpdate(id: $id, metaobject: $metaobject) {
+              metaobject { id }
+              userErrors { field message }
+            }
+          }
+        `, {
+          id: petId,
+          metaobject: {
+            fields: [{ key: "profile", value: fileId }]
+          }
+        });
+
+        const moErrors = moUpdateRes.data?.metaobjectUpdate?.userErrors;
+        if (moErrors && moErrors.length > 0) {
+          throw new Error("Failed to update pet profile image: " + JSON.stringify(moErrors));
+        }
+      }
+
+      appCache.delPrefix("customer:");
+      return json({ success: true, avatarUrl: cdnUrl, fileId });
+    } catch (err: any) {
+      console.error("Error in upload_pet_avatar:", err);
+      return json({ success: false, error: err.message || "Failed to upload kitten photo" }, 500);
+    }
+  }
+
+  // UPDATE PET PROFILE (Details)
+  if (intent === "update_pet") {
+    try {
+      const body = await request.json();
+      let petId = body.pet_id;
+      if (!petId) {
+        return json({ success: false, error: "Pet ID is required" }, 400);
+      }
+      if (!petId.includes("gid://shopify/Metaobject/")) {
+        petId = `gid://shopify/Metaobject/${petId.split("/").pop()}`;
+      }
+
+      const fieldsToSet: any[] = [];
+      const allowedKeys = ["name", "age", "weight", "gender", "neutered", "body", "activity", "focus", "allergies"];
+      for (const k of allowedKeys) {
+        if (body[k] !== undefined && body[k] !== null) {
+          fieldsToSet.push({
+            key: k,
+            value: String(body[k]).trim()
+          });
+        }
+      }
+
+      if (body.profileFileId) {
+        fieldsToSet.push({
+          key: "profile",
+          value: body.profileFileId
+        });
+      }
+
+      if (fieldsToSet.length > 0) {
+        const moRes = await shopifyGql(accessToken, `
+          mutation UpdatePetDetails($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+            metaobjectUpdate(id: $id, metaobject: $metaobject) {
+              metaobject { id }
+              userErrors { field message }
+            }
+          }
+        `, {
+          id: petId,
+          metaobject: { fields: fieldsToSet }
+        });
+
+        const errs = moRes.data?.metaobjectUpdate?.userErrors;
+        if (errs && errs.length > 0) {
+          return json({ success: false, error: formatErrors(errs) }, 400);
+        }
+      }
+
+      appCache.delPrefix("customer:");
+      return json({ success: true, message: "Pet profile updated successfully" });
+    } catch (err: any) {
+      console.error("Error in update_pet:", err);
+      return json({ success: false, error: err.message || "Failed to update pet" }, 500);
     }
   }
 

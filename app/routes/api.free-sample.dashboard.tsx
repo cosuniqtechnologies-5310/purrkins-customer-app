@@ -124,7 +124,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 lastName
                 email
                 phone
-                avatar: metafield(namespace: "custom", key: "avatar") { value }
+                avatar: metafield(namespace: "custom", key: "avatar") {
+                  value
+                  reference {
+                    ... on MediaImage {
+                      image { url }
+                    }
+                  }
+                }
                 defaultAddress {
                   id
                   firstName
@@ -321,7 +328,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
   const customer = customerData;
-  const customerAvatarUrl = customer.avatar?.value || "";
+  let customerAvatarUrl = customer.avatar?.value || "";
+  if (customer.avatar?.reference?.image?.url) {
+    customerAvatarUrl = customer.avatar.reference.image.url;
+  } else if (customer.avatar?.reference?.url) {
+    customerAvatarUrl = customer.avatar.reference.url;
+  }
+  if (customerAvatarUrl.includes("shopify-staged-uploads.storage.googleapis.com")) {
+    customerAvatarUrl = "";
+  }
 
   // Build dynamic product map from live Shopify API products
   const dynamicProductMap = new Map<string, { image: string; subtitle: string; price: number; title: string; id: string; handle: string }>();
@@ -1342,8 +1357,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <button type="button" onclick="pkOpenEditPetModal(null, true)" class="pk-outline-btn" style="border-radius:30px; padding:8px 22px; font-size:13px; font-weight:700; color:#121217; border:1.5px solid #121217; background:#fff; cursor:pointer;">Edit Details</button>
       </div>
       <div style="display:flex; gap:32px; align-items:flex-start; flex-wrap:wrap;">
-        <div style="flex-shrink:0; width:130px; height:130px; overflow:hidden; border-radius:18px; background:#f4f4f5; display:flex; align-items:center; justify-content:center;">
-          <img id="pk-pet-profile-img" src="${escAttr(initialPet.imageUrl)}" alt="${escAttr(petName)}" style="width:100%; height:100%; object-fit:cover;">
+        <div class="pk-avatar-wrapper" style="position: relative; flex-shrink: 0;">
+          <div class="pk-avatar" id="pk-pet-avatar-box" onclick="document.getElementById('pk-pet-avatar-file-input').click()" style="width:130px; height:130px; overflow:hidden; border-radius:18px; background:#f4f4f5; display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; box-shadow:0 2px 8px rgba(0,0,0,0.06); transition:transform 0.15s ease;" title="Click to change kitten photo">
+            <img id="pk-pet-profile-img" src="${escAttr(initialPet.imageUrl)}" alt="${escAttr(petName)}" style="width:100%; height:100%; object-fit:cover;" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop';">
+            <!-- Hover overlay with camera icon -->
+            <div class="pk-avatar-hover-overlay" style="position:absolute; inset:0; background:rgba(0,0,0,0.45); display:flex; flex-direction:column; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s ease; color:#fff; font-size:12px; font-weight:700; gap:4px;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              <span>Change Photo</span>
+            </div>
+          </div>
+          <!-- Camera badge icon on bottom right -->
+          <div onclick="document.getElementById('pk-pet-avatar-file-input').click()" style="position:absolute; bottom:-3px; right:-3px; width:30px; height:30px; background:#121217; border:2.5px solid #fff; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.25); transition:transform 0.15s ease;" title="Upload kitten photo">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </div>
+          <input type="file" id="pk-pet-avatar-file-input" accept="image/png, image/jpeg, image/webp" style="display:none;" onchange="handlePetAvatarChange(event)">
+          <div style="margin-top:6px; text-align:center;">
+            <button type="button" onclick="document.getElementById('pk-pet-avatar-file-input').click()" id="pk-pet-upload-text" style="background:none; border:none; padding:0; font-size:12px; font-weight:700; color:#121217; cursor:pointer; text-decoration:underline;">Change Photo</button>
+          </div>
         </div>
         <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:16px 24px; flex-grow:1;">
           <div>
@@ -4020,7 +4050,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 <!-- Profile Avatar Option (Click or button to upload) -->
                 <div class="pk-avatar-wrapper" style="position: relative; flex-shrink: 0;">
                   <div class="pk-avatar" id="pk-avatar-box" onclick="document.getElementById('pk-avatar-file-input').click()" style="width: 84px; height: 84px; background: #eaeaea; border-radius: 18px; display: flex; align-items: center; justify-content: center; color: #595961; cursor: pointer; overflow: hidden; position: relative; box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: transform 0.15s ease, box-shadow 0.15s ease;" title="Click to change profile photo">
-                    <img id="pk-avatar-img" src="${escAttr(customerAvatarUrl)}" alt="Profile Photo" style="width: 100%; height: 100%; object-fit: cover; display: ${customerAvatarUrl ? 'block' : 'none'};">
+                    <img id="pk-avatar-img" src="${escAttr(customerAvatarUrl)}" alt="Profile Photo" style="width: 100%; height: 100%; object-fit: cover; display: ${customerAvatarUrl ? 'block' : 'none'};" onerror="this.style.display='none'; var ic = document.getElementById('pk-avatar-icon'); if(ic) ic.style.display='flex';">
                     <div id="pk-avatar-icon" style="display: ${customerAvatarUrl ? 'none' : 'flex'}; align-items: center; justify-content: center;">
                       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                     </div>
@@ -4683,219 +4713,320 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
       };
 
-      // Modal opener for editing pet or adding new kitten with pre-filled previous data
+      // Kitten Profile Photo Direct Upload Handler (from Card)
+      window.handlePetAvatarChange = function(event) {
+        var file = event.target.files && event.target.files[0];
+        if (!file) return;
+
+        if (file.size > 5 * 1024 * 1024) {
+          alert('Image size should be less than 5MB.');
+          return;
+        }
+
+        var pets = window.pkPetsData || [];
+        var activePet = pets[window.pkActivePetIndex || 0];
+        if (!activePet || !activePet.id) {
+          alert('No active kitten found to update.');
+          return;
+        }
+
+        var petImg = document.getElementById('pk-pet-profile-img');
+        var uploadText = document.getElementById('pk-pet-upload-text');
+        if (uploadText) uploadText.textContent = 'Uploading...';
+
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          var previewUrl = e.target.result;
+          if (petImg) petImg.src = previewUrl;
+
+          var token = localStorage.getItem('pk_session') || '';
+          var formData = new FormData();
+          formData.append('avatar', file);
+          formData.append('pet_id', activePet.id);
+          formData.append('filename', file.name || 'kitten.jpg');
+
+          fetch('/apps/purrkins/customer-api?session=' + token + '&intent=upload_pet_avatar', {
+            method: 'POST',
+            body: formData
+          })
+          .then(function(res) { return res.json(); })
+          .then(function(data) {
+            if (data && data.success && data.avatarUrl) {
+              activePet.imageUrl = data.avatarUrl;
+              if (petImg) petImg.src = data.avatarUrl;
+              var activePillImg = document.querySelector('.pk-pet-pill.active .pk-pet-avatar img');
+              if (activePillImg) activePillImg.src = data.avatarUrl;
+              alert('Kitten profile photo updated successfully!');
+            } else {
+              alert(data.error || 'Failed to update kitten photo. Please try again.');
+            }
+            if (uploadText) uploadText.textContent = 'Change Photo';
+          })
+          .catch(function(err) {
+            console.error('Pet avatar upload error:', err);
+            alert('Network error while uploading kitten photo.');
+            if (uploadText) uploadText.textContent = 'Change Photo';
+          });
+        };
+        reader.readAsDataURL(file);
+      };
+
+      // Modal Pet Avatar File Selection
+      window._pk_modal_pet_file = null;
+      window.handleModalPetFileChange = function(event) {
+        var file = event.target.files && event.target.files[0];
+        if (!file) return;
+        window._pk_modal_pet_file = file;
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          var modalImg = document.getElementById('pk-modal-pet-img');
+          if (modalImg) modalImg.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      };
+
+      // Dedicated Pet Profile Edit Modal Opener
       window.pkOpenEditPetModal = function(petIndex, isEdit) {
-        var modal = document.getElementById('global-byob-quiz-popup');
-        if (!modal) {
-          window.location.href = '/pages/byob';
+        if (!isEdit) {
+          // Adding new kitten: open quiz popup or redirect to quiz
+          var quizModal = document.getElementById('global-byob-quiz-popup');
+          if (quizModal) {
+            quizModal.style.display = 'flex';
+          } else {
+            window.location.href = '/pages/byob';
+          }
           return;
         }
 
-        var form = document.getElementById('popup-byob-quiz-form');
-        if (!form) {
-          modal.style.display = 'flex';
-          return;
-        }
+        var pIdx = (typeof petIndex === 'number' && !isNaN(petIndex)) ? petIndex : (window.pkActivePetIndex || 0);
+        var pets = window.pkPetsData || [];
+        var pet = pets[pIdx] || pets[0];
+        if (!pet) return;
 
-        // Ensure hidden input for target pet_id exists
-        var petIdInput = form.querySelector('input[name="quiz_pet_id"]');
-        if (!petIdInput) {
-          petIdInput = document.createElement('input');
-          petIdInput.type = 'hidden';
-          petIdInput.name = 'quiz_pet_id';
-          form.appendChild(petIdInput);
-        }
+        window._pk_modal_pet_file = null;
+        var modal = document.getElementById('pk-edit-pet-modal');
+        if (!modal) return;
 
-        if (isEdit) {
-          var pIdx = (typeof petIndex === 'number' && !isNaN(petIndex)) ? petIndex : (window.pkActivePetIndex || 0);
-          var pets = window.pkPetsData || [];
-          var pet = pets[pIdx] || pets[0];
+        var heading = document.getElementById('pk-modal-pet-heading');
+        if (heading) heading.textContent = 'Edit ' + (pet.name || 'Kitten') + "'s Profile";
 
-          if (pet) {
-            // 1. Set Pet ID (only real Shopify metaobject IDs)
-            petIdInput.value = (pet.id && String(pet.id).indexOf('pet-') !== 0) ? pet.id : '';
+        var idInput = document.getElementById('pk-edit-pet-id');
+        if (idInput) idInput.value = pet.id || '';
 
-            // 2. Pre-fill Name (Slide 1)
-            var nameInput = form.querySelector('input[name="quiz_name"]');
-            if (nameInput) {
-              nameInput.value = pet.name || '';
-            }
+        var nameInput = document.getElementById('pk-edit-pet-name');
+        if (nameInput) nameInput.value = pet.name || '';
 
-            // 3. Pre-fill Age (Slide 1)
-            var petAge = String(pet.age || '').toLowerCase().trim();
-            var ageRadios = form.querySelectorAll('input[name="quiz_age"]');
-            var ageMatched = false;
-            ageRadios.forEach(function(r) {
-              var rVal = r.value.toLowerCase().trim();
-              var isMatch = false;
-              if (rVal === petAge) isMatch = true;
-              else if (petAge.indexOf('lactat') !== -1 && rVal.indexOf('lactat') !== -1) isMatch = true;
-              else if ((petAge.indexOf('3-8') !== -1 || petAge.indexOf('week') !== -1) && rVal.indexOf('3-8') !== -1) isMatch = true;
-              else if ((petAge.indexOf('2-4') !== -1 || petAge.indexOf('2 month') !== -1 || petAge.indexOf('3 month') !== -1) && rVal.indexOf('2-4') !== -1) isMatch = true;
-              else if ((petAge.indexOf('4+') !== -1 || petAge.indexOf('4 month') !== -1 || petAge.indexOf('5 month') !== -1 || petAge.indexOf('6 month') !== -1 || petAge.indexOf('8 month') !== -1 || petAge.indexOf('month') !== -1) && rVal.indexOf('4+') !== -1) isMatch = true;
-              else if ((petAge.indexOf('senior') !== -1 || petAge.indexOf('7+') !== -1) && rVal.indexOf('7+') !== -1) isMatch = true;
-              else if ((petAge.indexOf('adult') !== -1 || petAge.indexOf('1+') !== -1 || petAge.indexOf('year') !== -1) && rVal.indexOf('1+') !== -1) isMatch = true;
-
-              if (isMatch && !ageMatched) {
-                r.checked = true;
-                ageMatched = true;
-              } else {
-                r.checked = false;
-              }
-            });
-            if (!ageMatched && ageRadios.length > 0 && petAge) {
-              ageRadios[0].checked = true;
-            }
-
-            // 4. Pre-fill Gender (Slide 2)
-            var petGender = String(pet.gender || '').toLowerCase().trim();
-            var genderRadios = form.querySelectorAll('input[name="quiz_gender"]');
-            genderRadios.forEach(function(r) {
-              if (petGender.indexOf('female') !== -1) {
-                r.checked = (r.value === 'Female');
-              } else if (petGender.indexOf('male') !== -1) {
-                r.checked = (r.value === 'Male');
-              } else {
-                r.checked = false;
-              }
-            });
-
-            // 5. Pre-fill Neutered (Slide 2)
-            var petNeut = String(pet.neutered || '').toLowerCase().trim();
-            var isNeutered = false;
-            if (petNeut.indexOf('not') !== -1 || petNeut === 'no' || petNeut === 'false') {
-              isNeutered = false;
-            } else if (petNeut.indexOf('neut') !== -1 || petNeut === 'yes' || petNeut === 'true') {
-              isNeutered = true;
-            }
-            var neutRadios = form.querySelectorAll('input[name="quiz_neutered"]');
-            neutRadios.forEach(function(r) {
-              if (r.value === 'Neutered') r.checked = isNeutered;
-              else if (r.value === 'Not Neutered') r.checked = !isNeutered;
-            });
-
-            // 6. Pre-fill Weight (Slide 3)
-            var weightInput = form.querySelector('input[name="quiz_weight"]');
-            if (weightInput) {
-              var cleanWeight = String(pet.weight || '').replace(/[^0-9.]/g, '');
-              weightInput.value = cleanWeight || '';
-            }
-
-            // 7. Pre-fill Body / Eating Style (Slide 3)
-            var petBody = String(pet.body || pet.eatingStyle || '').toLowerCase().trim();
-            var bodyRadios = form.querySelectorAll('input[name="quiz_body"]');
-            var bodyMatched = false;
-            bodyRadios.forEach(function(r) {
-              var rVal = r.value.toLowerCase();
-              if (petBody.indexOf(rVal) !== -1 && !bodyMatched) {
-                r.checked = true;
-                bodyMatched = true;
-              } else {
-                r.checked = false;
-              }
-            });
-            if (!bodyMatched && bodyRadios.length > 0 && petBody) {
-              bodyRadios[1].checked = true; // Lean default
-            }
-
-            // 8. Pre-fill Activity Level (Slide 4)
-            var petAct = String(pet.activity || pet.activityLevel || '').toLowerCase().trim();
-            var actRadios = form.querySelectorAll('input[name="quiz_activity"]');
-            var actMatched = false;
-            actRadios.forEach(function(r) {
-              var rVal = r.value.toLowerCase();
-              var isMatch = false;
-              if (petAct.indexOf('couch') !== -1 && rVal.indexOf('couch') !== -1) isMatch = true;
-              else if (petAct.indexOf('playful') !== -1 && rVal.indexOf('playful') !== -1) isMatch = true;
-              else if (petAct.indexOf('explorer') !== -1 && rVal.indexOf('explorer') !== -1) isMatch = true;
-              else if ((petAct.indexOf('super') !== -1 || petAct.indexOf('active') !== -1) && rVal.indexOf('super') !== -1) isMatch = true;
-
-              if (isMatch && !actMatched) {
-                r.checked = true;
-                actMatched = true;
-              } else {
-                r.checked = false;
-              }
-            });
-            if (!actMatched && actRadios.length > 0 && petAct) {
-              actRadios[1].checked = true; // Playful default
-            }
-
-            // 9. Pre-fill Focus / Health Flags (Slide 5)
-            var allFlags = [
-              pet.focus || '',
-              pet.healthFlags && pet.healthFlags !== 'None recorded' ? pet.healthFlags : '',
-              (pet.quizPills || []).join(',')
-            ].join(',').toLowerCase();
-
-            var focusCheckboxes = form.querySelectorAll('input[name="quiz_focus[]"]');
-            var anyFocusChecked = false;
-            focusCheckboxes.forEach(function(cb) {
-              var val = cb.value.toLowerCase();
-              var shouldCheck = false;
-              if (allFlags.indexOf(val) !== -1) shouldCheck = true;
-              else if (val === 'loose motions' && allFlags.indexOf('motion') !== -1) shouldCheck = true;
-              else if (val === 'weak immunity' && allFlags.indexOf('immuni') !== -1) shouldCheck = true;
-              else if (val === 'under nourishment' && (allFlags.indexOf('nourish') !== -1 || allFlags.indexOf('under') !== -1)) shouldCheck = true;
-              else if (val === 'gut issues' && (allFlags.indexOf('gut') !== -1 || allFlags.indexOf('stomach') !== -1 || allFlags.indexOf('digest') !== -1)) shouldCheck = true;
-              else if (val === 'kitty growth' && (allFlags.indexOf('growth') !== -1 || allFlags.indexOf('kitten') !== -1)) shouldCheck = true;
-              else if (val === 'dental care' && (allFlags.indexOf('dental') !== -1 || allFlags.indexOf('teeth') !== -1)) shouldCheck = true;
-
-              cb.checked = shouldCheck;
-              if (shouldCheck) anyFocusChecked = true;
-            });
-            if (!anyFocusChecked && focusCheckboxes.length > 0) {
-              focusCheckboxes[0].checked = true;
-            }
-
-            // 10. Pre-fill Allergies (Slide 5)
-            var allergiesInput = form.querySelector('textarea[name="quiz_allergies"]');
-            if (allergiesInput) {
-              var rawAllergies = String(pet.allergies || '').trim();
-              if (!rawAllergies || rawAllergies.toLowerCase() === 'none recorded') {
-                rawAllergies = 'None';
-              }
-              allergiesInput.value = rawAllergies;
-            }
-
-            // 11. Update submit button text
-            var submitBtn = form.querySelector('.quiz-submit-btn');
-            if (submitBtn) {
-              submitBtn.textContent = 'Save ' + pet.name + "'s Details";
+        var ageSelect = document.getElementById('pk-edit-pet-age');
+        if (ageSelect) {
+          var petAge = (pet.age || '').toLowerCase().trim();
+          var found = false;
+          for (var i = 0; i < ageSelect.options.length; i++) {
+            var optVal = ageSelect.options[i].value.toLowerCase();
+            if (optVal === petAge || (petAge.indexOf('lactat') !== -1 && optVal.indexOf('lactat') !== -1) || (petAge.indexOf('3-8') !== -1 && optVal.indexOf('3-8') !== -1) || (petAge.indexOf('2-4') !== -1 && optVal.indexOf('2-4') !== -1) || (petAge.indexOf('4+') !== -1 && optVal.indexOf('4+') !== -1) || (petAge.indexOf('senior') !== -1 && optVal.indexOf('7+') !== -1) || (petAge.indexOf('adult') !== -1 && optVal.indexOf('1+') !== -1)) {
+              ageSelect.selectedIndex = i;
+              found = true;
+              break;
             }
           }
-        } else {
-          // Adding a new kitten: clear all inputs
-          petIdInput.value = '';
-          form.reset();
-          form.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(function(i) {
-            i.checked = false;
-          });
-          form.querySelectorAll('input[type="text"], input[type="number"], textarea').forEach(function(i) {
-            i.value = '';
-          });
-          var submitBtn = form.querySelector('.quiz-submit-btn');
-          if (submitBtn) {
-            submitBtn.textContent = 'Submit';
+          if (!found && pet.age) {
+            var newOpt = document.createElement('option');
+            newOpt.value = pet.age;
+            newOpt.text = pet.age;
+            newOpt.selected = true;
+            ageSelect.add(newOpt);
           }
         }
 
-        // Reset slider to step 0 so user reviews from the first slide
-        if (typeof window.pkByobGoToStep === 'function') {
-          window.pkByobGoToStep(0);
-        } else {
-          var slider = document.getElementById('popup-byob-quiz-slider');
-          if (slider) {
-            slider.style.transform = 'translateX(0%)';
-            var slides = slider.querySelectorAll('.byob-quiz-slide');
-            slides.forEach(function(s, idx) {
-              if (idx === 0) s.classList.add('active');
-              else s.classList.remove('active');
-            });
-          }
+        var weightInput = document.getElementById('pk-edit-pet-weight');
+        if (weightInput) weightInput.value = String(pet.weight || '').replace(/[^0-9.]/g, '');
+
+        var genderSelect = document.getElementById('pk-edit-pet-gender');
+        if (genderSelect) {
+          var g = String(pet.gender || '').toLowerCase();
+          genderSelect.value = (g.indexOf('female') !== -1) ? 'Female' : 'Male';
         }
+
+        var neutSelect = document.getElementById('pk-edit-pet-neutered');
+        if (neutSelect) {
+          var n = String(pet.neutered || '').toLowerCase();
+          neutSelect.value = (n.indexOf('not') !== -1 || n === 'no') ? 'Not Neutered' : 'Neutered';
+        }
+
+        var bodySelect = document.getElementById('pk-edit-pet-body');
+        if (bodySelect) {
+          var b = String(pet.body || pet.eatingStyle || '').toLowerCase();
+          var bFound = false;
+          for (var bi = 0; bi < bodySelect.options.length; bi++) {
+            if (b.indexOf(bodySelect.options[bi].value.toLowerCase()) !== -1) {
+              bodySelect.selectedIndex = bi;
+              bFound = true;
+              break;
+            }
+          }
+          if (!bFound) bodySelect.value = 'Lean';
+        }
+
+        var actSelect = document.getElementById('pk-edit-pet-activity');
+        if (actSelect) {
+          var a = String(pet.activity || pet.activityLevel || '').toLowerCase();
+          var aFound = false;
+          for (var ai = 0; ai < actSelect.options.length; ai++) {
+            if (a.indexOf(actSelect.options[ai].value.toLowerCase()) !== -1) {
+              actSelect.selectedIndex = ai;
+              aFound = true;
+              break;
+            }
+          }
+          if (!aFound) actSelect.value = 'Playful';
+        }
+
+        var focusInput = document.getElementById('pk-edit-pet-focus');
+        if (focusInput) {
+          var f = pet.focus || pet.healthFlags;
+          focusInput.value = (f && f !== 'None recorded') ? f : '';
+        }
+
+        var allergInput = document.getElementById('pk-edit-pet-allergies');
+        if (allergInput) {
+          var al = pet.allergies;
+          allergInput.value = (al && al !== 'None recorded') ? al : '';
+        }
+
+        var modalImg = document.getElementById('pk-modal-pet-img');
+        if (modalImg) modalImg.src = pet.imageUrl || 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop';
+
+        var msg = document.getElementById('pk-edit-pet-msg');
+        if (msg) msg.style.display = 'none';
 
         modal.style.display = 'flex';
+      };
+
+      window.pkCloseEditPetModal = function() {
+        var modal = document.getElementById('pk-edit-pet-modal');
+        if (modal) modal.style.display = 'none';
+        window._pk_modal_pet_file = null;
+      };
+
+      window.pkSavePetModal = function(ev) {
+        if (ev) ev.preventDefault();
+        var btn = document.getElementById('pk-save-pet-modal-btn');
+        var msg = document.getElementById('pk-edit-pet-msg');
+        function showMsg(text, isOk) {
+          if (!msg) return;
+          msg.textContent = text;
+          msg.style.display = 'block';
+          msg.style.background = isOk ? '#e6f8f0' : '#fdf0f5';
+          msg.style.color = isOk ? '#15803d' : '#c0392b';
+        }
+
+        var petId = document.getElementById('pk-edit-pet-id').value;
+        if (!petId) {
+          showMsg('Pet ID is missing.', false);
+          return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        var token = localStorage.getItem('pk_session') || '';
+
+        function doUpdate(newFileId, newImageUrl) {
+          var payload = {
+            pet_id: petId,
+            name: document.getElementById('pk-edit-pet-name').value.trim(),
+            age: document.getElementById('pk-edit-pet-age').value,
+            weight: document.getElementById('pk-edit-pet-weight').value.trim(),
+            gender: document.getElementById('pk-edit-pet-gender').value,
+            neutered: document.getElementById('pk-edit-pet-neutered').value,
+            body: document.getElementById('pk-edit-pet-body').value,
+            activity: document.getElementById('pk-edit-pet-activity').value,
+            focus: document.getElementById('pk-edit-pet-focus').value.trim(),
+            allergies: document.getElementById('pk-edit-pet-allergies').value.trim()
+          };
+          if (newFileId) {
+            payload.profileFileId = newFileId;
+          }
+
+          fetch('/apps/purrkins/customer-api?session=' + token + '&intent=update_pet', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            btn.disabled = false;
+            btn.textContent = 'Save Changes';
+            if (data && data.success) {
+              showMsg('Pet details updated successfully!', true);
+
+              var pets = window.pkPetsData || [];
+              var activePet = pets[window.pkActivePetIndex || 0];
+              if (activePet) {
+                activePet.name = payload.name;
+                activePet.age = payload.age;
+                activePet.weight = payload.weight;
+                activePet.gender = payload.gender;
+                activePet.neutered = payload.neutered;
+                activePet.body = payload.body;
+                activePet.eatingStyle = payload.body;
+                activePet.activity = payload.activity;
+                activePet.activityLevel = payload.activity;
+                activePet.focus = payload.focus;
+                activePet.healthFlags = payload.focus || 'None recorded';
+                activePet.allergies = payload.allergies || 'None recorded';
+                if (newImageUrl) activePet.imageUrl = newImageUrl;
+              }
+
+              // Update pill name and image
+              var activePillStrong = document.querySelector('.pk-pet-pill.active .pk-pet-info strong');
+              if (activePillStrong) activePillStrong.textContent = payload.name;
+              var activePillAge = document.querySelector('.pk-pet-pill.active .pk-pet-info span');
+              if (activePillAge) activePillAge.textContent = payload.age;
+              if (newImageUrl) {
+                var activePillImg = document.querySelector('.pk-pet-pill.active .pk-pet-avatar img');
+                if (activePillImg) activePillImg.src = newImageUrl;
+              }
+
+              window.pkSelectPet(window.pkActivePetIndex || 0);
+
+              setTimeout(function() {
+                pkCloseEditPetModal();
+              }, 800);
+            } else {
+              showMsg(data.error || 'Failed to update pet. Please try again.', false);
+            }
+          })
+          .catch(function(err) {
+            btn.disabled = false;
+            btn.textContent = 'Save Changes';
+            showMsg('Network error. Please try again.', false);
+          });
+        }
+
+        if (window._pk_modal_pet_file) {
+          var fileData = new FormData();
+          fileData.append('avatar', window._pk_modal_pet_file);
+          fileData.append('pet_id', petId);
+          fileData.append('filename', window._pk_modal_pet_file.name || 'kitten.jpg');
+
+          fetch('/apps/purrkins/customer-api?session=' + token + '&intent=upload_pet_avatar', {
+            method: 'POST',
+            body: fileData
+          })
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            if (d && d.success && d.fileId) {
+              doUpdate(d.fileId, d.avatarUrl);
+            } else {
+              doUpdate(null, null);
+            }
+          })
+          .catch(function() {
+            doUpdate(null, null);
+          });
+        } else {
+          doUpdate(null, null);
+        }
       };
 
       // Add kitten quiz modal open (opens blank quiz)
@@ -5237,6 +5368,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       try {
         var custId = '${numericId}';
         var cachedAvatar = localStorage.getItem('pk_avatar_' + custId);
+        if (cachedAvatar && cachedAvatar.indexOf('shopify-staged-uploads.storage.googleapis.com') !== -1) {
+          localStorage.removeItem('pk_avatar_' + custId);
+          cachedAvatar = null;
+        }
         var avatarImg = document.getElementById('pk-avatar-img');
         var avatarIcon = document.getElementById('pk-avatar-icon');
         if (cachedAvatar && avatarImg && (!avatarImg.src || avatarImg.style.display === 'none')) {
@@ -6014,6 +6149,116 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
         <!-- Invoice Modal Dynamic Content -->
         <div id="pk-invoice-modal-content"></div>
+      </div>
+    </div>
+
+    <!-- Edit Pet Profile Modal -->
+    <div id="pk-edit-pet-modal" onclick="if(event.target===this)pkCloseEditPetModal();" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.65); z-index:9999999; align-items:center; justify-content:center; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); padding:20px; box-sizing:border-box;">
+      <div style="background:#fff; border-radius:24px; max-width:580px; width:100%; max-height:92vh; overflow-y:auto; position:relative; box-shadow:0 30px 80px rgba(0,0,0,0.35); padding:32px 36px; box-sizing:border-box; font-family:'Plus Jakarta Sans', -apple-system, sans-serif;">
+        <!-- Close Button -->
+        <button type="button" onclick="pkCloseEditPetModal()" aria-label="Close" style="position:absolute; top:20px; right:20px; width:34px; height:34px; border-radius:50%; background:#21252A; color:#fff; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:20;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+
+        <h2 id="pk-modal-pet-heading" style="margin:0 0 6px 0; font-size:24px; font-weight:800; color:#121217; font-family:var(--font-heading--family, sans-serif);">Edit Kitten Profile</h2>
+        <p style="margin:0 0 24px 0; font-size:14px; color:#595961;">Update your kitten's photo and details below.</p>
+
+        <div id="pk-edit-pet-msg" style="display:none; padding:12px 16px; border-radius:12px; margin-bottom:20px; font-size:14px; font-weight:600;"></div>
+
+        <form id="pk-edit-pet-form" onsubmit="pkSavePetModal(event)" style="margin:0;">
+          <input type="hidden" id="pk-edit-pet-id" value="">
+
+          <!-- Pet Photo Row in Modal -->
+          <div style="display:flex; align-items:center; gap:20px; margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid #f0eee6;">
+            <div style="width:80px; height:80px; border-radius:16px; overflow:hidden; background:#f4f4f5; flex-shrink:0; position:relative;">
+              <img id="pk-modal-pet-img" src="" alt="Pet Photo" style="width:100%; height:100%; object-fit:cover;">
+            </div>
+            <div>
+              <button type="button" onclick="document.getElementById('pk-modal-pet-file').click()" id="pk-modal-upload-btn" style="background:#121217; color:#fff; border:none; border-radius:30px; padding:8px 18px; font-size:13px; font-weight:700; cursor:pointer;">Upload New Photo</button>
+              <input type="file" id="pk-modal-pet-file" accept="image/png, image/jpeg, image/webp" style="display:none;" onchange="handleModalPetFileChange(event)">
+              <div style="font-size:12px; color:#8c8c9a; margin-top:6px;">JPG, PNG or WEBP up to 5MB</div>
+            </div>
+          </div>
+
+          <!-- Form Fields Grid -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+            <div>
+              <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Name *</label>
+              <input type="text" id="pk-edit-pet-name" required style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Age</label>
+              <select id="pk-edit-pet-age" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box; background:#fff;">
+                <option value="3-8 weeks kitten">3-8 weeks kitten</option>
+                <option value="2-4 months kitten">2-4 months kitten</option>
+                <option value="4+ months kitten">4+ months kitten</option>
+                <option value="1+ years adult">1+ years adult</option>
+                <option value="7+ years senior">7+ years senior</option>
+                <option value="Lactating cat and babies">Lactating cat and babies</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+            <div>
+              <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Gender</label>
+              <select id="pk-edit-pet-gender" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box; background:#fff;">
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Neutered Status</label>
+              <select id="pk-edit-pet-neutered" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box; background:#fff;">
+                <option value="Neutered">Neutered</option>
+                <option value="Not Neutered">Not Neutered</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+            <div>
+              <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Weight (kg)</label>
+              <input type="text" id="pk-edit-pet-weight" placeholder="e.g. 2.5" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Eating Style / Body</label>
+              <select id="pk-edit-pet-body" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box; background:#fff;">
+                <option value="Lean">Lean</option>
+                <option value="Skinny">Skinny</option>
+                <option value="Chubby">Chubby</option>
+                <option value="Ideal">Ideal</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+            <div>
+              <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Activity Level</label>
+              <select id="pk-edit-pet-activity" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box; background:#fff;">
+                <option value="Playful">Playful</option>
+                <option value="Couch Potato">Couch Potato</option>
+                <option value="Explorer">Explorer</option>
+                <option value="Super Active">Super Active</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Health Flags / Focus</label>
+              <input type="text" id="pk-edit-pet-focus" placeholder="e.g. Dehydration, Hairball" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box;">
+            </div>
+          </div>
+
+          <div style="margin-bottom:24px;">
+            <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Allergies</label>
+            <textarea id="pk-edit-pet-allergies" rows="2" placeholder="e.g. test, None" style="width:100%; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box;"></textarea>
+          </div>
+
+          <!-- Buttons -->
+          <div style="display:flex; justify-content:flex-end; gap:12px;">
+            <button type="button" onclick="pkCloseEditPetModal()" style="background:#f4f4f5; color:#121217; border:none; border-radius:30px; padding:11px 24px; font-size:14px; font-weight:700; cursor:pointer;">Cancel</button>
+            <button type="submit" id="pk-save-pet-modal-btn" style="background:#121217; color:#fff; border:none; border-radius:30px; padding:11px 32px; font-size:14px; font-weight:700; cursor:pointer;">Save Changes</button>
+          </div>
+        </form>
       </div>
     </div>
 
