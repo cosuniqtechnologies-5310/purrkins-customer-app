@@ -552,6 +552,230 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   };
 
+  // Recommendation scoring algorithm based on quiz answers
+  interface RecommendedProductItem {
+    title: string;
+    handle: string;
+    description: string;
+    price: string;
+    imageUrl: string;
+    variantId: string;
+  }
+
+  const computePetRecommendations = (pet: any, catalogProductsList?: any[]): RecommendedProductItem[] => {
+    const age = String(pet.age || "").toLowerCase();
+    const body = String(pet.body || pet.eatingStyle || "").toLowerCase();
+    const activity = String(pet.activity || pet.activityLevel || "").toLowerCase();
+    const focus = (Array.isArray(pet.focus) ? pet.focus.join(", ") : String(pet.focus || pet.healthFlags || "")).toLowerCase();
+
+    const scores: Record<string, number> = {};
+    const addScore = (title: string, pts: number) => {
+      scores[title] = (scores[title] || 0) + pts;
+    };
+
+    // 1. Mumma & Kitty (chicken-in-broth)
+    if (age.includes("lactating") || focus.includes("nursing mother")) addScore("Mumma & Kitty", 15);
+    if (age.includes("3-8 week")) addScore("Mumma & Kitty", 8);
+    if (focus.includes("dehydration")) addScore("Mumma & Kitty", 4);
+    if (focus.includes("under nourishment") || focus.includes("kitty growth")) addScore("Mumma & Kitty", 4);
+
+    // 2. Baby Kitty (chicken-with-dha-epa)
+    if (age.includes("lactating")) addScore("Baby Kitty", 6);
+    if (age.includes("3-8 week")) addScore("Baby Kitty", 7);
+    if (age.includes("2-4-month") || age.includes("2-4 month")) addScore("Baby Kitty", 9);
+    if (age.includes("4+ month")) addScore("Baby Kitty", 5);
+    if (focus.includes("kitty growth")) addScore("Baby Kitty", 9);
+    if (focus.includes("weak immunity")) addScore("Baby Kitty", 9);
+    if (focus.includes("under nourishment")) addScore("Baby Kitty", 5);
+    if (activity.includes("playful") || activity.includes("explorer")) addScore("Baby Kitty", 3);
+
+    // 3. Shiny Kitty (salmon-broth)
+    if (focus.includes("shedding")) addScore("Shiny Kitty", 15);
+    if (focus.includes("hairball")) addScore("Shiny Kitty", 8);
+    if (focus.includes("dehydration")) addScore("Shiny Kitty", 4);
+    if (body.includes("healthy")) addScore("Shiny Kitty", 4);
+    if (body.includes("lean")) addScore("Shiny Kitty", 2);
+
+    // 4. Gutty Kitty (chicken-australian-lamb)
+    if (focus.includes("gut") || focus.includes("tummy")) addScore("Gutty Kitty", 12);
+    if (focus.includes("loose motion")) addScore("Gutty Kitty", 12);
+    if (focus.includes("hairball")) addScore("Gutty Kitty", 6);
+    if (focus.includes("picky eater")) addScore("Gutty Kitty", 5);
+    if (focus.includes("dehydration")) addScore("Gutty Kitty", 4);
+    if (age.includes("adult") || age.includes("senior") || age.includes("4+ month")) addScore("Gutty Kitty", 4);
+
+    // 5. Lean Kitty (chicken-broth)
+    if (focus.includes("obesity")) addScore("Lean Kitty", 15);
+    if (body.includes("obese")) addScore("Lean Kitty", 12);
+    if (body.includes("lean")) addScore("Lean Kitty", 5);
+    if (activity.includes("couch potato")) addScore("Lean Kitty", 8);
+    if (age.includes("adult") || age.includes("senior")) addScore("Lean Kitty", 6);
+    if (focus.includes("dental")) addScore("Lean Kitty", 5);
+    if (focus.includes("dehydration")) addScore("Lean Kitty", 4);
+
+    // 6. Zoomy Kitty (tuna-in-broth)
+    if (body.includes("skinny")) addScore("Zoomy Kitty", 12);
+    if (activity.includes("super-active")) addScore("Zoomy Kitty", 9);
+    if (activity.includes("explorer")) addScore("Zoomy Kitty", 7);
+    if (activity.includes("playful")) addScore("Zoomy Kitty", 4);
+    if (focus.includes("under nourishment")) addScore("Zoomy Kitty", 6);
+    if (focus.includes("kitty growth")) addScore("Zoomy Kitty", 4);
+
+    // 7. Chicken + Mackerel (chicken-mackerel)
+    if (focus.includes("picky eater")) addScore("Chicken + Mackerel", 10);
+    if (activity.includes("playful") || activity.includes("explorer")) addScore("Chicken + Mackerel", 4);
+
+    // 8. Tuna (tuna)
+    if (focus.includes("picky eater")) addScore("Tuna", 7);
+    if (activity.includes("playful")) addScore("Tuna", 4);
+
+    // 9. Growth Combo (growth-combo)
+    if (age.includes("kitten") || age.includes("month") || age.includes("3-8 week") || age.includes("lactating")) addScore("Growth Combo", 5);
+    if (focus.includes("kitty growth") || focus.includes("under nourishment")) addScore("Growth Combo", 6);
+
+    // 10. Dry Food Combo (dry-food-combo)
+    addScore("Dry Food Combo", 2);
+
+    // 11. Treats Combo (treats-combo)
+    if (activity.includes("super-active") || activity.includes("playful")) addScore("Treats Combo", 4);
+    if (focus.includes("picky eater")) addScore("Treats Combo", 5);
+
+    const fallbackCatalog: Record<string, { handle: string; desc: string; price: string; vid: string; img: string }> = {
+      "Mumma & Kitty": {
+        handle: "chicken-in-broth",
+        desc: "For the little one growing and the mumma giving everything she has. 90% meat & broth, 30+ nutrients for energy & recovery.",
+        price: "90",
+        vid: "51172688134423",
+        img: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066"
+      },
+      "Baby Kitty": {
+        handle: "chicken-with-dha-epa",
+        desc: "The Perfect Start for Growing Kittens. Double animal protein, DHA & EPA for brain & vision, cow colostrum for immunity.",
+        price: "90",
+        vid: "51221448818935",
+        img: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066"
+      },
+      "Shiny Kitty": {
+        handle: "salmon-broth",
+        desc: "Chicken & ocean fish with Omega 3 & 6 + Japanese collagen for a glossy coat, healthy skin, reduced shedding, and hydration.",
+        price: "90",
+        vid: "51172688134423",
+        img: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Salmon-Broth-Product-Image.png?v=1789634066"
+      },
+      "Gutty Kitty": {
+        handle: "chicken-australian-lamb",
+        desc: "Gentle, easy-to-digest goodness with pre- and post-biotics, fiber for digestion, and electrolytes for hydration.",
+        price: "90",
+        vid: "51172691050743",
+        img: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066"
+      },
+      "Lean Kitty": {
+        handle: "chicken-broth",
+        desc: "90% chicken, low fat, 45 kcal per pouch with Japanese collagen for joints and slurr-pable broth for hydration.",
+        price: "90",
+        vid: "51221448818935",
+        img: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066"
+      },
+      "Zoomy Kitty": {
+        handle: "tuna-in-broth",
+        desc: "2X protein with Australian lamb and broth to support healthy weight gain, muscle growth, and boundless energy.",
+        price: "90",
+        vid: "51221448818935",
+        img: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Salmon-Broth-Product-Image.png?v=1789634066"
+      },
+      "Chicken + Mackerel": {
+        handle: "chicken-mackerel",
+        desc: "80g pouch, light, tasty nutrition to keep them playful and agile. Highly palatable chicken & mackerel.",
+        price: "90",
+        vid: "51172688134423",
+        img: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066"
+      },
+      "Tuna": {
+        handle: "tuna",
+        desc: "Pure tuna treats for bonding, playtime, and fussy eaters.",
+        price: "90",
+        vid: "51172688134423",
+        img: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Salmon-Broth-Product-Image.png?v=1789634066"
+      },
+      "Growth Combo": {
+        handle: "growth-combo",
+        desc: "A comforting mix of nourishing growth meals and fresh broths to soothe, fuel, and hydrate.",
+        price: "899",
+        vid: "51172691050743",
+        img: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066"
+      },
+      "Dry Food Combo": {
+        handle: "dry-food-combo",
+        desc: "80g pouch, light, tasty nutrition to keep them playful and agile.",
+        price: "899",
+        vid: "51172691050743",
+        img: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066"
+      },
+      "Treats Combo": {
+        handle: "treats-combo",
+        desc: "Tasty reward packs to encourage playful bonding and excite picky eaters.",
+        price: "899",
+        vid: "51172691050743",
+        img: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066"
+      }
+    };
+
+    const sortedTitles = Object.keys(scores).sort((a, b) => (scores[b] || 0) - (scores[a] || 0));
+    const topTitles = sortedTitles.slice(0, 3);
+    if (topTitles.length < 3) {
+      const fallbacks = ["Baby Kitty", "Chicken + Mackerel", "Dry Food Combo"];
+      for (const f of fallbacks) {
+        if (!topTitles.includes(f)) topTitles.push(f);
+        if (topTitles.length >= 3) break;
+      }
+    }
+
+    return topTitles.map(t => {
+      let matchedProd = (catalogProductsList || []).find((cp: any) => {
+        const cpTitle = String(cp.title || "").toLowerCase().trim();
+        const cpHandle = String(cp.handle || "").toLowerCase().trim();
+        const target = t.toLowerCase().trim();
+        return cpTitle === target || cpTitle.includes(target) || target.includes(cpTitle) || (fallbackCatalog[t] && cpHandle === fallbackCatalog[t].handle);
+      });
+
+      const fallback = fallbackCatalog[t] || {
+        handle: "baby-kitty",
+        desc: "80g pouch, light, tasty nutrition to keep them playful and agile.",
+        price: "90",
+        vid: "51221448818935",
+        img: "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066"
+      };
+
+      let title = matchedProd?.title || t;
+      let handle = matchedProd?.handle || fallback.handle;
+      let img = matchedProd?.featuredImage?.url || matchedProd?.variants?.nodes?.[0]?.image?.url || fallback.img;
+      let desc = matchedProd?.description
+        ? (matchedProd.description.length > 90 ? matchedProd.description.substring(0, 87) + "..." : matchedProd.description)
+        : fallback.desc;
+      if (fallback.desc && (!matchedProd?.description || matchedProd.description.length < 15)) {
+        desc = fallback.desc;
+      }
+
+      let rawVid = matchedProd?.variants?.nodes?.[0]?.id ? String(matchedProd.variants.nodes[0].id) : "";
+      let cleanVid = rawVid.includes("/") ? rawVid.split("/").pop() || "" : rawVid;
+      let variantId = cleanVid || fallback.vid;
+
+      let rawPrice = matchedProd?.variants?.nodes?.[0]?.price
+        || matchedProd?.priceRange?.minVariantPrice?.amount
+        || fallback.price;
+      let price = parseFloat(String(rawPrice || fallback.price)).toFixed(0);
+
+      return {
+        title,
+        handle,
+        description: desc,
+        price,
+        imageUrl: img,
+        variantId
+      };
+    });
+  };
+
   const customerPets = customer.pets?.references?.nodes || [];
   const pets = customerPets.length > 0
     ? customerPets.map((p: any, idx: number) => {
@@ -586,6 +810,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           quizPills.push(`Allergies: ${allergies}`);
         }
 
+        const recommendedProducts = computePetRecommendations(
+          { age, body, activity, focus, allergies, weight: rawWeight },
+          catalogProducts
+        );
+
         return {
           id: p.id || `pet-${idx}`,
           name,
@@ -604,7 +833,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           healthFlags: focus || "None recorded",
           allergies: allergies || "None recorded",
           imageUrl,
-          quizPills
+          quizPills,
+          recommendedProducts
         };
       })
     : [
@@ -633,7 +863,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             "Neutered",
             "Lean",
             "Playful"
-          ]
+          ],
+          recommendedProducts: computePetRecommendations(
+            { age: "5 months", body: "Lean", activity: "Playful", focus: "Sensitive stomach", allergies: "" },
+            catalogProducts
+          )
         }
       ];
 
@@ -1523,7 +1757,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     <div id="pk-pet-quiz-card" class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
       <div style="margin-bottom:20px;">
         <h2 style="margin:0; font-size:24px; font-weight:800; color:#121217; font-family:var(--font-heading--family, sans-serif);">Your quiz answers</h2>
-        <p style="color:#595961; margin:6px 0 0 0; font-size:14px;">Personalized for ${escAttr(petName)}. Everything below is built from these answers.</p>
+        <p id="pk-pet-quiz-subtitle" style="color:#595961; margin:6px 0 0 0; font-size:14px;">Personalized for ${escAttr(petName)}. Everything below is built from these answers.</p>
       </div>
 
       <div id="pk-pet-quiz-pills" style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:32px;">
@@ -1533,28 +1767,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       <!-- RECOMMEND FOR ACTIVE PET (Image 2) -->
       <div style="margin-top:20px;">
         <h3 id="pk-pet-rec-title" style="margin:0 0 18px 0; font-size:22px; font-weight:800; color:#121217; font-family:var(--font-heading--family, sans-serif);">Recommend for ${escAttr(petName)}</h3>
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:20px;">
-          ${(catalogProducts && catalogProducts.length > 0 ? catalogProducts.slice(0, 3) : [
-            { title: "Lean Kitty", description: "80g pouch, starter pack, light, tasty nutrition to keep them playful and agile.", variants: { nodes: [{ id: "51221448818935", price: "90" }] } },
-            { title: "Gutty Kitty", description: "Happy tummies, happy kitties, gentle, easy-to-digest goodness to keep bellies comfortable and content.", variants: { nodes: [{ id: "51172691050743", price: "90" }] } },
-            { title: "Mumma & Kitty", description: "Nourishing fuel for growing kittens and comforting, energy-rich goodness to help mama cats recover.", variants: { nodes: [{ id: "51172688134423", price: "90" }] } }
-          ]).map((recP: any, rIdx: number) => {
+        <div id="pk-pet-rec-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:20px;">
+          ${(initialPet.recommendedProducts || []).map((recP: any, rIdx: number) => {
             const rTitle = recP.title || "Kitten Meal";
-            const rImg = recP.featuredImage?.url || recP.variants?.nodes?.[0]?.image?.url || defaultFallbackImg;
-            const rDesc = recP.description ? (recP.description.length > 90 ? recP.description.substring(0, 87) + '...' : recP.description) : '80g pouch, light, tasty nutrition to keep them playful and agile.';
-            const rawRVarId = recP.variants?.nodes?.[0]?.id ? String(recP.variants.nodes[0].id) : '';
-            const cleanRVarId = rawRVarId.includes('/') ? rawRVarId.split('/').pop() || '' : rawRVarId;
-            const rFallbackVid = rTitle.toLowerCase().includes("lean") ? "51221448818935"
-              : rTitle.toLowerCase().includes("gutty") ? "51172691050743"
-              : rTitle.toLowerCase().includes("shiny") || rTitle.toLowerCase().includes("mumma") ? "51172688134423"
-              : "49767352369463";
-            const rVarId = cleanRVarId || rFallbackVid;
-            const rawRPrice = recP.variants?.nodes?.[0]?.price
-              || recP.variants?.edges?.[0]?.node?.price
-              || (Array.isArray(recP.variants) ? recP.variants[0]?.price : null)
-              || recP.priceRange?.minVariantPrice?.amount
-              || (rTitle.toLowerCase().includes("combo") ? "179" : "90");
-            const cleanRPrice = parseFloat(String(rawRPrice || "90")).toFixed(0);
+            const rImg = recP.imageUrl || defaultFallbackImg;
+            const rDesc = recP.description || '80g pouch, light, tasty nutrition to keep them playful and agile.';
+            const rVarId = recP.variantId || "51221448818935";
+            const cleanRPrice = recP.price || "90";
             const rBtnText = `₹${cleanRPrice} · Add to Cart`;
             const isSubscribed = subscribedTitles.has(rTitle.toLowerCase().trim());
             const bgColors = ['#E8F4FE', '#FFF1EB', '#E6F8F0'];
@@ -4877,7 +5096,37 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
       // Pets data for instant client-side switching
       window.pkPetsData = ${JSON.stringify(pets)};
+      window.pkCatalogProducts = ${JSON.stringify(catalogProducts || [])};
       window.pkActivePetIndex = 0;
+
+      // Render recommended product cards HTML dynamically
+      window.renderRecommendedCardsHtml = function(recs, petName) {
+        var bgColors = ['#E8F4FE', '#FFF1EB', '#E6F8F0'];
+        return (recs || []).map(function(recP, rIdx) {
+          var rTitle = recP.title || "Kitten Meal";
+          var rImg = recP.imageUrl || window.defaultFallbackImg || 'https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066';
+          var rDesc = recP.description || '80g pouch, light, tasty nutrition to keep them playful and agile.';
+          var rVarId = recP.variantId || '51221448818935';
+          var cleanRPrice = recP.price || '90';
+          var rBtnText = '₹' + cleanRPrice + ' · Add to Cart';
+          var bg = bgColors[rIdx % bgColors.length];
+
+          return '<div style="background:' + bg + '; border-radius:16px; padding:24px 20px; display:flex; flex-direction:column;">' +
+            '<div style="width:60px; height:60px; background:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; overflow:hidden;">' +
+              '<img src="' + rImg + '" alt="' + rTitle.replace(/"/g, '&quot;') + '" style="max-height:85%; max-width:85%; object-fit:contain;" onerror="this.onerror=null; this.src=\'https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066\';">' +
+            '</div>' +
+            '<h4 style="margin:0 0 6px 0; font-size:17px; font-weight:800; color:#121217;">' + rTitle + '</h4>' +
+            '<p style="font-size:12.5px; margin:0 0 16px 0; color:#595961; line-height:1.4; flex-grow:1;">' + rDesc + '</p>' +
+            '<button type="button" ' +
+              'data-vid="' + rVarId + '" ' +
+              'data-title="' + rTitle.replace(/"/g, '&quot;') + '" ' +
+              'data-price="' + cleanRPrice + '" ' +
+              'data-orig-text="' + rBtnText.replace(/"/g, '&quot;') + '" ' +
+              'onclick="pkAddToCart(this.dataset.vid, this, \'\', this.dataset.title, event)" ' +
+              'style="background:#121217; color:#fff; border:none; border-radius:20px; padding:10px 22px; font-weight:700; font-size:13px; cursor:pointer; width:fit-content; transition:background 0.2s, opacity 0.2s;">' + rBtnText + '</button>' +
+          '</div>';
+        }).join('');
+      };
 
       // 0ms Pet Switcher Function
       window.pkSelectPet = function(index, ev) {
@@ -4939,6 +5188,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         var allergEl = document.getElementById('pk-pet-stat-allergies');
         if (allergEl) allergEl.textContent = pet.allergies || 'None recorded';
 
+        // Update Quiz Subtitle (Personalized for {Name})
+        var subEl = document.getElementById('pk-pet-quiz-subtitle');
+        if (subEl) subEl.textContent = 'Personalized for ' + pet.name + '. Everything below is built from these answers.';
+
         // Update Recommendations Header
         var recTitleEl = document.getElementById('pk-pet-rec-title');
         if (recTitleEl) recTitleEl.textContent = 'Recommend for ' + pet.name;
@@ -4949,6 +5202,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           pillsContainer.innerHTML = pet.quizPills.map(function(pill) {
             return '<span style="background:#f4f4f5; border-radius:30px; padding:8px 18px; font-size:14px; font-weight:600; color:#121217; display:inline-block;">' + pill + '</span>';
           }).join('');
+        }
+
+        // Update Recommendations Grid with tailored products for this kitten
+        var recGridEl = document.getElementById('pk-pet-rec-grid');
+        if (recGridEl && pet.recommendedProducts) {
+          recGridEl.innerHTML = window.renderRecommendedCardsHtml(pet.recommendedProducts, pet.name);
         }
       };
 

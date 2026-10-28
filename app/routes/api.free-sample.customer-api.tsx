@@ -679,6 +679,55 @@ async function handleRequest(request: Request) {
     });
   }
 
+  // GET PETS (Customer's kitten profiles)
+  if (intent === "get_pets") {
+    try {
+      const custGql = await shopifyGql(accessToken, `
+        query getCustomerPets($id: ID!) {
+          customer(id: $id) {
+            pets: metafield(namespace: "custom", key: "pets") {
+              references(first: 10) {
+                nodes {
+                  ... on Metaobject {
+                    id
+                    name: field(key: "name") { value }
+                    age: field(key: "age") { value }
+                    gender: field(key: "gender") { value }
+                    neutered: field(key: "neutered") { value }
+                    weight: field(key: "weight") { value }
+                    body: field(key: "body") { value }
+                    activity: field(key: "activity") { value }
+                    focus: field(key: "focus") { value }
+                    allergies: field(key: "allergies") { value }
+                    profile: field(key: "profile") { reference { ... on MediaImage { image { url } } } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      `, { id: customerId });
+      const nodes = custGql.data?.customer?.pets?.references?.nodes || [];
+      const petsList = nodes.map((p: any) => ({
+        id: p.id,
+        name: p.name?.value || "Kitten",
+        age: p.age?.value || "",
+        gender: p.gender?.value || "",
+        neutered: p.neutered?.value || "",
+        weight: p.weight?.value ? String(p.weight.value).replace(/[^0-9.]/g, '') : "",
+        body: p.body?.value || "",
+        activity: p.activity?.value || "",
+        focus: p.focus?.value || "",
+        allergies: p.allergies?.value || "",
+        imageUrl: p.profile?.reference?.image?.url || ""
+      }));
+      return json({ success: true, pets: petsList });
+    } catch (e: any) {
+      console.error("Error in get_pets:", e);
+      return json({ success: false, error: e.message || "Failed to load pets" }, 500);
+    }
+  }
+
   return new Response(JSON.stringify({ error: "Unknown intent" }), {
     status: 400, headers: { "Content-Type": "application/json" }
   });
