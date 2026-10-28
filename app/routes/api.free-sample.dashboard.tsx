@@ -5096,35 +5096,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
       // Pets data for instant client-side switching
       window.pkPetsData = ${JSON.stringify(pets)};
-      window.pkCatalogProducts = ${JSON.stringify(catalogProducts || [])};
       window.pkActivePetIndex = 0;
 
       // Render recommended product cards HTML dynamically
       window.renderRecommendedCardsHtml = function(recs, petName) {
-        var bgColors = ['#E8F4FE', '#FFF1EB', '#E6F8F0'];
+        var bgColors = ["#E8F4FE", "#FFF1EB", "#E6F8F0"];
         return (recs || []).map(function(recP, rIdx) {
           var rTitle = recP.title || "Kitten Meal";
-          var rImg = recP.imageUrl || window.defaultFallbackImg || 'https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066';
-          var rDesc = recP.description || '80g pouch, light, tasty nutrition to keep them playful and agile.';
-          var rVarId = recP.variantId || '51221448818935';
-          var cleanRPrice = recP.price || '90';
-          var rBtnText = '₹' + cleanRPrice + ' · Add to Cart';
+          var rImg = recP.imageUrl || window.defaultFallbackImg || "https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066";
+          var rDesc = recP.description || "80g pouch, light, tasty nutrition to keep them playful and agile.";
+          var rVarId = recP.variantId || "51221448818935";
+          var cleanRPrice = recP.price || "90";
+          var rBtnText = "₹" + cleanRPrice + " · Add to Cart";
           var bg = bgColors[rIdx % bgColors.length];
 
-          return '<div style="background:' + bg + '; border-radius:16px; padding:24px 20px; display:flex; flex-direction:column;">' +
-            '<div style="width:60px; height:60px; background:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; overflow:hidden;">' +
-              '<img src="' + rImg + '" alt="' + rTitle.replace(/"/g, '&quot;') + '" style="max-height:85%; max-width:85%; object-fit:contain;" onerror="this.onerror=null; this.src=\'https://cdn.shopify.com/s/files/1/0955/9366/0663/files/Chicken-Broth-Product-Image.png?v=1789634066\';">' +
-            '</div>' +
-            '<h4 style="margin:0 0 6px 0; font-size:17px; font-weight:800; color:#121217;">' + rTitle + '</h4>' +
-            '<p style="font-size:12.5px; margin:0 0 16px 0; color:#595961; line-height:1.4; flex-grow:1;">' + rDesc + '</p>' +
-            '<button type="button" ' +
-              'data-vid="' + rVarId + '" ' +
-              'data-title="' + rTitle.replace(/"/g, '&quot;') + '" ' +
-              'data-price="' + cleanRPrice + '" ' +
-              'data-orig-text="' + rBtnText.replace(/"/g, '&quot;') + '" ' +
-              'onclick="pkAddToCart(this.dataset.vid, this, \'\', this.dataset.title, event)" ' +
-              'style="background:#121217; color:#fff; border:none; border-radius:20px; padding:10px 22px; font-weight:700; font-size:13px; cursor:pointer; width:fit-content; transition:background 0.2s, opacity 0.2s;">' + rBtnText + '</button>' +
-          '</div>';
+          var h = '<div style="background:' + bg + '; border-radius:16px; padding:24px 20px; display:flex; flex-direction:column;">';
+          h += '<div style="width:60px; height:60px; background:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; overflow:hidden;">';
+          h += '<img src="' + rImg + '" alt="' + rTitle.replace(/"/g, '&quot;') + '" style="max-height:85%; max-width:85%; object-fit:contain;">';
+          h += '</div>';
+          h += '<h4 style="margin:0 0 6px 0; font-size:17px; font-weight:800; color:#121217;">' + rTitle + '</h4>';
+          h += '<p style="font-size:12.5px; margin:0 0 16px 0; color:#595961; line-height:1.4; flex-grow:1;">' + rDesc + '</p>';
+          h += '<button type="button" data-vid="' + rVarId + '" data-title="' + rTitle.replace(/"/g, '&quot;') + '" data-price="' + cleanRPrice + '" data-orig-text="' + rBtnText.replace(/"/g, '&quot;') + '" onclick="pkAddToCart(this.dataset.vid, this, null, this.dataset.title, event)" style="background:#121217; color:#fff; border:none; border-radius:20px; padding:10px 22px; font-weight:700; font-size:13px; cursor:pointer; width:fit-content; transition:background 0.2s, opacity 0.2s;">' + rBtnText + '</button>';
+          h += '</div>';
+          return h;
         }).join('');
       };
 
