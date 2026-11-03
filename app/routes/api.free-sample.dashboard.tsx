@@ -897,6 +897,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <strong>${escAttr(p.name)}</strong>
           <span>${escAttr(p.headerAge || p.age)}</span>
         </div>
+        ${pets.length > 1 ? `
+          <button
+            type="button"
+            class="pk-pet-pill-delete"
+            onclick="event.stopPropagation(); pkConfirmDeletePet(${idx})"
+            title="Remove ${escAttr(p.name)}"
+            aria-label="Remove ${escAttr(p.name)}"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        ` : ''}
       </div>
     `;
   }).join('');
@@ -1657,7 +1671,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
         <h2 id="pk-pet-profile-title" style="margin:0; font-size:24px; font-weight:800; font-family:var(--font-heading--family, sans-serif); color:#121217;">${escAttr(petName)}'s profile</h2>
         
-        <button type="button" onclick="pkOpenEditPetModal(null, true)" class="pk-outline-btn" style="border-radius:30px; padding:8px 24px; font-size:13px; font-weight:700; color:#121217; border:1.5px solid #121217; background:#fff; cursor:pointer; transition:all 0.15s ease;">Edit Details</button>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button type="button" onclick="pkOpenEditPetModal(null, true)" class="pk-outline-btn" style="border-radius:30px; padding:8px 24px; font-size:13px; font-weight:700; color:#121217; border:1.5px solid #121217; background:#fff; cursor:pointer; transition:all 0.15s ease;">Edit Details</button>
+          <button type="button" id="pk-pet-delete-btn" onclick="pkDeleteCurrentPet()" class="pk-delete-btn" style="border-radius:30px; padding:8px 18px; font-size:13px; font-weight:700; color:#dc2626; border:1.5px solid #fecaca; background:#fff; cursor:pointer; transition:all 0.15s ease; display:flex; align-items:center; gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+            <span>Delete</span>
+          </button>
+        </div>
       </div>
 
       <!-- Main Horizontal Row: Photo on Left, 3x3 Stats Grid on Right -->
@@ -3577,6 +3602,39 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         background: #FFE330 !important;
         border-color: #FFE330 !important;
         box-shadow: 0 2px 8px rgba(255, 227, 48, 0.4);
+      }
+      .pk-pet-pill-delete {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: transparent;
+        border: none;
+        color: #94A3B8;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        margin-left: -4px;
+        transition: all 0.15s ease;
+      }
+      .pk-pet-pill:hover .pk-pet-pill-delete {
+        color: #64748B;
+      }
+      .pk-pet-pill-delete:hover {
+        background: rgba(220, 38, 38, 0.15);
+        color: #dc2626 !important;
+      }
+      .pk-pet-pill.active .pk-pet-pill-delete {
+        color: rgba(18, 18, 23, 0.5);
+      }
+      .pk-pet-pill.active .pk-pet-pill-delete:hover {
+        background: rgba(220, 38, 38, 0.2);
+        color: #dc2626 !important;
+      }
+      .pk-delete-btn:hover {
+        background: #fee2e2 !important;
+        border-color: #f87171 !important;
       }
       .pk-pet-avatar {
         width: 44px;
@@ -5713,6 +5771,66 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
       };
 
+      // Delete Kitten Profile
+      window.pkDeleteCurrentPet = function() {
+        var pIdx = (typeof window.pkActivePetIndex === 'number') ? window.pkActivePetIndex : 0;
+        window.pkConfirmDeletePet(pIdx);
+      };
+
+      window.pkConfirmDeletePet = function(petIndex) {
+        var pets = window.pkPetsData || [];
+        var pIdx = (typeof petIndex === 'number' && !isNaN(petIndex)) ? petIndex : 0;
+        var pet = pets[pIdx];
+        if (!pet) return;
+
+        var petName = pet.name || 'this kitten';
+        var confirmed = window.confirm('Are you sure you want to remove ' + petName + ' from your profile? This cannot be undone.');
+        if (!confirmed) return;
+
+        var delBtn = document.getElementById('pk-pet-delete-btn');
+        var modalDelBtn = document.getElementById('pk-modal-delete-pet-btn');
+        if (delBtn) { delBtn.disabled = true; delBtn.innerHTML = 'Removing...'; }
+        if (modalDelBtn) { modalDelBtn.disabled = true; modalDelBtn.innerHTML = 'Removing...'; }
+
+        var token = localStorage.getItem('pk_session') || '';
+        var payload = {
+          pet_id: pet.id || '',
+          pet_index: pIdx
+        };
+
+        fetch('/apps/purrkins/customer-api?session=' + token + '&intent=delete_pet', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && data.success) {
+            if (pet.id) {
+              try { localStorage.removeItem('pk_pet_avatar_' + pet.id); } catch(e) {}
+            }
+            if (typeof pkCloseEditPetModal === 'function') pkCloseEditPetModal();
+            window.location.reload();
+          } else {
+            alert(data.error || 'Failed to remove pet. Please try again.');
+            if (delBtn) {
+              delBtn.disabled = false;
+              delBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg><span>Delete</span>';
+            }
+            if (modalDelBtn) {
+              modalDelBtn.disabled = false;
+              modalDelBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg><span>Delete Kitten</span>';
+            }
+          }
+        })
+        .catch(function(err) {
+          console.error('Delete pet error:', err);
+          alert('Network error while removing kitten. Please try again.');
+          if (delBtn) { delBtn.disabled = false; delBtn.innerHTML = 'Delete'; }
+          if (modalDelBtn) { modalDelBtn.disabled = false; modalDelBtn.innerHTML = 'Delete Kitten'; }
+        });
+      };
+
       // Add kitten quiz modal open (opens blank quiz)
       window.pkOpenAddKittenQuiz = function() {
         window.pkOpenEditPetModal(null, false);
@@ -7027,9 +7145,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           </div>
 
           <!-- Buttons -->
-          <div style="display:flex; justify-content:flex-end; gap:12px;">
-            <button type="button" onclick="pkCloseEditPetModal()" style="background:#f4f4f5; color:#121217; border:none; border-radius:30px; padding:11px 24px; font-size:14px; font-weight:700; cursor:pointer;">Cancel</button>
-            <button type="submit" id="pk-save-pet-modal-btn" style="background:#121217; color:#fff; border:none; border-radius:30px; padding:11px 32px; font-size:14px; font-weight:700; cursor:pointer;">Save Changes</button>
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+            <button type="button" id="pk-modal-delete-pet-btn" onclick="pkDeleteCurrentPet()" style="background:#fee2e2; color:#dc2626; border:1px solid #fecaca; border-radius:30px; padding:10px 20px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px; transition:background 0.15s ease;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                <line x1="10" y1="11" x2="10" y2="17"></line>
+                <line x1="14" y1="11" x2="14" y2="17"></line>
+              </svg>
+              <span>Delete Kitten</span>
+            </button>
+            <div style="display:flex; gap:12px;">
+              <button type="button" onclick="pkCloseEditPetModal()" style="background:#f4f4f5; color:#121217; border:none; border-radius:30px; padding:11px 24px; font-size:14px; font-weight:700; cursor:pointer;">Cancel</button>
+              <button type="submit" id="pk-save-pet-modal-btn" style="background:#121217; color:#fff; border:none; border-radius:30px; padding:11px 32px; font-size:14px; font-weight:700; cursor:pointer;">Save Changes</button>
+            </div>
           </div>
         </form>
       </div>
