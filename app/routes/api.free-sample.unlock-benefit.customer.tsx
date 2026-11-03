@@ -1,5 +1,6 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate, unauthenticated } from "../shopify.server";
+import { checkCustomerConflict } from "../utils/customer-conflict.server";
 
 export const loader = async () => {
   return Response.json(
@@ -69,30 +70,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       consentUpdatedAt: new Date().toISOString(),
     };
 
-    // Search existing customer by phone
-    const searchResponse = await admin.graphql(
-      `#graphql
-      query findCustomerByPhone($query: String!) {
-        customers(first: 1, query: $query) {
-          edges {
-            node {
-              id
-              phone
-              email
-              tags
-              emailMarketingConsent {
-                marketingState
-              }
-            }
-          }
-        }
-      }`,
-      { variables: { query: `phone:${formattedPhone}` } }
-    );
+    // Same phone + same name => allowed unlimited times. Different name / email owner => rejected.
+    const { phoneCustomer, emailCustomer, conflictMessage } =
+      await checkCustomerConflict(admin, { name, phone: formattedPhone, email });
 
-    const searchData = await searchResponse.json();
-    console.log("[UnlockBenefit] Search result:", JSON.stringify(searchData?.data?.customers?.edges));
-    const existingCustomer = searchData.data?.customers?.edges?.[0]?.node;
+    if (conflictMessage) {
+      return Response.json({ success: false, message: conflictMessage }, { status: 409 });
+    }
+    const existingCustomer = phoneCustomer ?? emailCustomer;
+    console.log("[UnlockBenefit] Existing customer:", existingCustomer?.id);
 
     let customerId: string;
 

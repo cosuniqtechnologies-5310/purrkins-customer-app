@@ -1,5 +1,6 @@
-import type { ActionFunctionArgs } from "react-router";
+﻿import type { ActionFunctionArgs } from "react-router";
 import { authenticate, unauthenticated } from "../shopify.server";
+import { checkCustomerConflict } from "../utils/customer-conflict.server";
 
 export const loader = async () => {
   return Response.json(
@@ -66,63 +67,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       consentUpdatedAt: new Date().toISOString(),
     };
 
-    console.log("[ContactUs] Searching customer by email");
-    let searchResponse = await admin.graphql(
-      `#graphql
-      query findCustomerByEmail($query: String!) {
-        customers(first: 1, query: $query) {
-          edges {
-            node {
-              id
-              phone
-              email
-              tags
-              note
-              emailMarketingConsent {
-                marketingState
-              }
-            }
-          }
-        }
-      }`,
-      { variables: { query: `email:${email}` } }
-    );
+    // Same phone + same name => allowed unlimited times. Different name / email owner => rejected.
+    const { phoneCustomer, emailCustomer, conflictMessage } =
+      await checkCustomerConflict(admin, { name, phone, email });
 
-    let searchData = (await searchResponse.json()) as any;
-    if (searchData.errors?.length) {
-      throw new Error("Search Error: " + JSON.stringify(searchData.errors));
+    if (conflictMessage) {
+      return Response.json({ success: false, message: conflictMessage }, { status: 409 });
     }
-    let existingCustomer = searchData.data?.customers?.edges?.[0]?.node;
-
-    if (!existingCustomer) {
-      console.log("[ContactUs] Customer not found by email, searching by phone");
-      searchResponse = await admin.graphql(
-        `#graphql
-        query findCustomerByPhone($query: String!) {
-          customers(first: 1, query: $query) {
-            edges {
-              node {
-                id
-                phone
-                email
-                tags
-                note
-                emailMarketingConsent {
-                  marketingState
-                }
-              }
-            }
-          }
-        }`,
-        { variables: { query: `phone:${phone}` } }
-      );
-
-      searchData = (await searchResponse.json()) as any;
-      if (searchData.errors?.length) {
-        throw new Error("Search Error: " + JSON.stringify(searchData.errors));
-      }
-      existingCustomer = searchData.data?.customers?.edges?.[0]?.node;
-    }
+    const existingCustomer = phoneCustomer ?? emailCustomer;
 
     let customerId: string;
 
