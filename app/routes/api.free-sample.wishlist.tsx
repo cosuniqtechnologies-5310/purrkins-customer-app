@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import jwt from "jsonwebtoken";
 import { unauthenticated } from "../shopify.server";
+import { appCache } from "../cache.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -186,6 +187,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           console.error("[Wishlist] User errors on merge:", setMetafieldData.data.metafieldsSet.userErrors);
           return Response.json({ success: false, message: "Failed to update wishlist" }, { status: 500 });
         }
+        appCache.delPrefix("dashboard:cust:");
+        appCache.delPrefix("customer:");
       }
 
       return Response.json({ success: true, action: "merge", wishlist });
@@ -244,6 +247,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       console.error("[Wishlist] User errors:", setMetafieldData.data.metafieldsSet.userErrors);
       return Response.json({ success: false, message: "Failed to update wishlist" }, { status: 500 });
     }
+
+    appCache.delPrefix("dashboard:cust:");
+    appCache.delPrefix("customer:");
 
     return Response.json({ success: true, action: wishlistAction, wishlist });
 

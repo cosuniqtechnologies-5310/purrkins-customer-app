@@ -1457,8 +1457,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
-  // If user has no saved wishlist yet, show default catalog products with dynamic colors
-  if (displayWishlist.length === 0) {
+  // If user has never saved a wishlist, show default catalog products with dynamic colors.
+  // Once the customer has a wishlist metafield (even an empty one after removing items) respect it.
+  const hasSavedWishlistMetafield = typeof customer.wishlist?.value === "string";
+  if (displayWishlist.length === 0 && !hasSavedWishlistMetafield) {
     displayWishlist = (catalogProducts && catalogProducts.length > 0)
       ? catalogProducts.slice(0, 6).map((p: any) => {
           const v = p.variants?.nodes?.[0] || p.variants?.edges?.[0]?.node || (Array.isArray(p.variants) ? p.variants[0] : null);
@@ -1602,9 +1604,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     </div>
     <div class="pk-wishlist-slider-wrap">
       <div id="${sliderId}" class="pk-wishlist-slider">
+        ${displayWishlist.length === 0 ? '<div class="pk-wishlist-empty">Your wishlist is empty.</div>' : ''}
         ${displayWishlist.map((item: any) => `
-          <div class="pk-wishlist-card">
+          <div class="pk-wishlist-card" data-product-id="${escAttr(item.id || '')}">
             <div class="pk-wishlist-card-top" style="background:${item.cardBg};">
+              <button type="button" class="pk-wishlist-remove-btn" data-product-id="${escAttr(item.id || '')}" onclick="pkRemoveFromWishlist(this, event)" aria-label="Remove ${escAttr(item.title)} from wishlist" title="Remove from wishlist">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
               <span class="pk-wishlist-badge" style="background:${item.cardBg}; border:1px solid ${item.cardColor}; color:${item.cardColor};">${escAttr(item.type)}</span>
               <img src="${item.imgUrl}" alt="${escAttr(item.title)}" onerror="this.onerror=null; this.src='${defaultFallbackImg}';">
             </div>
@@ -4344,6 +4350,54 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .pk-wishlist-card:hover .pk-wishlist-card-top img {
         transform: scale(1.05);
       }
+      .pk-wishlist-remove-btn {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        border: 1px solid rgba(0,0,0,0.08);
+        background: rgba(255,255,255,0.92);
+        color: #595961;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        cursor: pointer;
+        z-index: 2;
+        transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+      }
+      .pk-wishlist-remove-btn:hover {
+        background: #fff;
+        color: #d72c0d;
+        transform: scale(1.08);
+      }
+      .pk-wishlist-card.pk-removing {
+        opacity: 0.4;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+      }
+      .pk-wishlist-empty {
+        padding: 28px 8px;
+        color: #8c8c9a;
+        font-size: 14px;
+      }
+      #pk-edit-pet-modal select,
+      .pk-select-arrow,
+      #sub-plan-select,
+      #cr-rating {
+        appearance: none !important;
+        -webkit-appearance: none !important;
+        -moz-appearance: none !important;
+        background-color: #fff !important;
+        background-image: url('data:image/svg+xml;utf8,<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="%23121217" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg"><polyline points="6 9 12 15 18 9"></polyline></svg>') !important;
+        background-repeat: no-repeat !important;
+        background-position: right 18px center !important;
+        background-size: 12px 12px !important;
+        padding-right: 42px !important;
+        cursor: pointer;
+      }
       .pk-wishlist-card-bottom {
         padding: 20px 20px 24px;
         text-align: center;
@@ -4784,6 +4838,52 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         controlsHtml += '</div>';
 
         container.innerHTML = infoHtml + controlsHtml;
+      };
+
+      // Remove a product from the customer's wishlist (all wishlist sliders on the page)
+      window.pkRemoveFromWishlist = function(btn, ev) {
+        if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+        var productId = btn && btn.getAttribute('data-product-id');
+        if (!productId) return;
+
+        function cardsFor(id) {
+          return Array.prototype.filter.call(document.querySelectorAll('.pk-wishlist-card'), function(c) {
+            return c.getAttribute('data-product-id') === id;
+          });
+        }
+        function showEmptyIfNeeded() {
+          document.querySelectorAll('.pk-wishlist-slider').forEach(function(slider) {
+            if (!slider.querySelector('.pk-wishlist-card') && !slider.querySelector('.pk-wishlist-empty')) {
+              slider.innerHTML = '<div class="pk-wishlist-empty">Your wishlist is empty.</div>';
+            }
+          });
+        }
+
+        var cards = cardsFor(productId);
+        cards.forEach(function(c) { c.classList.add('pk-removing'); });
+
+        var token = localStorage.getItem('pk_session') || '';
+        fetch('/apps/purrkins/wishlist' + (token ? '?session=' + encodeURIComponent(token) : ''), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'remove', product_id: productId })
+        })
+          .then(function(r) { return r.json(); })
+          .then(function(res) {
+            if (!res || !res.success) throw new Error((res && res.message) || 'Failed');
+            cards.forEach(function(c) { c.remove(); });
+            var cleanId = String(productId).split('/').pop();
+            if (Array.isArray(window.purrkinsWishlist)) {
+              window.purrkinsWishlist = window.purrkinsWishlist.filter(function(id) {
+                return String(id).split('/').pop() !== cleanId;
+              });
+            }
+            showEmptyIfNeeded();
+          })
+          .catch(function() {
+            cards.forEach(function(c) { c.classList.remove('pk-removing'); });
+            alert('Could not remove this item from your wishlist. Please try again.');
+          });
       };
 
       window.pkGoToOrdersPage = function(page) {
@@ -5779,8 +5879,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               var color = p.cardColor || '#2A85C8';
               var badge = p.badgeText || 'Wet Food';
               var vId = p.variantId || '';
-              return '<div class="pk-wishlist-card">' +
+              return '<div class="pk-wishlist-card" data-product-id="' + (p.id || '') + '">' +
                 '<div class="pk-wishlist-card-top" style="background:' + bg + ';">' +
+                  '<button type="button" class="pk-wishlist-remove-btn" data-product-id="' + (p.id || '') + '" onclick="pkRemoveFromWishlist(this, event)" aria-label="Remove from wishlist" title="Remove from wishlist">' +
+                    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>' +
+                  '</button>' +
                   '<span class="pk-wishlist-badge" style="background:' + bg + '; border:1px solid ' + color + '; color:' + color + ';">' + badge + '</span>' +
                   '<img src="' + (p.image || '') + '" alt="' + (p.title || '') + '" onerror="this.onerror=null; if(window.pkDefaultFallbackImg) this.src=window.pkDefaultFallbackImg;">' +
                 '</div>' +
@@ -6755,7 +6858,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             </div>
             <div>
               <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Age</label>
-              <select id="pk-edit-pet-age" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box; background:#fff;">
+              <select id="pk-edit-pet-age" class="pk-select-arrow" style="width:100%; height:44px; padding:10px 42px 10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box; background-color:#fff; background-image:url('data:image/svg+xml;utf8,<svg width=\'12\' height=\'12\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23121217\' stroke-width=\'2.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\' xmlns=\'http://www.w3.org/2000/svg\'><polyline points=\'6 9 12 15 18 9\'></polyline></svg>'); background-repeat:no-repeat; background-position:right 18px center; background-size:12px 12px; appearance:none; -webkit-appearance:none; cursor:pointer;">
                 <option value="3-8 weeks kitten">3-8 weeks kitten</option>
                 <option value="2-4 months kitten">2-4 months kitten</option>
                 <option value="4+ months kitten">4+ months kitten</option>
@@ -6769,14 +6872,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
             <div>
               <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Gender</label>
-              <select id="pk-edit-pet-gender" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box; background:#fff;">
+              <select id="pk-edit-pet-gender" class="pk-select-arrow" style="width:100%; height:44px; padding:10px 42px 10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box; background-color:#fff; background-image:url('data:image/svg+xml;utf8,<svg width=\'12\' height=\'12\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23121217\' stroke-width=\'2.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\' xmlns=\'http://www.w3.org/2000/svg\'><polyline points=\'6 9 12 15 18 9\'></polyline></svg>'); background-repeat:no-repeat; background-position:right 18px center; background-size:12px 12px; appearance:none; -webkit-appearance:none; cursor:pointer;">
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
               </select>
             </div>
             <div>
               <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Neutered Status</label>
-              <select id="pk-edit-pet-neutered" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box; background:#fff;">
+              <select id="pk-edit-pet-neutered" class="pk-select-arrow" style="width:100%; height:44px; padding:10px 42px 10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box; background-color:#fff; background-image:url('data:image/svg+xml;utf8,<svg width=\'12\' height=\'12\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23121217\' stroke-width=\'2.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\' xmlns=\'http://www.w3.org/2000/svg\'><polyline points=\'6 9 12 15 18 9\'></polyline></svg>'); background-repeat:no-repeat; background-position:right 18px center; background-size:12px 12px; appearance:none; -webkit-appearance:none; cursor:pointer;">
                 <option value="Neutered">Neutered</option>
                 <option value="Not Neutered">Not Neutered</option>
               </select>
@@ -6790,7 +6893,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             </div>
             <div>
               <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Eating Style / Body</label>
-              <select id="pk-edit-pet-body" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box; background:#fff;">
+              <select id="pk-edit-pet-body" class="pk-select-arrow" style="width:100%; height:44px; padding:10px 42px 10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box; background-color:#fff; background-image:url('data:image/svg+xml;utf8,<svg width=\'12\' height=\'12\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23121217\' stroke-width=\'2.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\' xmlns=\'http://www.w3.org/2000/svg\'><polyline points=\'6 9 12 15 18 9\'></polyline></svg>'); background-repeat:no-repeat; background-position:right 18px center; background-size:12px 12px; appearance:none; -webkit-appearance:none; cursor:pointer;">
                 <option value="Lean">Lean</option>
                 <option value="Skinny">Skinny</option>
                 <option value="Chubby">Chubby</option>
@@ -6813,7 +6916,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
             <div>
               <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Activity Level</label>
-              <select id="pk-edit-pet-activity" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box; background:#fff;">
+              <select id="pk-edit-pet-activity" class="pk-select-arrow" style="width:100%; height:44px; padding:10px 42px 10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box; background-color:#fff; background-image:url('data:image/svg+xml;utf8,<svg width=\'12\' height=\'12\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23121217\' stroke-width=\'2.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\' xmlns=\'http://www.w3.org/2000/svg\'><polyline points=\'6 9 12 15 18 9\'></polyline></svg>'); background-repeat:no-repeat; background-position:right 18px center; background-size:12px 12px; appearance:none; -webkit-appearance:none; cursor:pointer;">
                 <option value="Playful">Playful</option>
                 <option value="Couch Potato">Couch Potato</option>
                 <option value="Explorer">Explorer</option>
