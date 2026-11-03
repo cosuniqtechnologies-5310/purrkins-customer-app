@@ -742,6 +742,26 @@ async function handleRequest(request: Request) {
     }
   }
 
+  // DELETE PRODUCT REVIEW
+  if (intent === "delete_review") {
+    try {
+      const body = await request.json();
+      const reviewId = body.review_id || body.reviewId || body.id;
+      if (!reviewId) {
+        return json({ success: false, error: "Review ID is required" }, 400);
+      }
+      await prisma.review.delete({
+        where: { id: String(reviewId) }
+      });
+      appCache.delPrefix("customer:");
+      appCache.delPrefix("dashboard:");
+      return json({ success: true, message: "Review deleted successfully" });
+    } catch (err: any) {
+      console.error("Error in delete_review:", err);
+      return json({ success: false, error: err.message || "Failed to delete review" }, 500);
+    }
+  }
+
   // ADD ADDRESS
   if (intent === "add_address") {
     const body = await request.json();

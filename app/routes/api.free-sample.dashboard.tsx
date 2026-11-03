@@ -1956,7 +1956,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 24px; flex-wrap:wrap; gap:12px;">
         <div style="display:flex; align-items:center; gap:12px;">
           <h2 style="margin:0; font-size:24px; font-weight:800; font-family:'Cabinet Grotesk', sans-serif; color:#121217;">My Product Reviews</h2>
-          <span style="font-size:13px; font-weight:700; background:#EBF4F6; color:#0e6251; padding:4px 12px; border-radius:20px;">${customerReviews.length} Review${customerReviews.length === 1 ? '' : 's'}</span>
+          <span id="pk-reviews-count-badge" style="font-size:13px; font-weight:700; background:#EBF4F6; color:#0e6251; padding:4px 12px; border-radius:20px;">${customerReviews.length} Review${customerReviews.length === 1 ? '' : 's'}</span>
         </div>
         <button type="button" onclick="pkOpenOrderReview('Purrkins Kitten Meal', 'kitten-fresh-salmon')" class="pk-yellow-btn" style="text-decoration:none; padding:10px 22px; border-radius:9999px; font-weight:800; font-size:13.5px; background:#FFE330; color:#16130F; border:none; cursor:pointer; font-family:'Cabinet Grotesk', sans-serif;">
           ★ Write a Review
@@ -1964,18 +1964,43 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       </div>
       <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:20px;">
         ${customerReviews.map((r: any) => `
-          <div style="border:1.5px solid #eaeaea; border-radius:14px; padding:22px; background:#fff; display:flex; flex-direction:column; justify-content:space-between; gap:14px; box-shadow:0 1px 4px rgba(0,0,0,0.02);">
+          <div class="pk-review-card" data-review-id="${escAttr(r.id)}" style="border:1.5px solid #eaeaea; border-radius:14px; padding:22px; background:#fff; display:flex; flex-direction:column; justify-content:space-between; gap:14px; box-shadow:0 1px 4px rgba(0,0,0,0.02); position:relative; transition:opacity 0.2s, transform 0.2s;">
             <div>
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                 <div style="color:#d97706; font-size:16px; letter-spacing:2px;">${'★'.repeat(r.rating)}${'☆'.repeat(Math.max(0, 5 - r.rating))}</div>
-                <span style="font-size:11px; font-weight:800; background:${r.status === 'published' ? '#e3f1df' : '#fef3d6'}; color:${r.status === 'published' ? '#108043' : '#916a00'}; padding:3px 10px; border-radius:12px; text-transform:uppercase; letter-spacing:0.5px;">${r.status}</span>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:11px; font-weight:800; background:${r.status === 'published' ? '#e3f1df' : '#fef3d6'}; color:${r.status === 'published' ? '#108043' : '#916a00'}; padding:3px 10px; border-radius:12px; text-transform:uppercase; letter-spacing:0.5px;">${r.status}</span>
+                  <button
+                    type="button"
+                    class="pk-review-remove-btn"
+                    onclick="pkRemoveCustomerReview('${escAttr(r.id)}', event)"
+                    title="Delete review"
+                    aria-label="Delete review"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                  </button>
+                </div>
               </div>
               <h4 style="margin:0 0 6px 0; font-size:16px; font-weight:800; color:#121217; font-family:'Cabinet Grotesk', sans-serif;">${escAttr(r.title)}</h4>
               <p style="margin:0; font-size:14px; color:#595961; line-height:1.5; font-family:'Cabinet Grotesk', sans-serif;">${escAttr(r.body)}</p>
             </div>
             <div style="font-size:12px; color:#8c9196; padding-top:10px; border-top:1px solid #f4f4f5; display:flex; justify-content:space-between; align-items:center;">
               <span>Reviewed on ${new Date(r.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-              <span style="color:#121217; font-weight:700;">Verified Purchase</span>
+              <div style="display:flex; align-items:center; gap:12px;">
+                <span style="color:#121217; font-weight:700;">Verified Purchase</span>
+                <button
+                  type="button"
+                  class="pk-review-del-link"
+                  onclick="pkRemoveCustomerReview('${escAttr(r.id)}', event)"
+                  title="Delete review"
+                  style="background:none; border:none; padding:0; font-size:12px; font-weight:700; color:#dc2626; cursor:pointer; text-decoration:underline; font-family:inherit;"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         `).join('')}
@@ -3619,6 +3644,32 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .pk-delete-btn:hover {
         background: #fee2e2 !important;
         border-color: #f87171 !important;
+      }
+      .pk-review-remove-btn {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: #f4f4f5;
+        border: none;
+        color: #71717a;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        transition: all 0.15s ease;
+      }
+      .pk-review-remove-btn:hover {
+        background: #fee2e2 !important;
+        color: #dc2626 !important;
+      }
+      .pk-review-card.pk-removing {
+        opacity: 0.35;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+      }
+      .pk-review-del-link:hover {
+        color: #b91c1c !important;
       }
       .pk-pet-avatar {
         width: 44px;
@@ -6502,6 +6553,54 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           window.location.reload();
         });
       }
+
+      // Delete Product Review
+      window.pkRemoveCustomerReview = function(reviewId, ev) {
+        if (ev) {
+          if (ev.preventDefault) ev.preventDefault();
+          if (ev.stopPropagation) ev.stopPropagation();
+        }
+        if (!reviewId) return;
+
+        var confirmed = window.confirm('Are you sure you want to delete this review?');
+        if (!confirmed) return;
+
+        var card = document.querySelector('.pk-review-card[data-review-id="' + reviewId + '"]');
+        if (card) card.classList.add('pk-removing');
+
+        var token = localStorage.getItem('pk_session') || '';
+        var apiUrl = token
+          ? ('/apps/purrkins/customer-api?session=' + encodeURIComponent(token) + '&intent=delete_review')
+          : '/apps/purrkins/reviews?shop=purrkins-mhrlfymw.myshopify.com';
+
+        fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ review_id: reviewId, reviewId: reviewId, action: 'delete' })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+          if (res && res.success) {
+            if (card) card.remove();
+            var remaining = document.querySelectorAll('.pk-review-card');
+            var badge = document.getElementById('pk-reviews-count-badge');
+            if (badge) {
+              badge.textContent = remaining.length + ' Review' + (remaining.length === 1 ? '' : 's');
+            }
+            if (remaining.length === 0) {
+              window.location.reload();
+            }
+          } else {
+            if (card) card.classList.remove('pk-removing');
+            alert(res.error || 'Could not delete review. Please try again.');
+          }
+        })
+        .catch(function(err) {
+          console.error('Delete review error:', err);
+          if (card) card.classList.remove('pk-removing');
+          alert('Network error while deleting review. Please try again.');
+        });
+      };
 
       // ─── Vet Modal & Booking (Screenshot 5) ─────────────────────
       window.pkOpenVetModal = function(ev) {

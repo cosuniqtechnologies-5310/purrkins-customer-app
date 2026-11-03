@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { authenticate, unauthenticated } from "../shopify.server";
+import { appCache } from "../cache.server";
 
 // Helper to verify if customer has actually purchased a product in Shopify orders
 async function getCustomerPurchasedProductIds(
@@ -221,23 +222,59 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export async function action({ request }: ActionFunctionArgs) {
-  if (request.method !== "POST") {
+  if (request.method !== "POST" && request.method !== "DELETE") {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
 
-  const formData = await request.formData();
-  const rawProductId = formData.get("productId")?.toString();
-  const rating = Number(formData.get("rating"));
-  const title = formData.get("title")?.toString() || "";
-  const body = formData.get("body")?.toString() || "";
-  const author = formData.get("author")?.toString() || "Anonymous";
-  const email = formData.get("email")?.toString()?.trim() || "";
+  const contentType = request.headers.get("content-type") || "";
+  let bodyData: any = {};
+  let formData: FormData | null = null;
+  if (contentType.includes("application/json")) {
+    try {
+      bodyData = await request.json();
+    } catch (e) {
+      bodyData = {};
+    }
+  } else {
+    try {
+      formData = await request.formData();
+      bodyData = Object.fromEntries(formData.entries());
+    } catch (e) {
+      bodyData = {};
+    }
+  }
+
+  const actionType = bodyData.action || bodyData.intent || (request.method === "DELETE" ? "delete" : "create");
+  if (actionType === "delete" || actionType === "delete_review") {
+    const reviewId = bodyData.reviewId || bodyData.review_id || bodyData.id;
+    if (!reviewId) {
+      return Response.json({ success: false, error: "Review ID is required" }, { status: 400 });
+    }
+    try {
+      await prisma.review.delete({
+        where: { id: String(reviewId) },
+      });
+      appCache.delPrefix("customer:");
+      appCache.delPrefix("dashboard:");
+      return Response.json({ success: true, message: "Review deleted successfully" });
+    } catch (err: any) {
+      console.error("Error deleting review:", err);
+      return Response.json({ success: false, error: err.message || "Failed to delete review" }, { status: 500 });
+    }
+  }
+
+  const rawProductId = (bodyData.productId || formData?.get("productId"))?.toString();
+  const rating = Number(bodyData.rating || formData?.get("rating"));
+  const title = (bodyData.title || formData?.get("title"))?.toString() || "";
+  const body = (bodyData.body || formData?.get("body"))?.toString() || "";
+  const author = (bodyData.author || formData?.get("author"))?.toString() || "Anonymous";
+  const email = (bodyData.email || formData?.get("email"))?.toString()?.trim() || "";
   const customerId =
-    formData.get("customerId")?.toString() ||
+    (bodyData.customerId || formData?.get("customerId"))?.toString() ||
     new URL(request.url).searchParams.get("logged_in_customer_id");
 
   // Parse images array if present
-  const images = formData.getAll("images[]").map((img) => img.toString());
+  const images = formData ? formData.getAll("images[]").map((img) => img.toString()) : (Array.isArray(bodyData.images) ? bodyData.images : []);
 
   // App proxy adds shop query parameter automatically
   const url = new URL(request.url);
