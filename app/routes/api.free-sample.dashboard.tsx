@@ -536,22 +536,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Escape values placed inside HTML attributes so quotes/angle brackets can't break the form
   const escAttr = (v: any) => String(v ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-  const getEstimatedBirthday = (ageStr: string): string => {
-    if (!ageStr) return "14 Mar 2026";
-    const num = parseInt(ageStr.replace(/[^0-9]/g, ''));
-    if (isNaN(num)) return "14 Mar 2026";
-    const d = new Date();
-    if (ageStr.toLowerCase().includes("month")) {
-      d.setMonth(d.getMonth() - num);
-    } else if (ageStr.toLowerCase().includes("week")) {
-      d.setDate(d.getDate() - (num * 7));
-    } else if (ageStr.toLowerCase().includes("year")) {
-      d.setFullYear(d.getFullYear() - num);
-    }
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-  };
-
   // Recommendation scoring algorithm based on quiz answers
   interface RecommendedProductItem {
     title: string;
@@ -789,7 +773,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         const focus = p.focus?.value || "";
         const allergies = p.allergies?.value || "";
         const breed = p.breed?.value || "Indie";
-        const birthday = p.birthday?.value || p.dob?.value || getEstimatedBirthday(age);
+        const birthday = p.birthday?.value || p.dob?.value || "";
         const imageUrl = p.profile?.reference?.image?.url || "";
 
         // Dynamic quiz pills from actual answered fields only
@@ -847,7 +831,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           gender: "Male",
           neutered: "Neutered",
           breed: "Indie",
-          birthday: "14 Mar 2026",
+          birthday: "",
           activity: "Playful, indoor only",
           activityLevel: "Playful, indoor only",
           body: "Fussy (prefers fish)",
@@ -1772,18 +1756,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             <div id="pk-pet-stat-breed" style="font-weight:700; font-size:14.5px; color:#121217;">${escAttr(initialPet.breed || 'Indie')}</div>
           </div>
 
-          <!-- Row 2: Sex, Activity Level, Birthday -->
+          <!-- Row 2: Gender, Neutered Status, Activity Level -->
           <div>
-            <div style="font-size:13px; color:#8e8e93; font-weight:500; margin-bottom:4px;">Sex</div>
-            <div id="pk-pet-stat-sex" style="font-weight:700; font-size:14.5px; color:#121217;">${escAttr(initialPet.gender || '')}${initialPet.neutered ? ', ' + escAttr(initialPet.neutered.toLowerCase()) : ''}</div>
+            <div style="font-size:13px; color:#8e8e93; font-weight:500; margin-bottom:4px;">Gender</div>
+            <div id="pk-pet-stat-gender" style="font-weight:700; font-size:14.5px; color:#121217;">${escAttr(initialPet.gender || '—')}</div>
+          </div>
+          <div>
+            <div style="font-size:13px; color:#8e8e93; font-weight:500; margin-bottom:4px;">Neutered Status</div>
+            <div id="pk-pet-stat-neutered" style="font-weight:700; font-size:14.5px; color:#121217;">${escAttr(initialPet.neutered || '—')}</div>
           </div>
           <div>
             <div style="font-size:13px; color:#8e8e93; font-weight:500; margin-bottom:4px;">Activity Level</div>
             <div id="pk-pet-stat-activity" style="font-weight:700; font-size:14.5px; color:#121217;">${escAttr(initialPet.activityLevel || initialPet.activity || '—')}</div>
-          </div>
-          <div>
-            <div style="font-size:13px; color:#8e8e93; font-weight:500; margin-bottom:4px;">Birthday</div>
-            <div id="pk-pet-stat-birthday" style="font-weight:700; font-size:14.5px; color:#121217;">${escAttr(initialPet.birthday || '—')}</div>
           </div>
 
           <!-- Row 3: Health Flags, Eating Style, Allergies -->
@@ -5351,11 +5335,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           sexEl.textContent = sexText || '—';
         }
 
+        var genderEl = document.getElementById('pk-pet-stat-gender');
+        if (genderEl) genderEl.textContent = pet.gender || '—';
+
+        var neuteredEl = document.getElementById('pk-pet-stat-neutered');
+        if (neuteredEl) neuteredEl.textContent = pet.neutered || '—';
+
         var actEl = document.getElementById('pk-pet-stat-activity');
         if (actEl) actEl.textContent = pet.activityLevel || pet.activity || '—';
-
-        var bdayEl = document.getElementById('pk-pet-stat-birthday');
-        if (bdayEl) bdayEl.textContent = pet.birthday || '—';
 
         var bodyEl = document.getElementById('pk-pet-stat-body');
         if (bodyEl) bodyEl.textContent = pet.eatingStyle || pet.body || '—';
@@ -5592,9 +5579,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         var breedInput = document.getElementById('pk-edit-pet-breed');
         if (breedInput) breedInput.value = pet.breed || 'Indie';
 
-        var bdayInput = document.getElementById('pk-edit-pet-birthday');
-        if (bdayInput) bdayInput.value = pet.birthday || '—';
-
         var cachedPetImg = null;
         if (pet.id) {
           try { cachedPetImg = localStorage.getItem('pk_pet_avatar_' + pet.id); } catch(e) {}
@@ -5654,7 +5638,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
         function doUpdate(newFileId, newImageUrl) {
           var breedVal = document.getElementById('pk-edit-pet-breed') ? document.getElementById('pk-edit-pet-breed').value.trim() : '';
-          var bdayVal = document.getElementById('pk-edit-pet-birthday') ? document.getElementById('pk-edit-pet-birthday').value.trim() : '';
 
           var payload = {
             pet_id: petId,
@@ -5670,7 +5653,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             allergies: document.getElementById('pk-edit-pet-allergies').value.trim()
           };
           if (breedVal) payload.breed = breedVal;
-          if (bdayVal) payload.birthday = bdayVal;
           if (newFileId) {
             payload.profileFileId = newFileId;
           }
@@ -5697,7 +5679,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 activePet.gender = payload.gender;
                 activePet.neutered = payload.neutered;
                 if (breedVal) activePet.breed = breedVal;
-                if (bdayVal) activePet.birthday = bdayVal;
                 activePet.body = payload.body;
                 activePet.eatingStyle = payload.body;
                 activePet.activity = payload.activity;
@@ -7118,13 +7099,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               <input type="text" id="pk-edit-pet-breed" placeholder="e.g. Indie, Persian" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box;">
             </div>
             <div>
-              <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Birthday</label>
-              <input type="text" id="pk-edit-pet-birthday" placeholder="e.g. 14 Mar 2026" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box;">
-            </div>
-          </div>
-
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
-            <div>
               <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Activity Level</label>
               <select id="pk-edit-pet-activity" class="pk-select-arrow" style="width:100%; height:44px; padding:10px 42px 10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box; background-color:#fff; background-image:url('data:image/svg+xml;utf8,<svg width=\'12\' height=\'12\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23121217\' stroke-width=\'2.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\' xmlns=\'http://www.w3.org/2000/svg\'><polyline points=\'6 9 12 15 18 9\'></polyline></svg>'); background-repeat:no-repeat; background-position:right 18px center; background-size:12px 12px; appearance:none; -webkit-appearance:none; cursor:pointer;">
                 <option value="Playful">Playful</option>
@@ -7133,15 +7107,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 <option value="Super Active">Super Active</option>
               </select>
             </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px;">
             <div>
               <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Health Flags / Focus</label>
               <input type="text" id="pk-edit-pet-focus" placeholder="e.g. Dehydration, Hairball" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box;">
             </div>
-          </div>
-
-          <div style="margin-bottom:24px;">
-            <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Allergies</label>
-            <textarea id="pk-edit-pet-allergies" rows="2" placeholder="e.g. test, None" style="width:100%; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box;"></textarea>
+            <div>
+              <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Allergies</label>
+              <input type="text" id="pk-edit-pet-allergies" placeholder="e.g. None recorded, test" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box;">
+            </div>
           </div>
 
           <!-- Buttons -->
