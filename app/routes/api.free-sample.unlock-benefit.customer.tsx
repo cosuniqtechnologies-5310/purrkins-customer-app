@@ -80,6 +80,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const existingCustomer = phoneCustomer ?? emailCustomer;
     console.log("[UnlockBenefit] Existing customer:", existingCustomer?.id);
 
+    // Already a customer (same phone + same name): don't resend/overwrite their details.
+    // Only record the tag, then tell the visitor.
+    if (phoneCustomer) {
+      if (!phoneCustomer.tags.includes(customerTag)) {
+        const tagResponse = await admin.graphql(
+          `#graphql
+          mutation customerUpdate($input: CustomerInput!) {
+            customerUpdate(input: $input) {
+              customer { id }
+              userErrors { field message }
+            }
+          }`,
+          { variables: { input: { id: phoneCustomer.id, tags: [...phoneCustomer.tags, customerTag] } } }
+        );
+        const tagData = await tagResponse.json();
+        if (tagData.data?.customerUpdate?.userErrors?.length > 0) {
+          console.error("[UnlockBenefit] Tag update failed:", JSON.stringify(tagData.data.customerUpdate.userErrors));
+        }
+      }
+      return Response.json({
+        success: true,
+        already_customer: true,
+        message: "You are already a customer with us. Your details are already saved.",
+      });
+    }
+
     let customerId: string;
 
     if (existingCustomer) {

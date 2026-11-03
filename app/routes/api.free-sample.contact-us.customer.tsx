@@ -228,7 +228,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
-    return Response.json({ success: true, message: "Contact message received. We'll be in touch soon!" });
+    return Response.json({
+      success: true,
+      already_customer: Boolean(phoneCustomer),
+      message: phoneCustomer
+        ? "You are already a customer with us. We've received your message and will be in touch soon!"
+        : "Contact message received. We'll be in touch soon!",
+    });
 
   } catch (error: any) {
     if (error instanceof Response) return error;
