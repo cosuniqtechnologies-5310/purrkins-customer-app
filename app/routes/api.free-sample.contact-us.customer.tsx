@@ -1,6 +1,6 @@
-﻿import type { ActionFunctionArgs } from "react-router";
+import type { ActionFunctionArgs } from "react-router";
 import { authenticate, unauthenticated } from "../shopify.server";
-import { checkCustomerConflict } from "../utils/customer-conflict.server";
+import { checkCustomerConflict, normalizePhone } from "../utils/customer-conflict.server";
 
 export const loader = async () => {
   return Response.json(
@@ -38,7 +38,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const body = await request.json();
     console.log("[ContactUs] Received payload:", JSON.stringify(body));
 
-    const { name, phone, email, topic, message, tag, accepts_marketing } = body;
+    const { name, email, topic, message, tag, accepts_marketing } = body;
+    const phone = body.phone ? normalizePhone(String(body.phone)) : "";
 
     if (!phone) {
       return Response.json({ success: false, message: "Phone number is required" }, { status: 400 });

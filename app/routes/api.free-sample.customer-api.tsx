@@ -206,6 +206,9 @@ async function handleRequest(request: Request) {
         phone: body.phone || ""
       }
     });
+    if (!data?.customer) {
+      return json({ success: false, error: formatErrors(data?.errors) }, 422);
+    }
     return new Response(JSON.stringify({ success: true, customer: data.customer }), {
       headers: { "Content-Type": "application/json" }
     });

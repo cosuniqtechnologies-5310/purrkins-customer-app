@@ -39,6 +39,16 @@ export function last10Digits(phone: string): string {
   return phone.replace(/\D/g, "").slice(-10);
 }
 
+/**
+ * Canonical E.164 form for Indian numbers ("+91 74023 95469", "07402395469", "7402395469" -> "+917402395469").
+ * Searching/saving the raw string breaks on spaces and makes Shopify reject the save with
+ * "Phone has already been taken" even though the customer exists.
+ */
+export function normalizePhone(phone: string): string {
+  const digits = last10Digits(phone);
+  return digits.length === 10 ? `+91${digits}` : phone.trim();
+}
+
 function normalizeName(name?: string | null): string {
   return (name || "")
     .toLowerCase()
@@ -58,14 +68,18 @@ function namesMatch(submittedName: string | undefined | null, c: ExistingCustome
   const existing = fullName(c);
   // Existing record has no name (e.g. created by email login) -> treat as the same person.
   if (!existing) return true;
-  return submitted === existing;
+  if (submitted === existing) return true;
+  // "Kowsalya" vs "Kowsalya S" / "Kowsalya ." -> same first name and one side has no last name.
+  const [sFirst, ...sRest] = submitted.split(" ");
+  const [eFirst, ...eRest] = existing.split(" ");
+  return sFirst === eFirst && (sRest.length === 0 || eRest.length === 0);
 }
 
-async function searchCustomer(admin: AdminClient, query: string): Promise<ExistingCustomer | null> {
+async function searchCustomers(admin: AdminClient, query: string, first = 1): Promise<ExistingCustomer[]> {
   const res = await admin.graphql(
     `#graphql
     query findCustomer($query: String!) {
-      customers(first: 1, query: $query) {
+      customers(first: ${first}, query: $query) {
         edges { node { ${CUSTOMER_FIELDS} } }
       }
     }`,
@@ -75,15 +89,24 @@ async function searchCustomer(admin: AdminClient, query: string): Promise<Existi
   if (data.errors?.length) {
     throw new Error("Search Error: " + JSON.stringify(data.errors));
   }
-  return data.data?.customers?.edges?.[0]?.node ?? null;
+  return (data.data?.customers?.edges ?? []).map((e: any) => e.node);
+}
+
+async function searchCustomer(admin: AdminClient, query: string): Promise<ExistingCustomer | null> {
+  return (await searchCustomers(admin, query))[0] ?? null;
 }
 
 async function findByPhone(admin: AdminClient, phone: string): Promise<ExistingCustomer | null> {
   const digits = last10Digits(phone);
-  // Shopify matches phone strings exactly, so try every format we may have stored.
-  const candidates = Array.from(new Set([phone, `+91${digits}`, digits].filter(Boolean)));
-  for (const candidate of candidates) {
-    const found = await searchCustomer(admin, `phone:${candidate}`);
+  const e164 = normalizePhone(phone);
+  // Shopify matches phone strings exactly, so try every format we may have stored,
+  // then a plain text search; always verify the digits so a loose hit is never trusted.
+  const queries = Array.from(
+    new Set([`phone:"${e164}"`, `phone:${e164}`, `phone:${digits}`, `phone:"${digits}"`, digits].filter(Boolean))
+  );
+  for (const query of queries) {
+    const hits = await searchCustomers(admin, query, 5);
+    const found = hits.find((c) => c.phone && last10Digits(c.phone) === digits);
     if (found) return found;
   }
   return null;
