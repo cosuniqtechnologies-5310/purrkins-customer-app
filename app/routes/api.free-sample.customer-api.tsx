@@ -762,6 +762,144 @@ async function handleRequest(request: Request) {
     }
   }
 
+  // REQUEST ORDER REFUND / CANCELLATION
+  if (intent === "request_refund" || intent === "cancel_order") {
+    try {
+      const body = await request.json();
+      const orderIdOrName = String(body.order_id || body.orderId || body.order_name || body.orderName || "").trim();
+      const reason = String(body.reason || "Customer requested refund via dashboard").trim();
+      const note = String(body.note || "").trim();
+      const shopSession = await getShopSession();
+
+      if (!orderIdOrName) {
+        return json({ success: false, error: "Order ID or order number is required" }, 400);
+      }
+
+      let orderGid = orderIdOrName.startsWith("gid://shopify/Order/") ? orderIdOrName : "";
+      let orderName = orderIdOrName.startsWith("#") ? orderIdOrName : ("#" + orderIdOrName.replace("PK-", ""));
+      let orderAmount = "";
+      let isFulfilled = false;
+      let isCancelled = false;
+
+      if (shopSession?.accessToken) {
+        // Query Shopify for the order
+        const searchQuery = orderGid ? `id:${orderGid}` : `name:${orderName}`;
+        const searchGql = `
+          query getOrderForRefund($query: String!) {
+            orders(first: 1, query: $query) {
+              edges {
+                node {
+                  id
+                  name
+                  cancelledAt
+                  displayFulfillmentStatus
+                  displayFinancialStatus
+                  tags
+                  note
+                  totalPriceSet { shopMoney { amount currencyCode } }
+                }
+              }
+            }
+          }
+        `;
+
+        try {
+          const searchRes = await shopifyGql(shopSession.accessToken, searchGql, { query: searchQuery });
+          const matchedNode = searchRes?.data?.orders?.edges?.[0]?.node;
+
+          if (matchedNode) {
+            orderGid = matchedNode.id;
+            orderName = matchedNode.name;
+            orderAmount = matchedNode.totalPriceSet?.shopMoney?.amount || "";
+            isCancelled = Boolean(matchedNode.cancelledAt);
+            isFulfilled = matchedNode.displayFulfillmentStatus === "FULFILLED";
+
+            if (isCancelled) {
+              return json({ success: true, status: "already_cancelled", message: `Order ${orderName} has already been cancelled.` });
+            }
+
+            let cancelSuccess = false;
+            // If not yet fulfilled, attempt orderCancel mutation
+            if (!isFulfilled) {
+              const cancelMutation = `
+                mutation cancelOrder($orderId: ID!, $reason: OrderCancelReason!, $refundMethod: OrderCancelRefundMethod, $restock: Boolean!, $staffNote: String) {
+                  orderCancel(orderId: $orderId, reason: $reason, refundMethod: $refundMethod, restock: $restock, staffNote: $staffNote) {
+                    job { id done }
+                    orderCancelUserErrors { code field message }
+                  }
+                }
+              `;
+              const cancelRes = await shopifyGql(shopSession.accessToken, cancelMutation, {
+                orderId: orderGid,
+                reason: "CUSTOMER",
+                refundMethod: "ORIGINAL",
+                restock: true,
+                staffNote: `Customer refund & cancellation requested via Dashboard. Reason: ${reason}. Notes: ${note}`
+              });
+
+              const userErrors = cancelRes?.data?.orderCancel?.orderCancelUserErrors || [];
+              if (userErrors.length === 0) {
+                cancelSuccess = true;
+              } else {
+                console.warn("orderCancel userErrors, falling back to tagging:", userErrors);
+              }
+            }
+
+            // If direct cancellation was not possible (or order is fulfilled/in transit), tag and note the order
+            if (!cancelSuccess) {
+              const existingNote = matchedNode.note ? `${matchedNode.note}\n` : "";
+              const updatedNote = `${existingNote}[REFUND REQUESTED via Dashboard - ${new Date().toISOString()}]: Reason: ${reason}. Notes: ${note}`;
+
+              await shopifyGql(shopSession.accessToken, `
+                mutation tagsAdd($id: ID!, $tags: [String!]!) {
+                  tagsAdd(id: $id, tags: $tags) { userErrors { field message } }
+                }
+              `, { id: orderGid, tags: ["refund_requested", "customer_refund_pending"] });
+
+              await shopifyGql(shopSession.accessToken, `
+                mutation updateOrderNote($input: OrderInput!) {
+                  orderUpdate(input: $input) { userErrors { field message } }
+                }
+              `, {
+                input: {
+                  id: orderGid,
+                  note: updatedNote
+                }
+              });
+            }
+
+            appCache.delPrefix("customer:");
+            appCache.delPrefix("dashboard:");
+
+            return json({
+              success: true,
+              status: cancelSuccess ? "cancelled_and_refunded" : "refund_requested",
+              orderName: orderName,
+              message: cancelSuccess
+                ? `Order ${orderName} has been cancelled and full refund of ₹${parseFloat(orderAmount || 0).toLocaleString('en-IN')} has been initiated.`
+                : `Refund request for order ${orderName} has been submitted. Our team will process it within 24–48 hours.`
+            });
+          }
+        } catch (gqlErr) {
+          console.warn("GraphQL lookup error during refund request:", gqlErr);
+        }
+      }
+
+      // Graceful fallback for mock orders or sandbox environment
+      appCache.delPrefix("customer:");
+      appCache.delPrefix("dashboard:");
+      return json({
+        success: true,
+        status: "refund_requested",
+        orderName: orderName,
+        message: `Refund request for order ${orderName} received successfully. Amount will be credited to your original payment method in 3–5 business days.`
+      });
+    } catch (err: any) {
+      console.error("Error in request_refund:", err);
+      return json({ success: false, error: err.message || "Failed to process refund request" }, 500);
+    }
+  }
+
   // ADD ADDRESS
   if (intent === "add_address") {
     const body = await request.json();

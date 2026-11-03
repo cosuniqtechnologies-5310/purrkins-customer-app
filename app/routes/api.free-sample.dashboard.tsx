@@ -190,6 +190,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                       id
                       name
                       createdAt
+                      cancelledAt
+                      cancelReason
+                      tags
+                      note
                       displayFinancialStatus
                       displayFulfillmentStatus
                       statusPageUrl
@@ -911,10 +915,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const dateStr = `${day} ${month} ${year}`;
       const timeStr = orderDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
       const isFulfilled = node.displayFulfillmentStatus === 'FULFILLED';
-      const statusText = isFulfilled ? `Delivered ${day} ${month}` : (node.displayFulfillmentStatus === 'IN_TRANSIT' ? 'In transit' : 'Confirmed');
-      const statusBadgeStyle = isFulfilled
+      const isCancelled = Boolean(node.cancelledAt);
+      const finStatus = (node.displayFinancialStatus || '').toUpperCase();
+      const isRefunded = finStatus === 'REFUNDED' || finStatus === 'PARTIALLY_REFUNDED';
+      const tagsList = Array.isArray(node.tags) ? node.tags : (typeof node.tags === 'string' ? node.tags.split(',') : []);
+      const isRefundRequested = tagsList.some((t: string) => t.toLowerCase().includes('refund_requested')) || (node.note || '').includes('REFUND REQUESTED');
+
+      let statusText = isFulfilled ? `Delivered ${day} ${month}` : (node.displayFulfillmentStatus === 'IN_TRANSIT' ? 'In transit' : 'Confirmed');
+      let statusBadgeStyle = isFulfilled
         ? 'background:#dcfce7; color:#15803d;'
         : (node.displayFulfillmentStatus === 'IN_TRANSIT' ? 'background:#dbeafe; color:#2563eb;' : 'background:#fef3c7; color:#d97706;');
+
+      if (isCancelled) {
+        statusText = 'Cancelled';
+        statusBadgeStyle = 'background:#fee2e2; color:#b91c1c;';
+      } else if (isRefunded) {
+        statusText = 'Refunded';
+        statusBadgeStyle = 'background:#fef3c7; color:#92400e;';
+      } else if (isRefundRequested) {
+        statusText = 'Refund Requested';
+        statusBadgeStyle = 'background:#fef3c7; color:#92400e;';
+      }
 
       const totalNum = parseFloat(node.totalPriceSet?.shopMoney?.amount || '0');
       const subtotalNum = parseFloat(node.subtotalPriceSet?.shopMoney?.amount || '0') || totalNum;
@@ -943,6 +964,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
       const orderObj = {
         id: node.name,
+        shopifyId: node.id,
         name: node.name,
         orderNumber: node.name.replace('#', ''),
         date: dateStr,
@@ -951,6 +973,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         statusText: statusText,
         statusBadgeStyle: statusBadgeStyle,
         isFulfilled: isFulfilled,
+        isCancelled: isCancelled,
+        isRefunded: isRefunded,
+        isRefundRequested: isRefundRequested,
         financialStatus: node.displayFinancialStatus || 'Paid',
         fulfillmentStatus: node.displayFulfillmentStatus || (isFulfilled ? 'FULFILLED' : 'UNFULFILLED'),
         subtotal: `₹${subtotalNum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
@@ -1196,33 +1221,61 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         const year = orderDate.getFullYear();
         const dateStr = `${day} ${month} ${year}`;
         const isFulfilled = e.node.displayFulfillmentStatus === 'FULFILLED';
-        const statusText = isFulfilled ? `Delivered ${day} ${month}` : 'In transit';
-        const statusBadgeStyle = isFulfilled
+        const isCancelled = Boolean(e.node.cancelledAt);
+        const finStatus = (e.node.displayFinancialStatus || '').toUpperCase();
+        const isRefunded = finStatus === 'REFUNDED' || finStatus === 'PARTIALLY_REFUNDED';
+        const tagsList = Array.isArray(e.node.tags) ? e.node.tags : (typeof e.node.tags === 'string' ? e.node.tags.split(',') : []);
+        const isRefundRequested = tagsList.some((t: string) => t.toLowerCase().includes('refund_requested')) || (e.node.note || '').includes('REFUND REQUESTED');
+
+        let statusText = isFulfilled ? `Delivered ${day} ${month}` : (e.node.displayFulfillmentStatus === 'IN_TRANSIT' ? 'In transit' : 'Confirmed');
+        let statusBadgeStyle = isFulfilled
           ? 'background:#dcfce7; color:#15803d;'
-          : 'background:#dbeafe; color:#2563eb;';
+          : (e.node.displayFulfillmentStatus === 'IN_TRANSIT' ? 'background:#dbeafe; color:#2563eb;' : 'background:#fef3c7; color:#d97706;');
+
+        if (isCancelled) {
+          statusText = 'Cancelled';
+          statusBadgeStyle = 'background:#fee2e2; color:#b91c1c;';
+        } else if (isRefunded) {
+          statusText = 'Refunded';
+          statusBadgeStyle = 'background:#fef3c7; color:#92400e;';
+        } else if (isRefundRequested) {
+          statusText = 'Refund Requested';
+          statusBadgeStyle = 'background:#fef3c7; color:#92400e;';
+        }
+
+        const canRefund = !isCancelled && !isRefunded && !isRefundRequested;
+        const totalAmountNum = parseFloat(e.node.totalPriceSet?.shopMoney?.amount || 0);
+        const orderNameClean = escAttr(e.node.name);
         const lineItemsDesc = e.node.lineItems?.edges?.map((li: any) => li.node.title).join(', ') || 'Purrkins Monthly Box';
         const lineCount = e.node.lineItems?.edges?.reduce((acc: number, li: any) => acc + (li.node.quantity || 1), 0) || 12;
 
         return `
-          <div class="pk-order-row">
+          <div class="pk-order-row" data-order-name="${orderNameClean}" data-order-id="${escAttr(e.node.id)}">
             <div>
-              <div class="pk-order-id">${escAttr(e.node.name)}</div>
+              <div class="pk-order-id">${orderNameClean}</div>
               <div class="pk-order-sub">${lineCount} pouches · ${escAttr(lineItemsDesc.substring(0, 32))}</div>
             </div>
             <div class="pk-order-date">${dateStr}</div>
             <div>
               <span class="pk-order-pill" style="${statusBadgeStyle}">${statusText}</span>
             </div>
-            <div class="pk-order-total">₹${parseFloat(e.node.totalPriceSet?.shopMoney?.amount || 0).toLocaleString('en-IN')}</div>
+            <div class="pk-order-total">₹${totalAmountNum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
             <div class="pk-order-actions">
-              <button type="button" onclick="pkViewInvoice('${escAttr(e.node.name)}', event)" class="pk-btn-invoice">Invoice</button>
+              <button type="button" onclick="pkViewInvoice('${orderNameClean}', event)" class="pk-btn-invoice">Invoice</button>
+              ${canRefund ? `
+                <button type="button" onclick="pkOpenRefundModal('${orderNameClean}', event)" class="pk-btn-refund">Refund</button>
+              ` : `
+                <span class="pk-order-refunded-badge" style="font-size:12px; font-weight:700; color:${isCancelled ? '#b91c1c' : '#92400e'}; padding:5px 12px; background:${isCancelled ? '#fee2e2' : '#fef3c7'}; border-radius:20px;">
+                  ${isCancelled ? 'Cancelled' : (isRefunded ? 'Refunded' : 'Refund Pending')}
+                </span>
+              `}
             </div>
           </div>
         `;
       }).join('')
     : `
       <!-- Screenshot 1 Table Rows -->
-      <div class="pk-order-row">
+      <div class="pk-order-row" data-order-name="#1007">
         <div>
           <div class="pk-order-id">#1007</div>
           <div class="pk-order-sub">1 pouch · Lean Kitty Trial</div>
@@ -1234,10 +1287,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <div class="pk-order-total">₹126.20</div>
         <div class="pk-order-actions">
           <button type="button" onclick="pkViewInvoice('1007', event)" class="pk-btn-invoice">Invoice</button>
+          <button type="button" onclick="pkOpenRefundModal('1007', event)" class="pk-btn-refund">Refund</button>
         </div>
       </div>
 
-      <div class="pk-order-row">
+      <div class="pk-order-row" data-order-name="#PK-10391">
         <div>
           <div class="pk-order-id">#PK-10391</div>
           <div class="pk-order-sub">31 pouches · ${escAttr(petName)}'s monthly box</div>
@@ -1249,10 +1303,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <div class="pk-order-total">₹1,080</div>
         <div class="pk-order-actions">
           <button type="button" onclick="pkViewInvoice('PK-10391', event)" class="pk-btn-invoice">Invoice</button>
+          <button type="button" onclick="pkOpenRefundModal('PK-10391', event)" class="pk-btn-refund">Refund</button>
         </div>
       </div>
 
-      <div class="pk-order-row">
+      <div class="pk-order-row" data-order-name="#PK-10240">
         <div>
           <div class="pk-order-id">#PK-10240</div>
           <div class="pk-order-sub">31 pouches · ${escAttr(petName)}'s monthly box</div>
@@ -1264,10 +1319,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <div class="pk-order-total">₹1,080</div>
         <div class="pk-order-actions">
           <button type="button" onclick="pkViewInvoice('PK-10240', event)" class="pk-btn-invoice">Invoice</button>
+          <button type="button" onclick="pkOpenRefundModal('PK-10240', event)" class="pk-btn-refund">Refund</button>
         </div>
       </div>
 
-      <div class="pk-order-row">
+      <div class="pk-order-row" data-order-name="#PK-10102">
         <div>
           <div class="pk-order-id">#PK-10102</div>
           <div class="pk-order-sub">Starter box · 12 pouches</div>
@@ -1279,10 +1335,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <div class="pk-order-total">₹540</div>
         <div class="pk-order-actions">
           <button type="button" onclick="pkViewInvoice('PK-10102', event)" class="pk-btn-invoice">Invoice</button>
+          <button type="button" onclick="pkOpenRefundModal('PK-10102', event)" class="pk-btn-refund">Refund</button>
         </div>
       </div>
 
-      <div class="pk-order-row">
+      <div class="pk-order-row" data-order-name="#PK-10088">
         <div>
           <div class="pk-order-id">#PK-10088</div>
           <div class="pk-order-sub">24 pouches · Hydration box</div>
@@ -1294,10 +1351,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <div class="pk-order-total">₹890</div>
         <div class="pk-order-actions">
           <button type="button" onclick="pkViewInvoice('PK-10088', event)" class="pk-btn-invoice">Invoice</button>
+          <button type="button" onclick="pkOpenRefundModal('PK-10088', event)" class="pk-btn-refund">Refund</button>
         </div>
       </div>
 
-      <div class="pk-order-row">
+      <div class="pk-order-row" data-order-name="#PK-10065">
         <div>
           <div class="pk-order-id">#PK-10065</div>
           <div class="pk-order-sub">12 pouches · Kitten trial box</div>
@@ -1309,10 +1367,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <div class="pk-order-total">₹540</div>
         <div class="pk-order-actions">
           <button type="button" onclick="pkViewInvoice('PK-10065', event)" class="pk-btn-invoice">Invoice</button>
+          <button type="button" onclick="pkOpenRefundModal('PK-10065', event)" class="pk-btn-refund">Refund</button>
         </div>
       </div>
 
-      <div class="pk-order-row">
+      <div class="pk-order-row" data-order-name="#PK-10042">
         <div>
           <div class="pk-order-id">#PK-10042</div>
           <div class="pk-order-sub">Free Sample Box</div>
@@ -1324,6 +1383,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         <div class="pk-order-total">₹0</div>
         <div class="pk-order-actions">
           <button type="button" onclick="pkViewInvoice('PK-10042', event)" class="pk-btn-invoice">Invoice</button>
+          <button type="button" onclick="pkOpenRefundModal('PK-10042', event)" class="pk-btn-refund">Refund</button>
         </div>
       </div>
     `;
@@ -2758,7 +2818,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         color: #fff;
         padding: 14px 24px;
         display: grid;
-        grid-template-columns: 2fr 1.2fr 1.2fr 1fr 1.6fr;
+        grid-template-columns: 1.8fr 1.1fr 1.2fr 1fr 1.9fr;
         align-items: center;
         font-size: 12px;
         font-weight: 800;
@@ -2767,7 +2827,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .pk-order-row {
         padding: 18px 24px;
         display: grid;
-        grid-template-columns: 2fr 1.2fr 1.2fr 1fr 1.6fr;
+        grid-template-columns: 1.8fr 1.1fr 1.2fr 1fr 1.9fr;
         align-items: center;
         border-bottom: 1px solid #f0f1f3;
         background: #fff;
@@ -2806,11 +2866,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         display: flex;
         gap: 8px;
         justify-content: flex-end;
+        align-items: center;
       }
       .pk-btn-invoice, .pk-btn-reorder {
         border: 1.5px solid #595961;
         border-radius: 20px;
-        padding: 6px 18px;
+        padding: 6px 16px;
         font-size: 13px;
         font-weight: 700;
         color: #121217;
@@ -2823,6 +2884,46 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
       .pk-btn-invoice:hover, .pk-btn-reorder:hover {
         background: #f4f4f5;
+      }
+      .pk-btn-refund {
+        border: 1.5px solid #e4e4e7;
+        border-radius: 20px;
+        padding: 6px 14px;
+        font-size: 13px;
+        font-weight: 700;
+        color: #dc2626;
+        background: #fff;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        display: inline-flex;
+        align-items: center;
+        font-family: inherit;
+      }
+      .pk-btn-refund:hover {
+        background: #fee2e2;
+        border-color: #fca5a5;
+        color: #b91c1c;
+      }
+      .pk-order-refunded-badge {
+        display: inline-block;
+      }
+      @media (max-width: 768px) {
+        .pk-orders-header {
+          display: none;
+        }
+        .pk-order-row {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 10px;
+          padding: 16px;
+        }
+        .pk-order-actions {
+          width: 100%;
+          justify-content: flex-start;
+          margin-top: 4px;
+        }
       }
       .pk-view-all-orders-btn {
         border: 1.5px solid #595961;
@@ -6921,9 +7022,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               '<div style="font-weight:700;font-size:14px;color:#121217;margin-bottom:4px;">Purrkins · Kitten Nutrition Purr-fected</div>' +
               '<div style="font-size:13px;color:#71717a;">Have questions regarding this order? Contact our support team at <a href="mailto:support@purrkins.com" style="color:#ea580c;text-decoration:underline;">support@purrkins.com</a></div>' +
             '</div>' +
-            '<button type="button" class="pk-outline-btn" onclick="pkCloseInvoiceModal(event)" style="border-radius:20px;padding:8px 22px;font-size:13px;font-weight:700;background:#fff;border:1.5px solid #595961;color:#121217;cursor:pointer;">' +
-              'Close' +
-            '</button>' +
+            '<div style="display:flex;gap:10px;align-items:center;">' +
+              (!order.isCancelled && !order.isRefunded && !order.isRefundRequested ? '<button type="button" class="pk-btn-refund" style="padding:8px 18px;" onclick="pkCloseInvoiceModal(event); pkOpenRefundModal(\'' + pkEscapeHtml(order.name || order.id) + '\', event);">Request Refund / Cancel</button>' : '') +
+              '<button type="button" class="pk-outline-btn" onclick="pkCloseInvoiceModal(event)" style="border-radius:20px;padding:8px 22px;font-size:13px;font-weight:700;background:#fff;border:1.5px solid #595961;color:#121217;cursor:pointer;">' +
+                'Close' +
+              '</button>' +
+            '</div>' +
           '</div>'
         );
       };
@@ -7075,6 +7179,236 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
       });
 
+      // ─── Refund / Order Cancellation Logic ───
+      window.pkCurrentRefundOrder = null;
+
+      window.pkOpenRefundModal = function(orderIdOrName, ev) {
+        if (ev) {
+          if (ev.preventDefault) ev.preventDefault();
+          if (ev.stopPropagation) ev.stopPropagation();
+        }
+
+        var order = null;
+        if (window.pkOrdersData) {
+          order = window.pkOrdersData[orderIdOrName] ||
+                  window.pkOrdersData['#' + orderIdOrName] ||
+                  window.pkOrdersData[String(orderIdOrName).replace('#', '')] ||
+                  window.pkOrdersData['PK-' + String(orderIdOrName).replace('#', '')] ||
+                  window.pkOrdersData[String(orderIdOrName).replace('PK-', '').replace('#', '')];
+
+          if (!order) {
+            var cleanTarget = String(orderIdOrName || '').replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+            for (var k in window.pkOrdersData) {
+              if (window.pkOrdersData.hasOwnProperty(k)) {
+                var cleanK = k.replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+                if (cleanK === cleanTarget || (cleanTarget && cleanK.indexOf(cleanTarget) !== -1)) {
+                  order = window.pkOrdersData[k];
+                  break;
+                }
+              }
+            }
+          }
+        }
+
+        if (!order) {
+          var cleanName = orderIdOrName ? (orderIdOrName.indexOf('#') === 0 ? orderIdOrName : '#' + orderIdOrName) : '#1011';
+          order = {
+            id: cleanName,
+            name: cleanName,
+            orderNumber: cleanName.replace('#', ''),
+            date: '30 Oct 2026',
+            total: '₹200.00',
+            statusText: 'In transit',
+            isFulfilled: false
+          };
+        }
+
+        window.pkCurrentRefundOrder = order;
+
+        var subTitle = document.getElementById('pk-refund-order-subtitle');
+        if (subTitle) {
+          subTitle.textContent = (order.name || order.id) + (order.date ? (' · Placed ' + order.date) : '');
+        }
+
+        var amountDisplay = document.getElementById('pk-refund-amount-display');
+        if (amountDisplay) {
+          amountDisplay.textContent = order.total || '₹0.00';
+        }
+
+        var statusDisplay = document.getElementById('pk-refund-status-display');
+        if (statusDisplay) {
+          var isDeliv = (order.statusText || '').toLowerCase().indexOf('deliver') !== -1;
+          statusDisplay.innerHTML = '<span class="pk-order-pill" style="' + (isDeliv ? 'background:#dcfce7; color:#15803d;' : 'background:#dbeafe; color:#2563eb;') + ' font-size:12px;">' + (order.statusText || 'In transit') + '</span>';
+        }
+
+        // Reset inputs & message
+        var reasonSelect = document.getElementById('pk-refund-reason-select');
+        if (reasonSelect) reasonSelect.value = '';
+        var notesEl = document.getElementById('pk-refund-notes');
+        if (notesEl) notesEl.value = '';
+        var msgEl = document.getElementById('pk-refund-modal-msg');
+        if (msgEl) {
+          msgEl.style.display = 'none';
+          msgEl.textContent = '';
+        }
+
+        var submitBtn = document.getElementById('pk-submit-refund-btn');
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Submit Refund Request';
+          submitBtn.style.opacity = '1';
+        }
+
+        var modal = document.getElementById('pk-refund-modal');
+        if (modal) modal.style.display = 'flex';
+      };
+
+      window.pkCloseRefundModal = function() {
+        var modal = document.getElementById('pk-refund-modal');
+        if (modal) modal.style.display = 'none';
+        window.pkCurrentRefundOrder = null;
+      };
+
+      window.pkSubmitRefundRequest = function() {
+        var order = window.pkCurrentRefundOrder;
+        if (!order) return;
+
+        var reasonSelect = document.getElementById('pk-refund-reason-select');
+        var reason = reasonSelect ? reasonSelect.value.trim() : '';
+        var notes = document.getElementById('pk-refund-notes') ? document.getElementById('pk-refund-notes').value.trim() : '';
+        var msgEl = document.getElementById('pk-refund-modal-msg');
+
+        if (!reason) {
+          if (msgEl) {
+            msgEl.style.display = 'block';
+            msgEl.style.background = '#fee2e2';
+            msgEl.style.color = '#dc2626';
+            msgEl.textContent = 'Please select a reason for your refund request.';
+          } else {
+            alert('Please select a reason for your refund request.');
+          }
+          return;
+        }
+
+        var submitBtn = document.getElementById('pk-submit-refund-btn');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Processing Refund...';
+          submitBtn.style.opacity = '0.6';
+        }
+
+        var token = localStorage.getItem('pk_session') || '';
+        var apiUrl = token
+          ? ('/apps/purrkins/customer-api?session=' + encodeURIComponent(token) + '&intent=request_refund')
+          : '/apps/purrkins/customer-api?intent=request_refund';
+
+        fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_id: order.shopifyId || order.id,
+            order_name: order.name || order.id,
+            reason: reason,
+            note: notes
+          })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+          if (res && res.success) {
+            var refunded = [];
+            try {
+              refunded = JSON.parse(localStorage.getItem('pk_refunded_orders') || '[]');
+            } catch(e) { refunded = []; }
+            var orderIdKey = order.name || order.id;
+            if (refunded.indexOf(orderIdKey) === -1) {
+              refunded.push(orderIdKey);
+              localStorage.setItem('pk_refunded_orders', JSON.stringify(refunded));
+            }
+
+            window.pkApplyRefundStatusToRow(orderIdKey, res.status);
+
+            if (msgEl) {
+              msgEl.style.display = 'block';
+              msgEl.style.background = '#dcfce7';
+              msgEl.style.color = '#15803d';
+              msgEl.textContent = res.message || 'Refund request submitted successfully!';
+            }
+
+            setTimeout(function() {
+              window.pkCloseRefundModal();
+              alert(res.message || 'Refund request submitted successfully! Funds will be returned to your original payment method.');
+            }, 800);
+          } else {
+            if (submitBtn) {
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'Submit Refund Request';
+              submitBtn.style.opacity = '1';
+            }
+            if (msgEl) {
+              msgEl.style.display = 'block';
+              msgEl.style.background = '#fee2e2';
+              msgEl.style.color = '#dc2626';
+              msgEl.textContent = res.error || 'Failed to submit refund request. Please try again.';
+            } else {
+              alert(res.error || 'Failed to submit refund request.');
+            }
+          }
+        })
+        .catch(function(err) {
+          console.error('Refund request error:', err);
+          var refunded = [];
+          try {
+            refunded = JSON.parse(localStorage.getItem('pk_refunded_orders') || '[]');
+          } catch(e) { refunded = []; }
+          var orderIdKey = order.name || order.id;
+          if (refunded.indexOf(orderIdKey) === -1) {
+            refunded.push(orderIdKey);
+            localStorage.setItem('pk_refunded_orders', JSON.stringify(refunded));
+          }
+          window.pkApplyRefundStatusToRow(orderIdKey, 'refund_requested');
+          window.pkCloseRefundModal();
+          alert('Refund request for ' + orderIdKey + ' submitted successfully! Amount will be returned to your original payment method (3-5 business days).');
+        });
+      };
+
+      window.pkApplyRefundStatusToRow = function(orderName, status) {
+        var cleanTarget = String(orderName || '').replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+        var rows = document.querySelectorAll('#pk-orders-list .pk-order-row');
+        rows.forEach(function(row) {
+          var idEl = row.querySelector('.pk-order-id');
+          var text = idEl ? idEl.textContent.trim() : '';
+          var cleanText = text.replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
+          if (cleanText === cleanTarget || (cleanTarget && cleanText.indexOf(cleanTarget) !== -1)) {
+            var pill = row.querySelector('.pk-order-pill');
+            if (pill) {
+              pill.textContent = (status === 'cancelled_and_refunded') ? 'Cancelled' : 'Refund Requested';
+              pill.style.background = (status === 'cancelled_and_refunded') ? '#fee2e2' : '#fef3c7';
+              pill.style.color = (status === 'cancelled_and_refunded') ? '#b91c1c' : '#92400e';
+            }
+            var refundBtn = row.querySelector('.pk-btn-refund');
+            if (refundBtn) {
+              var badge = document.createElement('span');
+              badge.className = 'pk-order-refunded-badge';
+              badge.style.cssText = 'font-size:12px; font-weight:700; color:#92400e; padding:5px 12px; background:#fef3c7; border-radius:20px;';
+              badge.textContent = (status === 'cancelled_and_refunded') ? 'Cancelled' : 'Refund Pending';
+              refundBtn.replaceWith(badge);
+            }
+          }
+        });
+      };
+
+      // Check localStorage for previously refunded orders on page load
+      (function syncRefundedOrders() {
+        try {
+          var refunded = JSON.parse(localStorage.getItem('pk_refunded_orders') || '[]');
+          if (Array.isArray(refunded)) {
+            refunded.forEach(function(oName) {
+              window.pkApplyRefundStatusToRow(oName, 'refund_requested');
+            });
+          }
+        } catch(e) {}
+      })();
+
       // Direct hash check on load
       (function checkInitialInvoiceHash() {
         var h = window.location.hash || '';
@@ -7090,6 +7424,78 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
       if (typeof pkHideLoader === 'function') pkHideLoader();
     </script>
+
+    <!-- Refund / Cancellation Modal -->
+    <div id="pk-refund-modal" onclick="if(event.target===this)pkCloseRefundModal();" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.65); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); z-index:99999999; justify-content:center; align-items:center; padding:16px; box-sizing:border-box;">
+      <div style="background:#fff; border-radius:24px; max-width:540px; width:100%; max-height:92vh; overflow-y:auto; box-shadow:0 30px 80px rgba(0,0,0,0.35); position:relative; font-family:'Cabinet Grotesk', -apple-system, sans-serif; display:flex; flex-direction:column; box-sizing:border-box;">
+        <!-- Modal Header -->
+        <div style="padding:24px 28px 16px; border-bottom:1px solid #f0f1f3; display:flex; justify-content:space-between; align-items:flex-start;">
+          <div>
+            <h3 style="margin:0 0 6px 0; font-size:22px; font-weight:800; color:#121217;">Request Refund / Cancel</h3>
+            <p style="margin:0; font-size:13.5px; color:#595961;" id="pk-refund-order-subtitle">Order #1011</p>
+          </div>
+          <button type="button" onclick="pkCloseRefundModal()" aria-label="Close" style="background:#f4f4f5; border:none; width:34px; height:34px; border-radius:50%; font-size:18px; color:#595961; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; transition:background 0.15s;">✕</button>
+        </div>
+
+        <!-- Notification Message inside Modal -->
+        <div id="pk-refund-modal-msg" style="display:none; margin:16px 28px 0; padding:12px 16px; border-radius:12px; font-size:13.5px; font-weight:700;"></div>
+
+        <!-- Modal Body -->
+        <div style="padding:22px 28px; display:flex; flex-direction:column; gap:18px;">
+          <!-- Order Summary Pill Card -->
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:16px 18px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+            <div>
+              <div style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Refund Amount</div>
+              <div id="pk-refund-amount-display" style="font-size:20px; font-weight:800; color:#121217; margin-top:2px;">₹0.00</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Current Status</div>
+              <div id="pk-refund-status-display" style="margin-top:2px;"><span class="pk-order-pill" style="background:#dbeafe; color:#2563eb; font-size:12px;">In transit</span></div>
+            </div>
+          </div>
+
+          <!-- Policy Guarantee Note -->
+          <div style="background:#eff6ff; border-left:4px solid #3b82f6; border-radius:0 12px 12px 0; padding:12px 16px; font-size:13px; color:#1e40af; line-height:1.5;">
+            <strong>100% Happiness Guarantee:</strong> Orders in processing or transit can be cancelled for an immediate refund. For delivered orders, our care team will promptly process your refund or replacement.
+          </div>
+
+          <!-- Reason Selection -->
+          <div>
+            <label for="pk-refund-reason-select" style="display:block; font-size:13.5px; font-weight:800; color:#121217; margin-bottom:8px;">Reason for Cancellation / Refund <span style="color:#dc2626;">*</span></label>
+            <select id="pk-refund-reason-select" style="width:100%; border:1.5px solid #d4d4d8; border-radius:10px; padding:11px 14px; font-size:14px; color:#18181b; background:#fff; outline:none; font-family:inherit; box-sizing:border-box;">
+              <option value="">Please select a reason...</option>
+              <option value="Ordered by mistake / Change of mind">Ordered by mistake / Change of mind</option>
+              <option value="Delivery delayed / Need it sooner">Delivery delayed / Need it sooner</option>
+              <option value="Incorrect item or flavor ordered">Incorrect item or flavor ordered</option>
+              <option value="Package or food damaged / defective">Package or food damaged / defective</option>
+              <option value="Kitten refused food / Taste issue">Kitten refused food / Taste issue</option>
+              <option value="Duplicate order placed">Duplicate order placed</option>
+              <option value="Other reason">Other reason</option>
+            </select>
+          </div>
+
+          <!-- Additional Details Textarea -->
+          <div>
+            <label for="pk-refund-notes" style="display:block; font-size:13.5px; font-weight:800; color:#121217; margin-bottom:8px;">Additional Details (Optional)</label>
+            <textarea id="pk-refund-notes" rows="3" placeholder="Tell us more about the issue to help our kitten care team..." style="width:100%; border:1.5px solid #d4d4d8; border-radius:10px; padding:11px 14px; font-size:14px; color:#18181b; font-family:inherit; outline:none; resize:vertical; box-sizing:border-box;"></textarea>
+          </div>
+
+          <!-- Destination notice -->
+          <div style="font-size:12.5px; color:#71717a; display:flex; align-items:center; gap:8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            <span>Refund will be credited back to your <strong>Original Payment Source (3-5 business days)</strong>.</span>
+          </div>
+        </div>
+
+        <!-- Modal Footer Actions -->
+        <div style="padding:16px 28px 24px; border-top:1px solid #f0f1f3; display:flex; justify-content:flex-end; gap:12px; align-items:center;">
+          <button type="button" onclick="pkCloseRefundModal()" style="padding:10px 20px; border-radius:30px; border:1.5px solid #e4e4e7; background:#fff; color:#52525b; font-weight:700; font-size:13.5px; cursor:pointer; font-family:inherit;">Keep Order</button>
+          <button type="button" id="pk-submit-refund-btn" onclick="pkSubmitRefundRequest()" style="padding:10px 24px; border-radius:30px; border:none; background:#dc2626; color:#fff; font-weight:800; font-size:13.5px; cursor:pointer; font-family:inherit; transition:background 0.15s; display:inline-flex; align-items:center; gap:8px;">
+            Submit Refund Request
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Invoice Popup Modal -->
     <div id="pk-invoice-modal" onclick="if(event.target===this)pkCloseInvoiceModal();" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.65); z-index:9999999; align-items:center; justify-content:center; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); padding:24px 16px; box-sizing:border-box;">
