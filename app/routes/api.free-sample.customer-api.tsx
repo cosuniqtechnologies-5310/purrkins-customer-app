@@ -381,15 +381,17 @@ async function handleRequest(request: Request) {
       const formData = await request.formData();
       const file = formData.get("avatar") as File | null;
       let petId = (formData.get("pet_id") as string) || "";
+      const petIndexRaw = formData.get("pet_index");
+      const petIndex = petIndexRaw !== null && petIndexRaw !== undefined ? parseInt(String(petIndexRaw), 10) : -1;
       const filename = (formData.get("filename") as string) || file?.name || "kitten.jpg";
 
       if (!file) {
         return json({ success: false, error: "No file provided" }, 400);
       }
-      if (!petId) {
+      if (!petId && petIndex < 0) {
         return json({ success: false, error: "Pet ID is required" }, 400);
       }
-      if (!petId.includes("gid://shopify/Metaobject/")) {
+      if (petId && !petId.includes("gid://shopify/Metaobject/")) {
         const rawId = petId.split("/").pop() || "";
         if (/^\d+$/.test(rawId)) {
           petId = `gid://shopify/Metaobject/${rawId}`;
@@ -405,7 +407,7 @@ async function handleRequest(request: Request) {
             customer(id: $id) {
               pets: metafield(namespace: "custom", key: "pets") {
                 value
-                references(first: 5) {
+                references(first: 20) {
                   nodes { ... on Metaobject { id } }
                 }
               }
@@ -413,9 +415,16 @@ async function handleRequest(request: Request) {
           }
         `, { id: `gid://shopify/Customer/${numericId}` });
         const existingPets = custGql.data?.customer?.pets?.references?.nodes || [];
-        if (existingPets.length > 0 && existingPets[0].id) {
-          petId = existingPets[0].id;
-        } else {
+        if (existingPets.length > 0) {
+          const targetIndex = (petIndex >= 0 && petIndex < existingPets.length) ? petIndex : 0;
+          if (existingPets[targetIndex]?.id) {
+            petId = existingPets[targetIndex].id;
+          } else if (existingPets[0]?.id) {
+            petId = existingPets[0].id;
+          }
+        }
+        
+        if (!petId.includes("gid://shopify/Metaobject/")) {
           // Create new pet_profile
           const createMo = await shopifyGql(accessToken, `
             mutation CreatePet($metaobject: MetaobjectCreateInput!) {
@@ -429,7 +438,7 @@ async function handleRequest(request: Request) {
               type: "pet_profile",
               capabilities: { publishable: { status: "ACTIVE" } },
               fields: [
-                { key: "name", value: "Milo" },
+                { key: "name", value: "Kitten" },
                 ...(fileId ? [{ key: "profile", value: fileId }] : [])
               ]
             }
@@ -484,6 +493,7 @@ async function handleRequest(request: Request) {
       }
 
       appCache.delPrefix("customer:");
+      appCache.delPrefix("dashboard:");
       return json({ success: true, avatarUrl: cdnUrl, fileId, petId });
     } catch (err: any) {
       console.error("Error in upload_pet_avatar:", err);
@@ -496,10 +506,11 @@ async function handleRequest(request: Request) {
     try {
       const body = await request.json();
       let petId = body.pet_id;
-      if (!petId) {
+      const petIndex = typeof body.pet_index === "number" ? body.pet_index : -1;
+      if (!petId && petIndex < 0) {
         return json({ success: false, error: "Pet ID is required" }, 400);
       }
-      if (!petId.includes("gid://shopify/Metaobject/")) {
+      if (petId && !petId.includes("gid://shopify/Metaobject/")) {
         const rawId = petId.split("/").pop() || "";
         if (/^\d+$/.test(rawId)) {
           petId = `gid://shopify/Metaobject/${rawId}`;
@@ -524,13 +535,13 @@ async function handleRequest(request: Request) {
         });
       }
 
-      if (!petId.includes("gid://shopify/Metaobject/")) {
+      if (!petId || !petId.includes("gid://shopify/Metaobject/")) {
         const custGql = await shopifyGql(accessToken, `
           query getCustomerPets($id: ID!) {
             customer(id: $id) {
               pets: metafield(namespace: "custom", key: "pets") {
                 value
-                references(first: 5) {
+                references(first: 20) {
                   nodes { ... on Metaobject { id } }
                 }
               }
@@ -538,9 +549,16 @@ async function handleRequest(request: Request) {
           }
         `, { id: `gid://shopify/Customer/${numericId}` });
         const existingPets = custGql.data?.customer?.pets?.references?.nodes || [];
-        if (existingPets.length > 0 && existingPets[0].id) {
-          petId = existingPets[0].id;
-        } else {
+        if (existingPets.length > 0) {
+          const targetIndex = (petIndex >= 0 && petIndex < existingPets.length) ? petIndex : 0;
+          if (existingPets[targetIndex]?.id) {
+            petId = existingPets[targetIndex].id;
+          } else if (existingPets[0]?.id) {
+            petId = existingPets[0].id;
+          }
+        }
+        
+        if (!petId || !petId.includes("gid://shopify/Metaobject/")) {
           const createMo = await shopifyGql(accessToken, `
             mutation CreatePet($metaobject: MetaobjectCreateInput!) {
               metaobjectCreate(metaobject: $metaobject) {
@@ -579,6 +597,7 @@ async function handleRequest(request: Request) {
               }]
             });
             appCache.delPrefix("customer:");
+            appCache.delPrefix("dashboard:");
             return json({ success: true, message: "Pet profile updated successfully", petId: newPetId });
           }
         }
@@ -604,10 +623,122 @@ async function handleRequest(request: Request) {
       }
 
       appCache.delPrefix("customer:");
+      appCache.delPrefix("dashboard:");
       return json({ success: true, message: "Pet profile updated successfully", petId });
     } catch (err: any) {
       console.error("Error in update_pet:", err);
       return json({ success: false, error: err.message || "Failed to update pet" }, 500);
+    }
+  }
+
+  // DELETE PET PROFILE
+  if (intent === "delete_pet") {
+    try {
+      const body = await request.json();
+      let petId = body.pet_id || "";
+      const petIndex = typeof body.pet_index === "number" ? body.pet_index : -1;
+
+      // Query customer's existing pets metafield
+      const custGql = await shopifyGql(accessToken, `
+        query getCustomerPets($id: ID!) {
+          customer(id: $id) {
+            pets: metafield(namespace: "custom", key: "pets") {
+              id
+              value
+              references(first: 30) {
+                nodes {
+                  ... on Metaobject {
+                    id
+                  }
+                }
+              }
+            }
+          }
+        }
+      `, { id: `gid://shopify/Customer/${numericId}` });
+
+      const petsMetafield = custGql.data?.customer?.pets;
+      let existingList: string[] = [];
+      try {
+        if (petsMetafield?.value) {
+          existingList = JSON.parse(petsMetafield.value);
+          if (!Array.isArray(existingList)) existingList = [];
+        }
+      } catch (e) {
+        existingList = [];
+      }
+
+      if (existingList.length === 0 && petsMetafield?.references?.nodes) {
+        existingList = petsMetafield.references.nodes.map((n: any) => n.id);
+      }
+
+      let targetGid = "";
+      if (petId && petId.includes("gid://shopify/Metaobject/")) {
+        targetGid = petId;
+      } else if (petId) {
+        const rawDigits = petId.split("/").pop() || "";
+        if (/^\d+$/.test(rawDigits)) {
+          const fullGid = `gid://shopify/Metaobject/${rawDigits}`;
+          if (existingList.includes(fullGid)) {
+            targetGid = fullGid;
+          }
+        }
+      }
+
+      if (!targetGid && petIndex >= 0 && petIndex < existingList.length) {
+        targetGid = existingList[petIndex];
+      }
+
+      // Filter out targetGid from existingList
+      let updatedList: string[];
+      if (targetGid) {
+        updatedList = existingList.filter((id) => id !== targetGid);
+      } else if (petIndex >= 0 && petIndex < existingList.length) {
+        updatedList = [...existingList];
+        updatedList.splice(petIndex, 1);
+      } else {
+        updatedList = existingList.length > 0 ? existingList.slice(1) : [];
+      }
+
+      // Update customer's custom.pets metafield
+      await shopifyGql(accessToken, `
+        mutation setCustomerPets($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            userErrors { field message }
+          }
+        }
+      `, {
+        metafields: [{
+          ownerId: `gid://shopify/Customer/${numericId}`,
+          namespace: "custom",
+          key: "pets",
+          type: "list.metaobject_reference",
+          value: JSON.stringify(updatedList)
+        }]
+      });
+
+      // Optionally delete the metaobject itself so orphaned metaobjects don't pile up
+      if (targetGid && targetGid.includes("gid://shopify/Metaobject/")) {
+        try {
+          await shopifyGql(accessToken, `
+            mutation DeleteMetaobject($id: ID!) {
+              metaobjectDelete(id: $id) {
+                deletedId
+                userErrors { field message }
+              }
+            }
+          `, { id: targetGid });
+        } catch (e) {
+          console.warn("Could not delete metaobject entity:", e);
+        }
+      }
+
+      appCache.delPrefix("customer:");
+      appCache.delPrefix("dashboard:");
+      return json({ success: true, message: "Kitten removed successfully", remainingCount: updatedList.length });
+    } catch (err: any) {
+      console.error("Error in delete_pet:", err);
+      return json({ success: false, error: err.message || "Failed to delete pet profile" }, 500);
     }
   }
 

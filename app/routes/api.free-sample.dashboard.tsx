@@ -790,7 +790,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         const allergies = p.allergies?.value || "";
         const breed = p.breed?.value || "Indie";
         const birthday = p.birthday?.value || p.dob?.value || getEstimatedBirthday(age);
-        const imageUrl = p.profile?.reference?.image?.url || "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop";
+        const imageUrl = p.profile?.reference?.image?.url || "";
 
         // Dynamic quiz pills from actual answered fields only
         const quizPills: string[] = [];
@@ -855,7 +855,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           focus: "Sensitive stomach",
           healthFlags: "Sensitive stomach",
           allergies: "None recorded",
-          imageUrl: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop",
+          imageUrl: "",
           quizPills: [
             "Age: 5 months",
             "Weight: 1.9 kg",
@@ -882,8 +882,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         onclick="pkSelectPet(${idx}, event)"
         data-pet-index="${idx}"
       >
-        <div class="pk-pet-avatar">
-          <img src="${escAttr(p.imageUrl)}" alt="${escAttr(p.name)}">
+        <div class="pk-pet-avatar" style="width:40px; height:40px; border-radius:50%; overflow:hidden; background:#FFF6DE; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          ${p.imageUrl
+            ? `<img src="${escAttr(p.imageUrl)}" alt="${escAttr(p.name)}" style="width:100%; height:100%; object-fit:cover; display:block;">`
+            : `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B38E46" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 5c.67 0 1.35.09 2 .26 1.78-2 5.03-2.84 6.42-2.26 1.4.58-.42 7 .58 8.5 1 1.5 1 4 0 6s-4 4-9 4-8-2-9-4 0-4.5 1-6c1-1.5-.82-7.92.58-8.5 1.39-.58 4.64.26 6.42 2.26.65-.17 1.33-.26 2-.26z"/>
+                <circle cx="9" cy="13" r="1.2" fill="#B38E46"/>
+                <circle cx="15" cy="13" r="1.2" fill="#B38E46"/>
+                <path d="M10 16c1 .5 3 .5 4 0"/>
+              </svg>`
+          }
         </div>
         <div class="pk-pet-info">
           <strong>${escAttr(p.name)}</strong>
@@ -1665,11 +1673,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           >
             <img
               id="pk-pet-profile-img"
-              src="${escAttr(initialPet.imageUrl)}"
+              src="${escAttr(initialPet.imageUrl || '')}"
               alt="${escAttr(petName)}"
-              style="width:100%; height:100%; object-fit:cover; display:block;"
-              onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop';"
+              style="width:100%; height:100%; object-fit:cover; display:${initialPet.imageUrl ? 'block' : 'none'};"
             >
+            <div
+              id="pk-pet-avatar-empty"
+              style="width:100%; height:100%; display:${initialPet.imageUrl ? 'none' : 'flex'}; flex-direction:column; align-items:center; justify-content:center; gap:6px; color:#B38E46;"
+            >
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 5c.67 0 1.35.09 2 .26 1.78-2 5.03-2.84 6.42-2.26 1.4.58-.42 7 .58 8.5 1 1.5 1 4 0 6s-4 4-9 4-8-2-9-4 0-4.5 1-6c1-1.5-.82-7.92.58-8.5 1.39-.58 4.64.26 6.42 2.26.65-.17 1.33-.26 2-.26z"/>
+                <circle cx="9" cy="13" r="1.3" fill="currentColor"/>
+                <circle cx="15" cy="13" r="1.3" fill="currentColor"/>
+                <path d="M10 16c1 .5 3 .5 4 0"/>
+              </svg>
+              <span style="font-size:11px; font-weight:700; color:#595961;">Add Photo</span>
+            </div>
             <!-- Hover overlay -->
             <div
               class="pk-pet-hover-overlay"
@@ -5244,12 +5263,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         if (titleEl) titleEl.textContent = pet.name + "'s profile";
         
         var imgEl = document.getElementById('pk-pet-profile-img');
+        var emptyEl = document.getElementById('pk-pet-avatar-empty');
         var cachedPetImg = null;
         if (pet.id) {
           try { cachedPetImg = localStorage.getItem('pk_pet_avatar_' + pet.id); } catch(e) {}
         }
         var targetPetImg = cachedPetImg || pet.imageUrl;
-        if (imgEl && targetPetImg) imgEl.src = targetPetImg;
+        if (targetPetImg) {
+          if (imgEl) { imgEl.src = targetPetImg; imgEl.style.display = 'block'; }
+          if (emptyEl) emptyEl.style.display = 'none';
+        } else {
+          if (imgEl) { imgEl.src = ''; imgEl.style.display = 'none'; }
+          if (emptyEl) emptyEl.style.display = 'flex';
+        }
 
         var ageEl = document.getElementById('pk-pet-stat-age');
         if (ageEl) ageEl.textContent = pet.age || '—';
@@ -5329,12 +5355,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         var reader = new FileReader();
         reader.onload = function(e) {
           var previewUrl = e.target.result;
-          if (petImg) petImg.src = previewUrl;
+          if (petImg) {
+            petImg.src = previewUrl;
+            petImg.style.display = 'block';
+          }
+          var emptyEl = document.getElementById('pk-pet-avatar-empty');
+          if (emptyEl) emptyEl.style.display = 'none';
 
           var token = localStorage.getItem('pk_session') || '';
           var formData = new FormData();
           formData.append('avatar', file);
           formData.append('pet_id', activePet.id);
+          formData.append('pet_index', window.pkActivePetIndex || 0);
           formData.append('filename', file.name || 'kitten.jpg');
 
           fetch('/apps/purrkins/customer-api?session=' + token + '&intent=upload_pet_avatar', {
@@ -5349,9 +5381,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               if (activePet.id) {
                 try { localStorage.setItem('pk_pet_avatar_' + activePet.id, data.avatarUrl); } catch(e) {}
               }
-              if (petImg) petImg.src = data.avatarUrl;
-              var activePillImg = document.querySelector('.pk-pet-pill.active .pk-pet-avatar img');
-              if (activePillImg) activePillImg.src = data.avatarUrl;
+              if (petImg) {
+                petImg.src = data.avatarUrl;
+                petImg.style.display = 'block';
+              }
+              if (emptyEl) emptyEl.style.display = 'none';
+              var activePillAvatar = document.querySelector('.pk-pet-pill.active .pk-pet-avatar');
+              if (activePillAvatar) {
+                activePillAvatar.innerHTML = '<img src="' + data.avatarUrl + '" alt="' + (activePet.name || '') + '" style="width:100%; height:100%; object-fit:cover; display:block;">';
+              }
               alert('Kitten profile photo updated successfully!');
             } else {
               alert(data.error || 'Failed to update kitten photo. Please try again.');
@@ -5376,7 +5414,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         var reader = new FileReader();
         reader.onload = function(e) {
           var modalImg = document.getElementById('pk-modal-pet-img');
-          if (modalImg) modalImg.src = e.target.result;
+          var modalEmpty = document.getElementById('pk-modal-pet-empty');
+          if (modalImg) {
+            modalImg.src = e.target.result;
+            modalImg.style.display = 'block';
+          }
+          if (modalEmpty) modalEmpty.style.display = 'none';
         };
         reader.readAsDataURL(file);
       };
@@ -5494,8 +5537,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         var bdayInput = document.getElementById('pk-edit-pet-birthday');
         if (bdayInput) bdayInput.value = pet.birthday || '—';
 
+        var cachedPetImg = null;
+        if (pet.id) {
+          try { cachedPetImg = localStorage.getItem('pk_pet_avatar_' + pet.id); } catch(e) {}
+        }
+        var targetImg = cachedPetImg || pet.imageUrl;
         var modalImg = document.getElementById('pk-modal-pet-img');
-        if (modalImg) modalImg.src = pet.imageUrl || 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=150&h=150&fit=crop';
+        var modalEmpty = document.getElementById('pk-modal-pet-empty');
+        if (targetImg) {
+          if (modalImg) {
+            modalImg.src = targetImg;
+            modalImg.style.display = 'block';
+          }
+          if (modalEmpty) modalEmpty.style.display = 'none';
+        } else {
+          if (modalImg) {
+            modalImg.src = '';
+            modalImg.style.display = 'none';
+          }
+          if (modalEmpty) modalEmpty.style.display = 'flex';
+        }
 
         var msg = document.getElementById('pk-edit-pet-msg');
         if (msg) msg.style.display = 'none';
@@ -5531,6 +5592,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         btn.textContent = 'Saving...';
 
         var token = localStorage.getItem('pk_session') || '';
+        var pIdx = (typeof window.pkActivePetIndex === 'number') ? window.pkActivePetIndex : 0;
 
         function doUpdate(newFileId, newImageUrl) {
           var breedVal = document.getElementById('pk-edit-pet-breed') ? document.getElementById('pk-edit-pet-breed').value.trim() : '';
@@ -5538,6 +5600,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
           var payload = {
             pet_id: petId,
+            pet_index: pIdx,
             name: document.getElementById('pk-edit-pet-name').value.trim(),
             age: document.getElementById('pk-edit-pet-age').value,
             weight: document.getElementById('pk-edit-pet-weight').value.trim(),
@@ -5567,8 +5630,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               showMsg('Pet details updated successfully!', true);
 
               var pets = window.pkPetsData || [];
-              var activePet = pets[window.pkActivePetIndex || 0];
+              var activePet = pets[pIdx];
               if (activePet) {
+                if (data.petId) activePet.id = data.petId;
                 activePet.name = payload.name;
                 activePet.age = payload.age;
                 activePet.weight = payload.weight;
@@ -5583,20 +5647,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 activePet.focus = payload.focus;
                 activePet.healthFlags = payload.focus || 'None recorded';
                 activePet.allergies = payload.allergies || 'None recorded';
-                if (newImageUrl) activePet.imageUrl = newImageUrl;
+                if (newImageUrl) {
+                  activePet.imageUrl = newImageUrl;
+                  if (activePet.id) {
+                    try { localStorage.setItem('pk_pet_avatar_' + activePet.id, newImageUrl); } catch(e) {}
+                  }
+                }
               }
 
-              // Update pill name and image
+              // Update pill name, age, and avatar
               var activePillStrong = document.querySelector('.pk-pet-pill.active .pk-pet-info strong');
               if (activePillStrong) activePillStrong.textContent = payload.name;
               var activePillAge = document.querySelector('.pk-pet-pill.active .pk-pet-info span');
               if (activePillAge) activePillAge.textContent = payload.age;
               if (newImageUrl) {
-                var activePillImg = document.querySelector('.pk-pet-pill.active .pk-pet-avatar img');
-                if (activePillImg) activePillImg.src = newImageUrl;
+                var activePillAvatar = document.querySelector('.pk-pet-pill.active .pk-pet-avatar');
+                if (activePillAvatar) {
+                  activePillAvatar.innerHTML = '<img src="' + newImageUrl + '" alt="' + (payload.name || '') + '" style="width:100%; height:100%; object-fit:cover; display:block;">';
+                }
               }
 
-              window.pkSelectPet(window.pkActivePetIndex || 0);
+              window.pkSelectPet(pIdx);
 
               setTimeout(function() {
                 pkCloseEditPetModal();
@@ -5616,6 +5687,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           var fileData = new FormData();
           fileData.append('avatar', window._pk_modal_pet_file);
           fileData.append('pet_id', petId);
+          fileData.append('pet_index', String(pIdx));
           fileData.append('filename', window._pk_modal_pet_file.name || 'kitten.jpg');
 
           fetch('/apps/purrkins/customer-api?session=' + token + '&intent=upload_pet_avatar', {
@@ -5625,6 +5697,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           .then(function(r) { return r.json(); })
           .then(function(d) {
             if (d && d.success && d.fileId) {
+              if (d.petId) {
+                try { localStorage.setItem('pk_pet_avatar_' + d.petId, d.avatarUrl); } catch(e) {}
+              }
               doUpdate(d.fileId, d.avatarUrl);
             } else {
               doUpdate(null, null);
@@ -5796,18 +5871,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           window.pkInitOrdersPagination();
         }
 
-        // Restore cached pet avatar if present
+        // Restore cached pet avatar if present for each individual pet
         try {
-          var initialPets = window.pkPetsData || [];
-          if (initialPets.length > 0 && initialPets[0].id) {
-            var cPetImg = localStorage.getItem('pk_pet_avatar_' + initialPets[0].id);
-            var petProfileImg = document.getElementById('pk-pet-profile-img');
-            if (cPetImg && petProfileImg) {
-              petProfileImg.src = cPetImg;
-              var pillImg = document.querySelector('.pk-pet-pill.active .pk-pet-avatar img');
-              if (pillImg) pillImg.src = cPetImg;
+          var allPets = window.pkPetsData || [];
+          allPets.forEach(function(p, pIdx) {
+            if (p && p.id) {
+              var cImg = localStorage.getItem('pk_pet_avatar_' + p.id);
+              if (cImg) {
+                p.imageUrl = cImg;
+                var pAvatar = document.querySelector('.pk-pet-pill[data-pet-index="' + pIdx + '"] .pk-pet-avatar');
+                if (pAvatar) {
+                  pAvatar.innerHTML = '<img src="' + cImg + '" alt="' + (p.name || '') + '" style="width:100%; height:100%; object-fit:cover; display:block;">';
+                }
+                if (pIdx === (window.pkActivePetIndex || 0)) {
+                  var pImg = document.getElementById('pk-pet-profile-img');
+                  var pEmpty = document.getElementById('pk-pet-avatar-empty');
+                  if (pImg) { pImg.src = cImg; pImg.style.display = 'block'; }
+                  if (pEmpty) { pEmpty.style.display = 'none'; }
+                }
+              }
             }
-          }
+          });
         } catch(e) {}
         function doHideLoader() {
           if (typeof window.pkHideLoader === 'function') window.pkHideLoader();
@@ -6840,8 +6924,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
           <!-- Pet Photo Row in Modal -->
           <div style="display:flex; align-items:center; gap:20px; margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid #f0eee6;">
-            <div style="width:80px; height:80px; border-radius:16px; overflow:hidden; background:#f4f4f5; flex-shrink:0; position:relative;">
-              <img id="pk-modal-pet-img" src="" alt="Pet Photo" style="width:100%; height:100%; object-fit:cover;">
+            <div style="width:80px; height:80px; border-radius:16px; overflow:hidden; background:#FFF6DE; flex-shrink:0; position:relative; display:flex; align-items:center; justify-content:center;">
+              <img id="pk-modal-pet-img" src="" alt="Pet Photo" style="width:100%; height:100%; object-fit:cover; display:none;">
+              <div id="pk-modal-pet-empty" style="display:flex; flex-direction:column; align-items:center; justify-content:center; color:#B38E46;">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 5c.67 0 1.35.09 2 .26 1.78-2 5.03-2.84 6.42-2.26 1.4.58-.42 7 .58 8.5 1 1.5 1 4 0 6s-4 4-9 4-8-2-9-4 0-4.5 1-6c1-1.5-.82-7.92.58-8.5 1.39-.58 4.64.26 6.42 2.26.65-.17 1.33-.26 2-.26z"/>
+                  <circle cx="9" cy="13" r="1.2" fill="currentColor"/>
+                  <circle cx="15" cy="13" r="1.2" fill="currentColor"/>
+                  <path d="M10 16c1 .5 3 .5 4 0"/>
+                </svg>
+              </div>
             </div>
             <div>
               <button type="button" onclick="document.getElementById('pk-modal-pet-file').click()" id="pk-modal-upload-btn" style="background:#121217; color:#fff; border:none; border-radius:30px; padding:8px 18px; font-size:13px; font-weight:700; cursor:pointer;">Upload New Photo</button>
