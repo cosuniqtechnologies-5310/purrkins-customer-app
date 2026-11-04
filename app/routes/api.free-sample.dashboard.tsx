@@ -5083,7 +5083,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           table.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
       };
-
       // Robust Wishlist Slider Controller (Early defined on window)
       window.pkSlideWishlist = function(sliderId, dir, ev) {
         if (ev) {
