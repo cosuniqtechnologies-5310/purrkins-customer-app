@@ -945,10 +945,48 @@ async function handleRequest(request: Request) {
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json" } });
   }
 
-  // UPDATE WISHLIST (add/remove product)
-  if (intent === "update_wishlist") {
-    const body = await request.json();
-    const { productIds } = body;
+  // UPDATE / REMOVE WISHLIST (add/remove product)
+  if (intent === "update_wishlist" || intent === "remove_wishlist" || intent === "remove_from_wishlist") {
+    const body = await request.json().catch(() => ({}));
+    const { productIds, productId, remainingIds } = body;
+    let finalIds: string[] = [];
+
+    if (Array.isArray(productIds)) {
+      finalIds = productIds;
+    } else if (Array.isArray(remainingIds)) {
+      finalIds = remainingIds;
+    } else if (productId) {
+      const cleanTargetId = String(productId).split("/").pop();
+      const targetGid = String(productId).includes("gid://shopify/Product/")
+        ? String(productId)
+        : `gid://shopify/Product/${cleanTargetId}`;
+
+      const custGql = await shopifyGql(accessToken, `
+        query getCustomerWishlist($id: ID!) {
+          customer(id: $id) {
+            metafield(namespace: "custom", key: "wishlist") { value }
+          }
+        }
+      `, { id: customerId });
+      const val = custGql.data?.customer?.metafield?.value;
+      if (val) {
+        try {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed)) {
+            finalIds = parsed.filter((id: any) => {
+              const cId = String(id).split("/").pop();
+              return cId !== cleanTargetId && id !== targetGid && id !== productId;
+            });
+          }
+        } catch (e) {}
+      }
+    }
+
+    const formattedList = finalIds.map((id) => {
+      const clean = String(id).split("/").pop();
+      return String(id).includes("gid://shopify/Product/") ? String(id) : `gid://shopify/Product/${clean}`;
+    });
+
     const data = await shopifyGql(accessToken, `
       mutation setMetafield($metafields: [MetafieldsSetInput!]!) {
         metafieldsSet(metafields: $metafields) {
@@ -962,11 +1000,15 @@ async function handleRequest(request: Request) {
         namespace: "custom",
         key: "wishlist",
         type: "list.product_reference",
-        value: JSON.stringify(productIds)
+        value: JSON.stringify(formattedList)
       }]
     });
+
+    appCache.delPrefix("dashboard:cust:");
+    appCache.delPrefix("dashboard:");
     appCache.delPrefix("customer:");
-    return new Response(JSON.stringify({ success: true, data: data?.data?.metafieldsSet }), {
+
+    return new Response(JSON.stringify({ success: true, wishlist: formattedList, data: data?.data?.metafieldsSet }), {
       headers: { "Content-Type": "application/json" }
     });
   }

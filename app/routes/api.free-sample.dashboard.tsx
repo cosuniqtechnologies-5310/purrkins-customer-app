@@ -1444,6 +1444,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // 1. Gather wishlist IDs from customer.wishlist.value
   let customerWishlistIds: string[] = [];
+  const hasSavedWishlistMetafield = typeof customer.wishlist?.value === "string";
   if (customer.wishlist?.value) {
     try {
       const parsed = JSON.parse(customer.wishlist.value);
@@ -1459,8 +1460,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // 3. Map to wishlist items
   let displayWishlist: any[] = [];
 
-  if (userWishlistNodes.length > 0) {
-    displayWishlist = userWishlistNodes.map((p: any) => {
+  // If customer has a saved wishlist metafield, strictly only display items in customerWishlistIds.
+  // If customerWishlistIds is empty (e.g. all items removed), displayWishlist remains empty!
+  if (userWishlistNodes.length > 0 && customerWishlistIds.length > 0) {
+    const activeNodes = userWishlistNodes.filter((p: any) => {
+      const pCleanId = p.id ? String(p.id).split('/').pop() : '';
+      return customerWishlistIds.some((id: string) => {
+        const cleanId = String(id).split('/').pop();
+        return cleanId === pCleanId || String(id) === String(p.id);
+      });
+    });
+
+    displayWishlist = activeNodes.map((p: any) => {
       const v = p.variants?.nodes?.[0] || p.variants?.edges?.[0]?.node || (Array.isArray(p.variants) ? p.variants[0] : null);
       const vTitle = v?.title || "70g";
       const weight = vTitle.includes("g") ? vTitle.replace(/[^0-9]/g, "") + "g" : "70g";
@@ -1525,7 +1536,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // If user has never saved a wishlist, show default catalog products with dynamic colors.
   // Once the customer has a wishlist metafield (even an empty one after removing items) respect it.
-  const hasSavedWishlistMetafield = typeof customer.wishlist?.value === "string";
   if (displayWishlist.length === 0 && !hasSavedWishlistMetafield) {
     displayWishlist = (catalogProducts && catalogProducts.length > 0)
       ? catalogProducts.slice(0, 6).map((p: any) => {
@@ -5055,15 +5065,68 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
       // Remove a product from the customer's wishlist (all wishlist sliders on the page)
       window.pkRemoveFromWishlist = function(btn, ev) {
-        if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+        if (ev) {
+          if (ev.preventDefault) ev.preventDefault();
+          if (ev.stopPropagation) ev.stopPropagation();
+        }
         var productId = btn && btn.getAttribute('data-product-id');
         if (!productId) return;
 
-        function cardsFor(id) {
-          return Array.prototype.filter.call(document.querySelectorAll('.pk-wishlist-card'), function(c) {
-            return c.getAttribute('data-product-id') === id;
+        var cleanId = String(productId).split('/').pop();
+        var productGid = String(productId).includes('gid://shopify/Product/')
+          ? String(productId)
+          : ('gid://shopify/Product/' + cleanId);
+
+        // Find cards matching this product across all sliders
+        var cards = Array.prototype.filter.call(document.querySelectorAll('.pk-wishlist-card'), function(c) {
+          var cId = c.getAttribute('data-product-id') || '';
+          return cId === productId || cId === productGid || String(cId).split('/').pop() === cleanId;
+        });
+        cards.forEach(function(c) { c.classList.add('pk-removing'); });
+
+        // Calculate remaining product IDs from other cards
+        var remainingCards = Array.prototype.filter.call(document.querySelectorAll('.pk-wishlist-card'), function(c) {
+          var cId = c.getAttribute('data-product-id') || '';
+          return cId !== productId && cId !== productGid && String(cId).split('/').pop() !== cleanId;
+        });
+        var remainingIds = [];
+        var seen = {};
+        remainingCards.forEach(function(c) {
+          var cId = c.getAttribute('data-product-id');
+          if (!cId) return;
+          var cClean = String(cId).split('/').pop();
+          var fullGid = cId.includes('gid://shopify/Product/') ? cId : ('gid://shopify/Product/' + cClean);
+          if (!seen[fullGid]) {
+            seen[fullGid] = true;
+            remainingIds.push(fullGid);
+          }
+        });
+
+        // 1. Immediately purge from localStorage & sessionStorage so page reload NEVER merges it back
+        try {
+          ['pk_session_wishlist', 'purrkins_wishlist'].forEach(function(key) {
+            [localStorage, sessionStorage].forEach(function(store) {
+              var raw = store.getItem(key);
+              if (raw) {
+                var arr = JSON.parse(raw);
+                if (Array.isArray(arr)) {
+                  var filtered = arr.filter(function(id) {
+                    var idClean = String(id).split('/').pop();
+                    return idClean !== cleanId && id !== productId && id !== productGid;
+                  });
+                  store.setItem(key, JSON.stringify(filtered));
+                }
+              }
+            });
           });
-        }
+        } catch(e) {}
+
+        // 2. Update global in-memory wishlist
+        window.purrkinsWishlist = remainingIds;
+        try {
+          document.dispatchEvent(new CustomEvent('purrkins:wishlist:updated', { detail: { wishlist: remainingIds } }));
+        } catch(e) {}
+
         function showEmptyIfNeeded() {
           document.querySelectorAll('.pk-wishlist-slider').forEach(function(slider) {
             if (!slider.querySelector('.pk-wishlist-card') && !slider.querySelector('.pk-wishlist-empty')) {
@@ -5072,30 +5135,44 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           });
         }
 
-        var cards = cardsFor(productId);
-        cards.forEach(function(c) { c.classList.add('pk-removing'); });
+        // 3. Remove DOM cards immediately for responsive feel
+        cards.forEach(function(c) { c.remove(); });
+        showEmptyIfNeeded();
 
+        // 4. Send remove request to backend with session token and remainingIds
         var token = localStorage.getItem('pk_session') || '';
-        fetch('/apps/purrkins/wishlist' + (token ? '?session=' + encodeURIComponent(token) : ''), {
+        var apiUrl = '/apps/purrkins/wishlist' + (token ? '?session=' + encodeURIComponent(token) : '');
+        var payload = {
+          action: 'remove',
+          product_id: productGid,
+          raw_product_id: productId,
+          remaining_ids: remainingIds
+        };
+
+        fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'remove', product_id: productId })
+          body: JSON.stringify(payload)
         })
           .then(function(r) { return r.json(); })
           .then(function(res) {
-            if (!res || !res.success) throw new Error((res && res.message) || 'Failed');
-            cards.forEach(function(c) { c.remove(); });
-            var cleanId = String(productId).split('/').pop();
-            if (Array.isArray(window.purrkinsWishlist)) {
-              window.purrkinsWishlist = window.purrkinsWishlist.filter(function(id) {
-                return String(id).split('/').pop() !== cleanId;
-              });
+            if (!res || !res.success) {
+              console.warn('Wishlist remove response warning:', res);
             }
-            showEmptyIfNeeded();
+            if (res && Array.isArray(res.wishlist)) {
+              window.purrkinsWishlist = res.wishlist;
+            }
           })
-          .catch(function() {
-            cards.forEach(function(c) { c.classList.remove('pk-removing'); });
-            alert('Could not remove this item from your wishlist. Please try again.');
+          .catch(function(err) {
+            console.error('Wishlist removal network error:', err);
+            // Fallback: ping customer-api directly
+            if (token) {
+              fetch('/apps/purrkins/customer-api?session=' + encodeURIComponent(token) + '&intent=remove_wishlist', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: productGid, remainingIds: remainingIds })
+              }).catch(function(){});
+            }
           });
       };
 
@@ -6181,6 +6258,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
       // Client Catalog Products for instant synchronization
       window.pkCatalogProducts = ${JSON.stringify(clientCatalogProducts)};
+      window.purrkinsWishlist = ${JSON.stringify(displayWishlist.map((p: any) => p.id))};
 
       // Dynamic client-side wishlist synchronization
       window.pkInitDynamicWishlist = function() {
@@ -6188,7 +6266,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         if (!catalog.length) return;
 
         function updateSlidersWithList(wishlistIds) {
-          if (!Array.isArray(wishlistIds) || wishlistIds.length === 0) return;
+          if (!Array.isArray(wishlistIds) || wishlistIds.length === 0) {
+            ['pk-wl-slider-overview', 'pk-wl-slider-tab'].forEach(function(sliderId) {
+              var slider = document.getElementById(sliderId);
+              if (slider) {
+                slider.innerHTML = '<div class="pk-wishlist-empty">Your wishlist is empty.</div>';
+              }
+            });
+            return;
+          }
           var cleanIds = wishlistIds.map(function(id) {
             return String(id).includes('/') ? String(id).split('/').pop() : String(id);
           });
@@ -6204,7 +6290,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             }
           });
 
-          if (matched.length === 0) return;
+          if (matched.length === 0) {
+            ['pk-wl-slider-overview', 'pk-wl-slider-tab'].forEach(function(sliderId) {
+              var slider = document.getElementById(sliderId);
+              if (slider) {
+                slider.innerHTML = '<div class="pk-wishlist-empty">Your wishlist is empty.</div>';
+              }
+            });
+            return;
+          }
 
           ['pk-wl-slider-overview', 'pk-wl-slider-tab'].forEach(function(sliderId) {
             var slider = document.getElementById(sliderId);
@@ -6245,14 +6339,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         });
 
         // Check if window.purrkinsWishlist is available or fetch
-        if (window.purrkinsWishlist && window.purrkinsWishlist.length > 0) {
+        if (Array.isArray(window.purrkinsWishlist)) {
           updateSlidersWithList(window.purrkinsWishlist);
         } else {
           var token = localStorage.getItem('pk_session') || '';
           fetch('/apps/purrkins/wishlist' + (token ? '?session=' + encodeURIComponent(token) : ''))
             .then(function(r) { return r.json(); })
             .then(function(res) {
-              if (res && res.success && Array.isArray(res.wishlist) && res.wishlist.length > 0) {
+              if (res && res.success && Array.isArray(res.wishlist)) {
                 window.purrkinsWishlist = res.wishlist;
                 updateSlidersWithList(res.wishlist);
               }
