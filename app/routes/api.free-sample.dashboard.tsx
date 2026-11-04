@@ -1534,111 +1534,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
-  // If user has never saved a wishlist, show default catalog products with dynamic colors.
-  // Once the customer has a wishlist metafield (even an empty one after removing items) respect it.
-  if (displayWishlist.length === 0 && !hasSavedWishlistMetafield) {
-    displayWishlist = (catalogProducts && catalogProducts.length > 0)
-      ? catalogProducts.slice(0, 6).map((p: any) => {
-          const v = p.variants?.nodes?.[0] || p.variants?.edges?.[0]?.node || (Array.isArray(p.variants) ? p.variants[0] : null);
-          const vTitle = v?.title || "70g";
-          const weight = vTitle.includes("g") ? vTitle.replace(/[^0-9]/g, "") + "g" : "70g";
-          const styles = getProductCategoryStyles(p);
-          const rawVid = v?.id ? String(v.id) : '';
-          const cleanVid = rawVid.includes('/') ? rawVid.split('/').pop() || '' : rawVid;
-          const fallbackVid = (p.title || "").toLowerCase().includes("lean") ? "51221448818935"
-            : (p.title || "").toLowerCase().includes("gutty") ? "51172691050743"
-            : (p.title || "").toLowerCase().includes("shiny") || (p.title || "").toLowerCase().includes("mumma") ? "51172688134423"
-            : "49767352369463";
-          return {
-            id: p.id,
-            title: p.title,
-            price: parseFloat(v?.price || "79").toFixed(0),
-            weight,
-            desc: p.description ? (p.description.length > 50 ? p.description.substring(0, 47) + '...' : p.description) : 'Real broth for daily hydration',
-            type: styles.badgeText,
-            cardBg: styles.cardBg,
-            cardColor: styles.cardColor,
-            imgUrl: p.featuredImage?.url || v?.image?.url || defaultFallbackImg,
-            handle: p.handle,
-            variantId: cleanVid || fallbackVid
-          };
-        })
-      : [
-          {
-            title: "Chicken Broth",
-            price: "79",
-            weight: "70g",
-            desc: "Real broth for daily hydration",
-            type: "Wet Food",
-            cardBg: "#EBF5FE",
-            cardColor: "#2A85C8",
-            imgUrl: defaultFallbackImg,
-            handle: "chicken-broth",
-            variantId: "49767352369463"
-          },
-          {
-            title: "Lean Kitty",
-            price: "90",
-            weight: "70g",
-            desc: "Healthy weight. Happy movement. One thoughtful recipe.",
-            type: "Wet Food",
-            cardBg: "#EBF5FE",
-            cardColor: "#2A85C8",
-            imgUrl: defaultFallbackImg,
-            handle: "lean-kitty",
-            variantId: "51221448818935"
-          },
-          {
-            title: "Shiny Kitty",
-            price: "90",
-            weight: "70g",
-            desc: "Because when they're thriving on the inside, you can see it on the outside.",
-            type: "Wet Food",
-            cardBg: "#EBF5FE",
-            cardColor: "#2A85C8",
-            imgUrl: defaultFallbackImg,
-            handle: "shiny-kitty",
-            variantId: "51172688134423"
-          },
-          {
-            title: "Gutty Kitty",
-            price: "90",
-            weight: "70g",
-            desc: "Gut & digestive health support for kittens & adult cats",
-            type: "Dry Food",
-            cardBg: "#FFF4EC",
-            cardColor: "#D97742",
-            imgUrl: defaultFallbackImg,
-            handle: "gutty-kitty",
-            variantId: "51172691050743"
-          },
-          {
-            title: "Lamb Jerky",
-            price: "99",
-            weight: "70g",
-            desc: "High-protein rewards for active cats",
-            type: "Treats",
-            cardBg: "#FDF0F5",
-            cardColor: "#C0392B",
-            imgUrl: defaultFallbackImg,
-            handle: "lamb-jerky",
-            variantId: "49767352369463"
-          },
-          {
-            title: "Turkey Stew",
-            price: "79",
-            weight: "70g",
-            desc: "Soft meal for gentle digestion",
-            type: "Wet Food",
-            cardBg: "#EBF5FE",
-            cardColor: "#2A85C8",
-            imgUrl: defaultFallbackImg,
-            handle: "turkey-stew",
-            variantId: "49767352369463"
-          }
-        ];
-  }
-
   // Pre-serialize catalog products for dynamic client-side sync
   const clientCatalogProducts = (catalogProducts || []).map((p: any) => {
     const v = p.variants?.nodes?.[0] || p.variants?.edges?.[0]?.node || (Array.isArray(p.variants) ? p.variants[0] : null);
@@ -4824,8 +4719,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               </div>
             </div>
 
-            <!-- Your Wishlist (Image 1 & 4) -->
-            <div id="pk-overview-wishlist" class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
+            <!-- Your Wishlist (Only shown if customer has items in wishlist) -->
+            <div id="pk-overview-wishlist" class="pk-card" style="margin-bottom: 24px; padding: 28px 32px; display: ${displayWishlist.length > 0 ? 'block' : 'none'};">
               ${getWishlistHtml('pk-wl-slider-overview')}
             </div>
 
@@ -4878,7 +4773,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
           <!-- TAB 5: WISHLIST -->
           <div id="pk-tab-wishlist" class="pk-tab-pane" style="display: none;">
-            <div class="pk-card" style="padding: 28px 32px;">
+            <div id="pk-tab-wishlist-card" class="pk-card" style="padding: 28px 32px; display: ${displayWishlist.length > 0 ? 'block' : 'none'};">
               ${getWishlistHtml('pk-wl-slider-tab')}
             </div>
           </div>
@@ -5128,6 +5023,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         } catch(e) {}
 
         function showEmptyIfNeeded() {
+          if (remainingIds.length === 0) {
+            var overviewWl = document.getElementById('pk-overview-wishlist');
+            if (overviewWl) overviewWl.style.display = 'none';
+            var tabWl = document.getElementById('pk-tab-wishlist-card');
+            if (tabWl) tabWl.style.display = 'none';
+          }
           document.querySelectorAll('.pk-wishlist-slider').forEach(function(slider) {
             if (!slider.querySelector('.pk-wishlist-card') && !slider.querySelector('.pk-wishlist-empty')) {
               slider.innerHTML = '<div class="pk-wishlist-empty">Your wishlist is empty.</div>';
@@ -6266,7 +6167,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         if (!catalog.length) return;
 
         function updateSlidersWithList(wishlistIds) {
+          var overviewWl = document.getElementById('pk-overview-wishlist');
+          var tabWl = document.getElementById('pk-tab-wishlist-card');
           if (!Array.isArray(wishlistIds) || wishlistIds.length === 0) {
+            if (overviewWl) overviewWl.style.display = 'none';
+            if (tabWl) tabWl.style.display = 'none';
             ['pk-wl-slider-overview', 'pk-wl-slider-tab'].forEach(function(sliderId) {
               var slider = document.getElementById(sliderId);
               if (slider) {
@@ -6291,6 +6196,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           });
 
           if (matched.length === 0) {
+            if (overviewWl) overviewWl.style.display = 'none';
+            if (tabWl) tabWl.style.display = 'none';
             ['pk-wl-slider-overview', 'pk-wl-slider-tab'].forEach(function(sliderId) {
               var slider = document.getElementById(sliderId);
               if (slider) {
@@ -6299,6 +6206,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             });
             return;
           }
+
+          if (overviewWl) overviewWl.style.display = 'block';
+          if (tabWl) tabWl.style.display = 'block';
 
           ['pk-wl-slider-overview', 'pk-wl-slider-tab'].forEach(function(sliderId) {
             var slider = document.getElementById(sliderId);
