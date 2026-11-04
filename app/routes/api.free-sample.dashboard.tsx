@@ -825,42 +825,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           recommendedProducts
         };
       })
-    : [
-        {
-          id: "pet-milo",
-          name: "Milo",
-          headerAge: "5 months",
-          age: "5 months",
-          weight: "1.9",
-          gender: "Male",
-          neutered: "Neutered",
-          breed: "Indie",
-          birthday: "",
-          activity: "Playful, indoor only",
-          activityLevel: "Playful, indoor only",
-          body: "Fussy (prefers fish)",
-          eatingStyle: "Fussy (prefers fish)",
-          focus: "Sensitive stomach",
-          healthFlags: "Sensitive stomach",
-          allergies: "None recorded",
-          imageUrl: "",
-          quizPills: [
-            "Age: 5 months",
-            "Weight: 1.9 kg",
-            "Male",
-            "Neutered",
-            "Lean",
-            "Playful"
-          ],
-          recommendedProducts: computePetRecommendations(
-            { age: "5 months", body: "Lean", activity: "Playful", focus: "Sensitive stomach", allergies: "" },
-            catalogProducts
-          )
-        }
-      ];
+    : [];
 
-  const initialPet = pets[0];
-  const petName = initialPet.name;
+  const initialPet = pets[0] || null;
+  const petName = initialPet ? initialPet.name : "";
 
   const petPillsHtml = pets.map((p: any, idx: number) => {
     const isActive = idx === 0;
@@ -1066,7 +1034,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       total: '₹1,080.00',
       items: [
         {
-          title: `${petName}'s Monthly Nutrition Box`,
+          title: `${petName ? petName + "'s" : "Purrkins"} Monthly Nutrition Box`,
           variantTitle: '31 pouches · Fresh Recipe Selection',
           quantity: 1,
           unitPrice: '₹980.00',
@@ -1089,7 +1057,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       total: '₹1,080.00',
       items: [
         {
-          title: `${petName}'s Monthly Nutrition Box`,
+          title: `${petName ? petName + "'s" : "Purrkins"} Monthly Nutrition Box`,
           variantTitle: '31 pouches · Growth & Immunity',
           quantity: 1,
           unitPrice: '₹980.00',
@@ -1294,7 +1262,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       <div class="pk-order-row" data-order-name="#PK-10391">
         <div>
           <div class="pk-order-id">#PK-10391</div>
-          <div class="pk-order-sub">31 pouches · ${escAttr(petName)}'s monthly box</div>
+          <div class="pk-order-sub">31 pouches · ${petName ? escAttr(petName) + "'s" : "Kitten"} monthly box</div>
         </div>
         <div class="pk-order-date">12 Aug 2026</div>
         <div>
@@ -1310,7 +1278,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       <div class="pk-order-row" data-order-name="#PK-10240">
         <div>
           <div class="pk-order-id">#PK-10240</div>
-          <div class="pk-order-sub">31 pouches · ${escAttr(petName)}'s monthly box</div>
+          <div class="pk-order-sub">31 pouches · ${petName ? escAttr(petName) + "'s" : "Kitten"} monthly box</div>
         </div>
         <div class="pk-order-date">19 Jul 2026</div>
         <div>
@@ -1608,7 +1576,37 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     )
   );
 
-  const kittenTabHtml = `
+  const kittenTabHtml = pets.length === 0
+    ? `
+    <!-- Empty Kitten State (Clean Purrkins Card matching Figma) -->
+    <div class="pk-card" style="margin-bottom: 24px; padding: 48px 32px; text-align: center;">
+      <div style="width: 72px; height: 72px; border-radius: 50%; background: #FAF5E4; border: 1.5px solid #C4A446; display: inline-flex; align-items: center; justify-content: center; margin: 0 auto 20px auto; color: #786216;">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 5c.67 0 1.35.09 2 .26 1.78-2 5.03-2.84 6.42-2.26 1.4.58-.42 7 .58 8.5 1 1.5 1 4 0 6s-4 4-9 4-8-2-9-4 0-4.5 1-6c1-1.5-.82-7.92.58-8.5 1.39-.58 4.64.26 6.42 2.26.65-.17 1.33-.26 2-.26z"/>
+          <circle cx="9" cy="13" r="1.3" fill="currentColor"/>
+          <circle cx="15" cy="13" r="1.3" fill="currentColor"/>
+          <path d="M10 16c1 .5 3 .5 4 0"/>
+        </svg>
+      </div>
+      <h2 style="margin: 0 0 10px 0; font-size: 26px; font-weight: 800; color: #16130F; font-family: 'Cabinet Grotesk', sans-serif;">No Kitten Profile Added Yet</h2>
+      <p style="color: #71717A; font-size: 15px; margin: 0 auto 28px auto; max-width: 500px; line-height: 1.5; font-family: 'Cabinet Grotesk', sans-serif;">
+        Tell us about your kitten to unlock a tailored nutrition plan, customized meal recommendations, and expert vet support!
+      </p>
+      <button type="button" onclick="pkOpenEditPetModal(null, false)" class="pk-yellow-btn" style="text-decoration: none; display: inline-flex; align-items: center; gap: 8px; padding: 14px 32px; border-radius: 9999px; font-weight: 800; font-size: 15px; background: #FFE330; color: #16130F; border: none; cursor: pointer; box-shadow: 0 2px 8px rgba(255, 227, 48, 0.35); font-family: 'Cabinet Grotesk', sans-serif;">
+        + Add Kitten Profile
+      </button>
+    </div>
+
+    <!-- Vet Chat Card -->
+    <div style="background:#121217; border-radius:16px; padding:28px 32px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; color:#fff; margin-bottom:24px;">
+      <div>
+        <h3 style="margin:0 0 6px 0; font-size:20px; font-weight:800; color:#fff; font-family:var(--font-heading--family, sans-serif);">Something not right with your kitten?</h3>
+        <p style="margin:0; font-size:13.5px; color:#d1d5db; line-height:1.4;">Vet chat is included with your plan. Most questions get an answer in an hour.</p>
+      </div>
+      <button type="button" onclick="pkOpenVetModal()" style="background:#FFE600; color:#121217; border:none; border-radius:30px; padding:12px 28px; font-weight:800; font-size:14px; cursor:pointer;">Talk to a Vet</button>
+    </div>
+  `
+    : `
     <!-- PET SELECTOR HEADER (Image 2: Milo, Kaju, + Add Kitten) -->
     <div class="pk-pet-selector-row">
       ${petPillsHtml}
