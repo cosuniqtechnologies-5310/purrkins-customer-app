@@ -876,7 +876,7 @@ async function handleRequest(request: Request) {
               status: cancelSuccess ? "cancelled_and_refunded" : "refund_requested",
               orderName: orderName,
               message: cancelSuccess
-                ? `Order ${orderName} has been cancelled and full refund of ₹${parseFloat(orderAmount || 0).toLocaleString('en-IN')} has been initiated.`
+                ? `Order ${orderName} has been cancelled and full refund of ₹${parseFloat(orderAmount || "0").toLocaleString('en-IN')} has been initiated.`
                 : `Refund request for order ${orderName} has been submitted. Our team will process it within 24–48 hours.`
             });
           }

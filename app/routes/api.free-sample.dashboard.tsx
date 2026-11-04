@@ -1244,7 +1244,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
 
         const canRefund = !isCancelled && !isRefunded && !isRefundRequested;
-        const totalAmountNum = parseFloat(e.node.totalPriceSet?.shopMoney?.amount || 0);
+        const totalAmountNum = parseFloat(String(e.node.totalPriceSet?.shopMoney?.amount || "0"));
         const orderNameClean = escAttr(e.node.name);
         const lineItemsDesc = e.node.lineItems?.edges?.map((li: any) => li.node.title).join(', ') || 'Purrkins Monthly Box';
         const lineCount = e.node.lineItems?.edges?.reduce((acc: number, li: any) => acc + (li.node.quantity || 1), 0) || 12;
@@ -1951,7 +1951,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   </div>
                 </div>
                 <div style="text-align:right;">
-                  <div style="font-size:18px; font-weight:800; color:#121217;">₹${parseFloat(sub.recurringTotal || 0).toFixed(2)}</div>
+                  <div style="font-size:18px; font-weight:800; color:#121217;">₹${parseFloat(String(sub.recurringTotal || "0")).toFixed(2)}</div>
                   <div style="font-size:12px; color:#595961;">per delivery</div>
                 </div>
               </div>
