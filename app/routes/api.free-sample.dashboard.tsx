@@ -7023,7 +7023,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               '<div style="font-size:13px;color:#71717a;">Have questions regarding this order? Contact our support team at <a href="mailto:support@purrkins.com" style="color:#ea580c;text-decoration:underline;">support@purrkins.com</a></div>' +
             '</div>' +
             '<div style="display:flex;gap:10px;align-items:center;">' +
-              (!order.isCancelled && !order.isRefunded && !order.isRefundRequested ? '<button type="button" class="pk-btn-refund" style="padding:8px 18px;" onclick="pkCloseInvoiceModal(event); pkOpenRefundModal(\'' + pkEscapeHtml(order.name || order.id) + '\', event);">Request Refund / Cancel</button>' : '') +
+              (!order.isCancelled && !order.isRefunded && !order.isRefundRequested ? '<button type="button" class="pk-btn-refund" style="padding:8px 18px;" data-order-name="' + pkEscapeHtml(order.name || order.id) + '" onclick="pkCloseInvoiceModal(event); pkOpenRefundModal(this.dataset.orderName, event);">Request Refund / Cancel</button>' : '') +
               '<button type="button" class="pk-outline-btn" onclick="pkCloseInvoiceModal(event)" style="border-radius:20px;padding:8px 22px;font-size:13px;font-weight:700;background:#fff;border:1.5px solid #595961;color:#121217;cursor:pointer;">' +
                 'Close' +
               '</button>' +
