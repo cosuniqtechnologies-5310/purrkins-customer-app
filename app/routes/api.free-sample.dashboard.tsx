@@ -1532,7 +1532,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const getWishlistHtml = (sliderId: string) => `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 22px;">
       <h3 class="pk-section-title" style="margin:0;">Your Wishlist</h3>
-      <div class="pk-wishlist-nav" style="display:flex; gap:8px;">
+      <div class="pk-wishlist-nav" style="display:${displayWishlist.length > 1 ? 'flex' : 'none'}; gap:8px;">
         <button type="button" class="pk-wl-nav-btn prev" data-slider="${sliderId}" data-dir="-1" onclick="pkSlideWishlist('${sliderId}', -1, event)" aria-label="Previous Slide">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
@@ -4753,13 +4753,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         pointer-events: none;
         display: block;
       }
-      .pk-wl-nav-btn:hover {
-        background: #FFE600;
-        border-color: #FFE600;
-        color: #121217;
-        transform: scale(1.05);
+      @media (hover: hover) {
+        .pk-wl-nav-btn:hover {
+          background: #FFE330;
+          border-color: #FFE330;
+          color: #121217;
+          transform: scale(1.05);
+        }
       }
       .pk-wl-nav-btn:active {
+        background: #FFE330;
+        border-color: #FFE330;
         transform: scale(0.95);
       }
       @media (max-width: 900px) {
@@ -4774,6 +4778,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           flex: 0 0 calc((100% - 16px) / 1.25);
           min-width: calc((100% - 16px) / 1.25);
           max-width: calc((100% - 16px) / 1.25);
+        }
+      }
+      /* When only 1 product exists in the slider, it adjusts cleanly without awkward blank space */
+      .pk-wishlist-slider .pk-wishlist-card:only-child {
+        flex: 0 0 100% !important;
+        min-width: 0 !important;
+        max-width: 380px !important;
+        width: 100% !important;
+      }
+      @media (max-width: 600px) {
+        .pk-wishlist-slider .pk-wishlist-card:only-child {
+          max-width: 100% !important;
+          flex: 1 1 100% !important;
         }
       }
     \n</style>
@@ -5003,6 +5020,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         if (tabId === 'overview' && typeof window.pkInitOrdersPagination === 'function') {
           setTimeout(function() { window.pkInitOrdersPagination(); }, 10);
         }
+        if ((tabId === 'overview' || tabId === 'wishlist') && typeof window.pkCheckWishlistNav === 'function') {
+          setTimeout(function() { window.pkCheckWishlistNav(); }, 20);
+        }
 
         // Update active class on sidebar menu items
         var activeTabKey = (tabId === 'invoice') ? 'overview' : (shouldScrollQuiz ? 'quiz-answers' : (shouldScrollWishlist ? 'overview' : tabId));
@@ -5200,6 +5220,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               slider.innerHTML = '<div class="pk-wishlist-empty">Your wishlist is empty.</div>';
             }
           });
+          if (typeof window.pkCheckWishlistNav === 'function') {
+            window.pkCheckWishlistNav();
+          }
         }
 
         // 3. Remove DOM cards immediately for responsive feel
@@ -5275,7 +5298,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
         var step = cardWidth + gap;
         var maxScroll = slider.scrollWidth - slider.clientWidth;
-        if (maxScroll <= 5) return;
+        if (maxScroll <= 5) {
+          if (typeof window.pkCheckWishlistNav === 'function') window.pkCheckWishlistNav();
+          return;
+        }
 
         var cur = slider.scrollLeft;
         var target;
@@ -5317,8 +5343,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }, 450);
       };
 
+      // Check whether wishlist sliders can scroll and hide arrows if not enough products
+      window.pkCheckWishlistNav = function() {
+        ['pk-wl-slider-overview', 'pk-wl-slider-tab'].forEach(function(sliderId) {
+          var slider = document.getElementById(sliderId);
+          if (!slider) return;
+          var wrap = slider.closest('.pk-card') || (slider.parentElement ? slider.parentElement.parentElement : null);
+          var nav = wrap ? wrap.querySelector('.pk-wishlist-nav') : null;
+          if (!nav) return;
+          var cards = slider.querySelectorAll('.pk-wishlist-card');
+          var canScroll = cards.length > 1 && (slider.scrollWidth > slider.clientWidth + 5);
+          nav.style.display = canScroll ? 'flex' : 'none';
+        });
+      };
+
       // Document event delegation for any wishlist nav arrow clicks
       document.addEventListener('click', function(e) {
+        if (e.defaultPrevented) return;
         var btn = e.target && e.target.closest ? e.target.closest('.pk-wl-nav-btn') : null;
         if (!btn) return;
         var sId = btn.getAttribute('data-slider') || 'pk-wl-slider-overview';
@@ -6173,6 +6214,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           document.body.scrollLeft = 0;
         }
 
+        if ((tabId === 'overview' || tabId === 'wishlist') && typeof window.pkCheckWishlistNav === 'function') {
+          setTimeout(function() { window.pkCheckWishlistNav(); }, 20);
+        }
+
         // Update active class on sidebar menu items
         var activeTabKey = (tabId === 'invoice') ? 'overview' : (shouldScrollQuiz ? 'quiz-answers' : (shouldScrollWishlist ? 'overview' : tabId));
         document.querySelectorAll('.pk-sidebar-menu .pk-menu-item').forEach(function(item) {
@@ -6289,6 +6334,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         if (typeof window.pkInitOrdersPagination === 'function') {
           window.pkInitOrdersPagination();
         }
+        if (typeof window.pkCheckWishlistNav === 'function') {
+          window.pkCheckWishlistNav();
+        }
+        window.addEventListener('resize', function() {
+          if (typeof window.pkCheckWishlistNav === 'function') {
+            window.pkCheckWishlistNav();
+          }
+        }, { passive: true });
 
         // Restore cached pet avatar if present for each individual pet
         try {
@@ -6429,6 +6482,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               '</div>';
             }).join('');
           });
+          if (typeof window.pkCheckWishlistNav === 'function') {
+            window.pkCheckWishlistNav();
+          }
         }
 
         // Listen for live wishlist events across tabs / components
