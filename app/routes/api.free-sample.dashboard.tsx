@@ -1925,7 +1925,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           ★ Write a Review
         </button>
       </div>
-      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:20px;">
+      <div class="pk-reviews-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:20px;">
         ${customerReviews.map((r: any) => `
           <div class="pk-review-card" data-review-id="${escAttr(r.id)}" style="border:1.5px solid #eaeaea; border-radius:14px; padding:22px; background:#fff; display:flex; flex-direction:column; justify-content:space-between; gap:14px; box-shadow:0 1px 4px rgba(0,0,0,0.02); position:relative; transition:opacity 0.2s, transform 0.2s;">
             <div>
@@ -2382,6 +2382,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         padding: 44px 20px 80px;
         font-family: 'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         color: #121217;
+        overflow-x: clip;
       }
       .pk-dashboard-header {
         display: flex;
@@ -2809,7 +2810,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .pk-order-refunded-badge {
         display: inline-block;
       }
-      @media (max-width: 768px) {
+      @media (max-width: 900px) {
         .pk-orders-header {
           display: none;
         }
@@ -3575,7 +3576,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     \n/* KITTEN STYLES */\n
       .pk-dashboard-wrapper {
+        width: 100%;
         max-width: 1336px;
+        box-sizing: border-box;
+        overflow-x: clip;
         margin: 0 auto;
         padding: 44px 20px 80px;
         font-family: var(--font-body--family, sans-serif);
@@ -4385,11 +4389,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
       /* Mobile Responsive Styles (Screens <= 900px) */
       @media (max-width: 900px) {
+        html, body {
+          max-width: 100% !important;
+          overflow-x: hidden !important;
+          position: relative;
+        }
         .pk-dashboard-wrapper {
           padding: 16px 14px 60px !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          box-sizing: border-box !important;
+          overflow-x: hidden !important;
         }
         .pk-dashboard-header {
           margin-bottom: 16px !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
         }
         .pk-dashboard-header h1 {
           font-size: 24px !important;
@@ -4398,19 +4414,31 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           display: flex !important;
           flex-direction: column !important;
           gap: 16px !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          box-sizing: border-box !important;
         }
         .pk-dashboard-sidebar {
           position: static !important;
           top: auto !important;
           width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
           display: contents !important;
         }
         .pk-sidebar-menu {
           order: 1 !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          box-sizing: border-box !important;
           display: flex !important;
           flex-direction: row !important;
           overflow-x: auto !important;
           -webkit-overflow-scrolling: touch !important;
+          overscroll-behavior-x: contain !important;
+          touch-action: pan-x !important;
           gap: 8px !important;
           padding: 8px 10px !important;
           border-radius: 9999px !important;
@@ -4450,10 +4478,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         .pk-dashboard-content {
           order: 2 !important;
           width: 100% !important;
+          max-width: 100% !important;
           min-width: 0 !important;
+          box-sizing: border-box !important;
         }
         .pk-whatsapp-card {
           order: 3 !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          box-sizing: border-box !important;
           margin-top: 20px !important;
           border-radius: 16px !important;
           padding: 20px 18px !important;
@@ -4462,27 +4496,49 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           padding: 20px 16px !important;
           border-radius: 16px !important;
           margin-bottom: 18px !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          box-sizing: border-box !important;
         }
         .pk-profile-top {
           gap: 16px !important;
           margin-bottom: 20px !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
         }
         .pk-form-grid {
           grid-template-columns: 1fr !important;
           gap: 12px !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
         }
         .pk-form-grid input, .pk-form-grid select {
           grid-column: auto !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
         }
         .pk-pet-profile-row {
           flex-direction: column !important;
           align-items: center !important;
           gap: 20px !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
         }
         .pk-pet-stats-grid {
           grid-template-columns: repeat(2, 1fr) !important;
           gap: 14px 18px !important;
           width: 100% !important;
+          box-sizing: border-box !important;
+        }
+        .pk-reviews-grid {
+          grid-template-columns: 1fr !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
+        }
+        .pk-review-card {
+          width: 100% !important;
+          box-sizing: border-box !important;
         }
         .pk-profile-details { flex-direction: column; }
         .pk-profile-stats { grid-template-columns: 1fr 1fr; }
@@ -4930,11 +4986,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           target.style.display = 'block';
         }
 
-        // Reset scroll position to top when switching tabs (unless jumping to wishlist or quiz)
+        // Reset vertical scroll position to top when switching tabs (unless jumping to wishlist or quiz)
         if (!shouldScrollWishlist && !shouldScrollQuiz) {
           window.scrollTo(0, 0);
           document.documentElement.scrollTop = 0;
           document.body.scrollTop = 0;
+        }
+        // Guarantee horizontal window scroll is always 0
+        if (window.scrollX || document.documentElement.scrollLeft || document.body.scrollLeft) {
+          window.scrollTo(0, window.scrollY);
+          document.documentElement.scrollLeft = 0;
+          document.body.scrollLeft = 0;
         }
 
         // Initialize orders pagination whenever overview tab is shown
@@ -4947,8 +5009,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         document.querySelectorAll('.pk-sidebar-menu .pk-menu-item').forEach(function(item) {
           if (item.getAttribute('data-tab') === activeTabKey) {
             item.classList.add('active');
-            if (item.scrollIntoView && window.innerWidth <= 900) {
-              item.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            if (window.innerWidth <= 900) {
+              var menu = item.closest ? item.closest('.pk-sidebar-menu') : item.parentElement;
+              if (menu && typeof menu.scrollTo === 'function') {
+                var targetLeft = item.offsetLeft - (menu.clientWidth / 2) + (item.offsetWidth / 2);
+                menu.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
+              }
             }
           } else {
             item.classList.remove('active');
@@ -6094,11 +6160,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           target.style.display = 'block';
         }
 
-        // Reset scroll position to top when switching tabs (unless jumping to wishlist or quiz)
+        // Reset vertical scroll position to top when switching tabs (unless jumping to wishlist or quiz)
         if (!shouldScrollWishlist && !shouldScrollQuiz) {
           window.scrollTo(0, 0);
           document.documentElement.scrollTop = 0;
           document.body.scrollTop = 0;
+        }
+        // Guarantee horizontal window scroll is always 0
+        if (window.scrollX || document.documentElement.scrollLeft || document.body.scrollLeft) {
+          window.scrollTo(0, window.scrollY);
+          document.documentElement.scrollLeft = 0;
+          document.body.scrollLeft = 0;
         }
 
         // Update active class on sidebar menu items
@@ -6106,8 +6178,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         document.querySelectorAll('.pk-sidebar-menu .pk-menu-item').forEach(function(item) {
           if (item.getAttribute('data-tab') === activeTabKey) {
             item.classList.add('active');
-            if (item.scrollIntoView && window.innerWidth <= 900) {
-              item.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            if (window.innerWidth <= 900) {
+              var menu = item.closest ? item.closest('.pk-sidebar-menu') : item.parentElement;
+              if (menu && typeof menu.scrollTo === 'function') {
+                var targetLeft = item.offsetLeft - (menu.clientWidth / 2) + (item.offsetWidth / 2);
+                menu.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
+              }
             }
           } else {
             item.classList.remove('active');
@@ -6177,6 +6253,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         if ('scrollRestoration' in history) {
           try { history.scrollRestoration = 'manual'; } catch (e) {}
         }
+        // Ensure horizontal scroll never shifts the window on mobile
+        window.addEventListener('scroll', function() {
+          if (window.scrollX !== 0) {
+            window.scrollTo(0, window.scrollY);
+          }
+          if (document.documentElement.scrollLeft !== 0) {
+            document.documentElement.scrollLeft = 0;
+          }
+          if (document.body.scrollLeft !== 0) {
+            document.body.scrollLeft = 0;
+          }
+        }, { passive: true });
         var rawHash = window.location.hash ? window.location.hash.replace('#', '') : '';
         if (!rawHash) {
           var params = new URLSearchParams(window.location.search);
