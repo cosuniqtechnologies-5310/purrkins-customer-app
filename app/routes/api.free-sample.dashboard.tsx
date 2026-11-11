@@ -1633,7 +1633,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       </div>
 
       <!-- Main Horizontal Row: Photo on Left, 3x3 Stats Grid on Right -->
-      <div style="display:flex; gap:36px; align-items:center;">
+      <div class="pk-pet-profile-row" style="display:flex; gap:36px; align-items:center;">
         <!-- Clean Pet Photo with Direct Upload Option -->
         <div class="pk-pet-avatar-wrapper" style="position:relative; flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:8px;">
           <div
@@ -1704,7 +1704,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         </div>
 
         <!-- 3-Column Stats Grid (Exact Figma Design) -->
-        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:18px 36px; flex-grow:1;">
+        <div class="pk-pet-stats-grid" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:18px 36px; flex-grow:1;">
           <!-- Row 1: Age, Weight, Breed -->
           <div>
             <div style="font-size:13px; color:#8e8e93; font-weight:500; margin-bottom:4px;">Age</div>
@@ -2430,8 +2430,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         display: flex;
         flex-direction: column;
         gap: 20px;
-        position: sticky;
-        top: 24px;
       }
       .pk-sidebar-menu {
         background: #fff;
@@ -3724,8 +3722,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         display: flex;
         flex-direction: column;
         gap: 20px;
-        position: sticky;
-        top: 24px;
         font-family: 'Cabinet Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
       }
       .pk-sidebar-menu {
@@ -4375,8 +4371,119 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
       .pk-outline-btn:hover { background: #f9f9f9; }
 
+      /* Desktop Sticky sidebar: stays fixed while the main content scrolls */
+      @media (min-width: 901px) {
+        .pk-dashboard-layout {
+          align-items: start;
+        }
+        .pk-dashboard-sidebar {
+          position: sticky;
+          top: 145px;
+          align-self: start;
+        }
+      }
+
+      /* Mobile Responsive Styles (Screens <= 900px) */
       @media (max-width: 900px) {
-        .pk-dashboard-layout { grid-template-columns: 1fr; }
+        .pk-dashboard-wrapper {
+          padding: 16px 14px 60px !important;
+        }
+        .pk-dashboard-header {
+          margin-bottom: 16px !important;
+        }
+        .pk-dashboard-header h1 {
+          font-size: 24px !important;
+        }
+        .pk-dashboard-layout {
+          display: flex !important;
+          flex-direction: column !important;
+          gap: 16px !important;
+        }
+        .pk-dashboard-sidebar {
+          position: static !important;
+          top: auto !important;
+          width: 100% !important;
+          display: contents !important;
+        }
+        .pk-sidebar-menu {
+          order: 1 !important;
+          display: flex !important;
+          flex-direction: row !important;
+          overflow-x: auto !important;
+          -webkit-overflow-scrolling: touch !important;
+          gap: 8px !important;
+          padding: 8px 10px !important;
+          border-radius: 9999px !important;
+          background: #fff !important;
+          border: 1.5px solid #EAEAEA !important;
+          scrollbar-width: none !important;
+          -ms-overflow-style: none !important;
+          margin-bottom: 6px !important;
+        }
+        .pk-sidebar-menu::-webkit-scrollbar {
+          display: none !important;
+        }
+        .pk-menu-item {
+          flex-shrink: 0 !important;
+          white-space: nowrap !important;
+          padding: 8px 16px !important;
+          border-radius: 9999px !important;
+          font-size: 13.5px !important;
+          gap: 6px !important;
+        }
+        .pk-menu-item.active {
+          background: #FFE330 !important;
+          color: #16130F !important;
+          font-weight: 800 !important;
+        }
+        .pk-menu-item.active .pk-dot {
+          background: #16130F !important;
+        }
+        .pk-badge {
+          width: 18px !important;
+          height: 18px !important;
+          font-size: 10px !important;
+          background: #16130F !important;
+          color: #fff !important;
+          margin-left: 4px !important;
+        }
+        .pk-dashboard-content {
+          order: 2 !important;
+          width: 100% !important;
+          min-width: 0 !important;
+        }
+        .pk-whatsapp-card {
+          order: 3 !important;
+          margin-top: 20px !important;
+          border-radius: 16px !important;
+          padding: 20px 18px !important;
+        }
+        .pk-card {
+          padding: 20px 16px !important;
+          border-radius: 16px !important;
+          margin-bottom: 18px !important;
+        }
+        .pk-profile-top {
+          gap: 16px !important;
+          margin-bottom: 20px !important;
+        }
+        .pk-form-grid {
+          grid-template-columns: 1fr !important;
+          gap: 12px !important;
+        }
+        .pk-form-grid input, .pk-form-grid select {
+          grid-column: auto !important;
+        }
+        .pk-pet-profile-row {
+          flex-direction: column !important;
+          align-items: center !important;
+          gap: 20px !important;
+        }
+        .pk-pet-stats-grid {
+          grid-template-columns: repeat(2, 1fr) !important;
+          gap: 14px 18px !important;
+          width: 100% !important;
+        }
         .pk-profile-details { flex-direction: column; }
         .pk-profile-stats { grid-template-columns: 1fr 1fr; }
         .pk-weight-banner { flex-direction: column; gap: 15px; align-items: flex-start; }
@@ -4388,14 +4495,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         .pk-cancel-link { margin-left: 0; text-align: center; margin-top: 10px; }
         .pk-sub-benefits-banner { grid-template-columns: 1fr 1fr; }
         .pk-vet-card { flex-direction: column; gap: 20px; text-align: center; }
-      }
-
-      /* Sticky sidebar: stays fixed while the main content scrolls */
-      .pk-dashboard-layout { align-items: start; }
-      .pk-dashboard-sidebar {
-        position: sticky;
-        top: 145px;
-        align-self: start;
       }
       /* Wishlist 2.5 Cards Slider (Screenshot 2, 3, 4) */
       .pk-wishlist-slider-wrap {
@@ -4848,6 +4947,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         document.querySelectorAll('.pk-sidebar-menu .pk-menu-item').forEach(function(item) {
           if (item.getAttribute('data-tab') === activeTabKey) {
             item.classList.add('active');
+            if (item.scrollIntoView && window.innerWidth <= 900) {
+              item.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
           } else {
             item.classList.remove('active');
           }
@@ -6004,6 +6106,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         document.querySelectorAll('.pk-sidebar-menu .pk-menu-item').forEach(function(item) {
           if (item.getAttribute('data-tab') === activeTabKey) {
             item.classList.add('active');
+            if (item.scrollIntoView && window.innerWidth <= 900) {
+              item.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
           } else {
             item.classList.remove('active');
           }
