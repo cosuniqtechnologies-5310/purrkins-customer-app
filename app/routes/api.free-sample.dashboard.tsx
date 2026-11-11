@@ -1615,12 +1615,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     <!-- Kitten Overview Profile Card (Exact Figma Design matching Screenshot 1) -->
     <div class="pk-card" style="margin-bottom: 24px; padding: 28px 32px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+      <div class="pk-pet-profile-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
         <h2 id="pk-pet-profile-title" style="margin:0; font-size:24px; font-weight:800; font-family:var(--font-heading--family, sans-serif); color:#121217;">${escAttr(petName)}'s profile</h2>
         
-        <div style="display:flex; gap:10px; align-items:center;">
-          <button type="button" onclick="pkOpenEditPetModal(null, true)" class="pk-outline-btn" style="border-radius:30px; padding:8px 24px; font-size:13px; font-weight:700; color:#121217; border:1.5px solid #121217; background:#fff; cursor:pointer; transition:all 0.15s ease;">Edit Details</button>
-          <button type="button" id="pk-pet-delete-btn" onclick="pkDeleteCurrentPet()" class="pk-delete-btn" style="border-radius:30px; padding:8px 18px; font-size:13px; font-weight:700; color:#dc2626; border:1.5px solid #fecaca; background:#fff; cursor:pointer; transition:all 0.15s ease; display:flex; align-items:center; gap:6px;">
+        <div class="pk-pet-profile-btns" style="display:flex; gap:10px; align-items:center; flex-shrink:0; flex-wrap:nowrap;">
+          <button type="button" onclick="pkOpenEditPetModal(null, true)" class="pk-outline-btn" style="border-radius:30px; padding:8px 20px; font-size:13px; font-weight:700; color:#121217; border:1.5px solid #121217; background:#fff; cursor:pointer; transition:all 0.15s ease; white-space:nowrap; flex-shrink:0;">Edit Details</button>
+          <button type="button" id="pk-pet-delete-btn" onclick="pkDeleteCurrentPet()" class="pk-delete-btn" style="border-radius:30px; padding:8px 16px; font-size:13px; font-weight:700; color:#dc2626; border:1.5px solid #fecaca; background:#fff; cursor:pointer; transition:all 0.15s ease; display:flex; align-items:center; gap:6px; white-space:nowrap; flex-shrink:0;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="3 6 5 6 21 6"></polyline>
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -3500,6 +3500,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         font-weight: 700;
         display: inline-block;
         transition: 0.2s;
+        white-space: nowrap !important;
+        flex-shrink: 0;
       }
       .pk-outline-btn:hover { background: #f9f9f9; }
       
@@ -3508,6 +3510,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         justify-content: space-between;
         align-items: center;
         margin-bottom: 24px;
+        flex-wrap: wrap;
+        gap: 12px;
       }
       .pk-address-grid {
         display: grid;
@@ -4358,6 +4362,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         font-weight: 800;
         font-size: 15px;
         cursor: pointer;
+        white-space: nowrap !important;
+        flex-shrink: 0;
       }
 
       .pk-outline-btn {
@@ -4372,6 +4378,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         background: #fff;
         transition: 0.2s;
         cursor: pointer;
+        white-space: nowrap !important;
+        flex-shrink: 0;
       }
       .pk-outline-btn:hover { background: #f9f9f9; }
 
@@ -4793,6 +4801,134 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           flex: 1 1 100% !important;
         }
       }
+
+      /* Universal Single-Line Buttons Enforcement */
+      .pk-outline-btn,
+      .pk-delete-btn,
+      .pk-pet-add-btn,
+      .pk-yellow-btn,
+      .pk-btn-invoice,
+      .pk-btn-reorder,
+      .pk-btn-refund,
+      .pk-sub-action-btn,
+      .pk-sub-swap-btn,
+      .pk-dark-btn,
+      .pk-black-btn,
+      .pk-view-all-orders-btn,
+      .pk-pet-profile-btns button,
+      .pk-address-header button,
+      .pk-modal-actions button,
+      .pk-action-btn,
+      .pk-whatsapp-btn {
+        white-space: nowrap !important;
+        flex-shrink: 0 !important;
+      }
+
+      .pk-pet-profile-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .pk-pet-profile-btns {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-shrink: 0;
+        flex-wrap: nowrap;
+      }
+
+      /* Responsive Modal & Form Alignment (Mobile View <= 600px) */
+      @media (max-width: 600px) {
+        #pk-edit-pet-modal,
+        #addr-modal,
+        #pk-refund-modal,
+        #cust-review-modal,
+        #pk-vet-modal,
+        #sub-reschedule-modal,
+        #sub-plan-modal,
+        #sub-cancel-modal,
+        #pk-swap-modal {
+          padding: 12px 10px !important;
+          box-sizing: border-box !important;
+        }
+
+        .pk-modal-card,
+        .pk-edit-pet-card,
+        #pk-edit-pet-modal > div,
+        #addr-modal > div,
+        #pk-refund-modal > div,
+        #cust-review-modal > div,
+        #sub-reschedule-modal > div,
+        #sub-plan-modal > div,
+        #sub-cancel-modal > div,
+        #pk-swap-modal > div {
+          padding: 22px 16px !important;
+          max-width: 100% !important;
+          width: 100% !important;
+          max-height: 90vh !important;
+          border-radius: 20px !important;
+          box-sizing: border-box !important;
+          overflow-x: hidden !important;
+        }
+
+        .pk-modal-grid-2,
+        #pk-edit-pet-modal .pk-modal-grid-2,
+        #addr-modal .pk-modal-grid-2,
+        #pk-vet-modal .pk-modal-grid-2 {
+          grid-template-columns: 1fr !important;
+          gap: 12px !important;
+          margin-bottom: 12px !important;
+        }
+
+        .pk-modal-grid-2 input,
+        .pk-modal-grid-2 select,
+        .pk-modal-grid-2 div {
+          width: 100% !important;
+          max-width: 100% !important;
+          box-sizing: border-box !important;
+        }
+
+        .pk-modal-actions {
+          flex-direction: column-reverse !important;
+          gap: 10px !important;
+          align-items: stretch !important;
+          margin-top: 18px !important;
+        }
+
+        .pk-modal-actions .pk-modal-action-btns {
+          width: 100% !important;
+          display: flex !important;
+          gap: 8px !important;
+        }
+
+        .pk-modal-actions .pk-modal-action-btns button {
+          flex: 1 1 50% !important;
+          text-align: center !important;
+          justify-content: center !important;
+          padding: 11px 12px !important;
+          white-space: nowrap !important;
+        }
+
+        #pk-modal-delete-pet-btn {
+          width: 100% !important;
+          justify-content: center !important;
+          padding: 10px 16px !important;
+          white-space: nowrap !important;
+        }
+
+        .pk-pet-profile-btns button {
+          padding: 7px 14px !important;
+          font-size: 12.5px !important;
+        }
+
+        .pk-address-header button {
+          padding: 7px 14px !important;
+          font-size: 12.5px !important;
+        }
+      }
     \n</style>
 
     
@@ -4915,8 +5051,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             <!-- Delivery Addresses (Image 1) -->
             <div class="pk-card">
               <div class="pk-address-header">
-                <h3 class="pk-section-title">Delivery addresses</h3>
-                <button onclick="document.getElementById('addr-modal').style.display='flex'" class="pk-outline-btn" style="cursor:pointer;background:none;">+ Add address</button>
+                <h3 class="pk-section-title" style="margin:0;">Delivery addresses</h3>
+                <button onclick="document.getElementById('addr-modal').style.display='flex'" class="pk-outline-btn" style="cursor:pointer;background:none;white-space:nowrap;flex-shrink:0;">+ Add address</button>
               </div>
               <div class="pk-address-grid">
                 ${addressesHtml}
@@ -7762,7 +7898,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     <!-- Edit Pet Profile Modal -->
     <div id="pk-edit-pet-modal" onclick="if(event.target===this)pkCloseEditPetModal();" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.65); z-index:9999999; align-items:center; justify-content:center; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); padding:20px; box-sizing:border-box;">
-      <div style="background:#fff; border-radius:24px; max-width:580px; width:100%; max-height:92vh; overflow-y:auto; position:relative; box-shadow:0 30px 80px rgba(0,0,0,0.35); padding:32px 36px; box-sizing:border-box; font-family:'Plus Jakarta Sans', -apple-system, sans-serif;">
+      <div class="pk-modal-card pk-edit-pet-card" style="background:#fff; border-radius:24px; max-width:580px; width:100%; max-height:92vh; overflow-y:auto; position:relative; box-shadow:0 30px 80px rgba(0,0,0,0.35); padding:32px 36px; box-sizing:border-box; font-family:'Plus Jakarta Sans', -apple-system, sans-serif;">
         <!-- Close Button -->
         <button type="button" onclick="pkCloseEditPetModal()" aria-label="Close" style="position:absolute; top:20px; right:20px; width:34px; height:34px; border-radius:50%; background:#21252A; color:#fff; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:20;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -7777,7 +7913,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <input type="hidden" id="pk-edit-pet-id" value="">
 
           <!-- Pet Photo Row in Modal -->
-          <div style="display:flex; align-items:center; gap:20px; margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid #f0eee6;">
+          <div class="pk-modal-photo-row" style="display:flex; align-items:center; gap:20px; margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid #f0eee6;">
             <div style="width:80px; height:80px; border-radius:16px; overflow:hidden; background:#FFF6DE; flex-shrink:0; position:relative; display:flex; align-items:center; justify-content:center;">
               <img id="pk-modal-pet-img" src="" alt="Pet Photo" style="width:100%; height:100%; object-fit:cover; display:none;">
               <div id="pk-modal-pet-empty" style="display:flex; flex-direction:column; align-items:center; justify-content:center; color:#B38E46;">
@@ -7790,14 +7926,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               </div>
             </div>
             <div>
-              <button type="button" onclick="document.getElementById('pk-modal-pet-file').click()" id="pk-modal-upload-btn" style="background:#121217; color:#fff; border:none; border-radius:30px; padding:8px 18px; font-size:13px; font-weight:700; cursor:pointer;">Upload New Photo</button>
+              <button type="button" onclick="document.getElementById('pk-modal-pet-file').click()" id="pk-modal-upload-btn" style="background:#121217; color:#fff; border:none; border-radius:30px; padding:8px 18px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap;">Upload New Photo</button>
               <input type="file" id="pk-modal-pet-file" accept="image/png, image/jpeg, image/webp" style="display:none;" onchange="handleModalPetFileChange(event)">
               <div style="font-size:12px; color:#8c8c9a; margin-top:6px;">JPG, PNG or WEBP up to 5MB</div>
             </div>
           </div>
 
           <!-- Form Fields Grid -->
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+          <div class="pk-modal-grid-2" style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
             <div>
               <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Name *</label>
               <input type="text" id="pk-edit-pet-name" required style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box;">
@@ -7815,7 +7951,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             </div>
           </div>
 
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+          <div class="pk-modal-grid-2" style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
             <div>
               <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Gender</label>
               <select id="pk-edit-pet-gender" class="pk-select-arrow" style="width:100%; height:44px; padding:10px 42px 10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box; background-color:#fff; background-image:url('data:image/svg+xml;utf8,<svg width=\'12\' height=\'12\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23121217\' stroke-width=\'2.5\' stroke-linecap=\'round\' stroke-linejoin=\'round\' xmlns=\'http://www.w3.org/2000/svg\'><polyline points=\'6 9 12 15 18 9\'></polyline></svg>'); background-repeat:no-repeat; background-position:right 18px center; background-size:12px 12px; appearance:none; -webkit-appearance:none; cursor:pointer;">
@@ -7832,7 +7968,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             </div>
           </div>
 
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+          <div class="pk-modal-grid-2" style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
             <div>
               <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Weight (kg)</label>
               <input type="text" id="pk-edit-pet-weight" placeholder="e.g. 2.5" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box;">
@@ -7848,7 +7984,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             </div>
           </div>
 
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+          <div class="pk-modal-grid-2" style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
             <div>
               <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Breed</label>
               <input type="text" id="pk-edit-pet-breed" placeholder="e.g. Indie, Persian" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box;">
@@ -7864,7 +8000,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             </div>
           </div>
 
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px;">
+          <div class="pk-modal-grid-2" style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px;">
             <div>
               <label style="display:block; font-size:12px; font-weight:700; color:#121217; margin-bottom:6px;">Health Flags / Focus</label>
               <input type="text" id="pk-edit-pet-focus" placeholder="e.g. Dehydration, Hairball" style="width:100%; height:44px; padding:10px 14px; border:1.5px solid #d1d1d1; border-radius:12px; font-size:14px; box-sizing:border-box;">
@@ -7876,8 +8012,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           </div>
 
           <!-- Buttons -->
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
-            <button type="button" id="pk-modal-delete-pet-btn" onclick="pkDeleteCurrentPet()" style="background:#fee2e2; color:#dc2626; border:1px solid #fecaca; border-radius:30px; padding:10px 20px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px; transition:background 0.15s ease;">
+          <div class="pk-modal-actions" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+            <button type="button" id="pk-modal-delete-pet-btn" onclick="pkDeleteCurrentPet()" style="background:#fee2e2; color:#dc2626; border:1px solid #fecaca; border-radius:30px; padding:10px 20px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px; transition:background 0.15s ease; white-space:nowrap;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="3 6 5 6 21 6"></polyline>
                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -7886,9 +8022,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               </svg>
               <span>Delete Kitten</span>
             </button>
-            <div style="display:flex; gap:12px;">
-              <button type="button" onclick="pkCloseEditPetModal()" style="background:#f4f4f5; color:#121217; border:none; border-radius:30px; padding:11px 24px; font-size:14px; font-weight:700; cursor:pointer;">Cancel</button>
-              <button type="submit" id="pk-save-pet-modal-btn" style="background:#121217; color:#fff; border:none; border-radius:30px; padding:11px 32px; font-size:14px; font-weight:700; cursor:pointer;">Save Changes</button>
+            <div class="pk-modal-action-btns" style="display:flex; gap:12px;">
+              <button type="button" onclick="pkCloseEditPetModal()" style="background:#f4f4f5; color:#121217; border:none; border-radius:30px; padding:11px 24px; font-size:14px; font-weight:700; cursor:pointer; white-space:nowrap;">Cancel</button>
+              <button type="submit" id="pk-save-pet-modal-btn" style="background:#121217; color:#fff; border:none; border-radius:30px; padding:11px 32px; font-size:14px; font-weight:700; cursor:pointer; white-space:nowrap;">Save Changes</button>
             </div>
           </div>
         </form>
@@ -7916,13 +8052,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
           <form id="pk-vet-form" onsubmit="pkSubmitVetCall(event)" style="margin:0;">
             <!-- Row 1: Name & Phone -->
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+            <div class="pk-modal-grid-2" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
               <input type="text" id="vet-name" placeholder="Full Name" value="${escAttr(customer.firstName ? (customer.firstName + ' ' + (customer.lastName || '')) : '')}" required style="width:100%; height:46px; padding:10px 16px; border:1.5px solid #E2E2E6; border-radius:14px; font-size:14px; font-family:'Inter',sans-serif; color:#16130F; box-sizing:border-box; background:#fff; outline:none; transition:border-color 0.2s;">
               <input type="tel" id="vet-phone" placeholder="+91 |" value="${escAttr(customer.phone || defaultAddress.phone || '+91 ')}" required style="width:100%; height:46px; padding:10px 16px; border:1.5px solid #E2E2E6; border-radius:14px; font-size:14px; font-family:'Inter',sans-serif; color:#16130F; box-sizing:border-box; background:#fff; outline:none; transition:border-color 0.2s;">
             </div>
             
             <!-- Row 2: City & Age -->
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px;">
+            <div class="pk-modal-grid-2" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px;">
               <input type="text" id="vet-city" placeholder="City" value="${escAttr(defaultAddress.city || '')}" style="width:100%; height:46px; padding:10px 16px; border:1.5px solid #E2E2E6; border-radius:14px; font-size:14px; font-family:'Inter',sans-serif; color:#16130F; box-sizing:border-box; background:#fff; outline:none; transition:border-color 0.2s;">
               <div style="position:relative; width:100%;">
                 <select id="vet-age" style="width:100%; height:46px; padding:10px 36px 10px 16px; border:1.5px solid #E2E2E6; border-radius:14px; font-size:14px; font-family:'Inter',sans-serif; color:#16130F; box-sizing:border-box; background:#fff; cursor:pointer; outline:none; appearance:none; -webkit-appearance:none; transition:border-color 0.2s;">
@@ -7950,7 +8086,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             </div>
 
             <!-- Centered Request a Call Button (Matching Figma) -->
-            <button type="submit" id="pk-vet-submit-btn" style="display:block; margin:0 auto; min-width:180px; padding:13px 40px; background:#16130F; color:#fff; border:none; border-radius:9999px; font-size:15px; font-weight:700; font-family:'Cabinet Grotesk',sans-serif; cursor:pointer; text-align:center; box-shadow:0 4px 14px rgba(22,19,15,0.15); transition:transform 0.15s, opacity 0.15s;">Request a Call</button>
+            <button type="submit" id="pk-vet-submit-btn" style="display:block; margin:0 auto; min-width:180px; padding:13px 40px; background:#16130F; color:#fff; border:none; border-radius:9999px; font-size:15px; font-weight:700; font-family:'Cabinet Grotesk',sans-serif; cursor:pointer; text-align:center; box-shadow:0 4px 14px rgba(22,19,15,0.15); transition:transform 0.15s, opacity 0.15s; white-space:nowrap;">Request a Call</button>
             <div style="font-size:12px; color:#8E9298; text-align:center; margin-top:14px; font-family:'Inter',sans-serif;">We'll confirm your slot on WhatsApp within one day.</div>
           </form>
 
@@ -8003,23 +8139,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     </div>
 
     <!-- Add Address Modal -->
-    <div id="addr-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
-      <div style="background:#fff;border-radius:20px;padding:36px;max-width:500px;width:90%;max-height:90vh;overflow-y:auto;position:relative;">
+    <div id="addr-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;">
+      <div class="pk-modal-card" style="background:#fff;border-radius:20px;padding:36px;max-width:500px;width:100%;max-height:90vh;overflow-y:auto;position:relative;box-sizing:border-box;">
         <button onclick="document.getElementById('addr-modal').style.display='none'" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;">✕</button>
         <h3 style="margin:0 0 24px 0;font-size:20px;font-weight:800;">Add Delivery Address</h3>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <input id="addr-firstName" placeholder="First Name *" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;">
-          <input id="addr-lastName" placeholder="Last Name" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;">
-          <input id="addr-phone" placeholder="Phone" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;">
-          <input id="addr-zip" placeholder="Pin Code *" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;">
-          <input id="addr-address1" placeholder="Street Address *" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;grid-column:1/-1;">
-          <input id="addr-address2" placeholder="Apartment, suite (optional)" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;grid-column:1/-1;">
-          <input id="addr-city" placeholder="City *" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;">
-          <input id="addr-province" placeholder="State *" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;">
-          <input id="addr-country" placeholder="Country" value="India" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;grid-column:1/-1;">
+        <div class="pk-modal-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <input id="addr-firstName" placeholder="First Name *" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;width:100%;box-sizing:border-box;">
+          <input id="addr-lastName" placeholder="Last Name" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;width:100%;box-sizing:border-box;">
+          <input id="addr-phone" placeholder="Phone" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;width:100%;box-sizing:border-box;">
+          <input id="addr-zip" placeholder="Pin Code *" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;width:100%;box-sizing:border-box;">
+          <input id="addr-address1" placeholder="Street Address *" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;grid-column:1/-1;width:100%;box-sizing:border-box;">
+          <input id="addr-address2" placeholder="Apartment, suite (optional)" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;grid-column:1/-1;width:100%;box-sizing:border-box;">
+          <input id="addr-city" placeholder="City *" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;width:100%;box-sizing:border-box;">
+          <input id="addr-province" placeholder="State *" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;width:100%;box-sizing:border-box;">
+          <input id="addr-country" placeholder="Country" value="India" style="padding:12px;border:1px solid #eaeaea;border-radius:8px;font-size:14px;grid-column:1/-1;width:100%;box-sizing:border-box;">
         </div>
         <div id="addr-msg" style="margin-top:12px;color:#e53e3e;font-size:14px;display:none;"></div>
-        <button onclick="submitAddress()" style="margin-top:20px;width:100%;padding:14px;background:#121217;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;">Save Address</button>
+        <button onclick="submitAddress()" style="margin-top:20px;width:100%;padding:14px;background:#121217;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;white-space:nowrap;">Save Address</button>
       </div>
     </div>
 
