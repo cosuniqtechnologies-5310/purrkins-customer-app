@@ -3479,14 +3479,84 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         transform: translateY(0);
       }
       @media (max-width: 768px) {
+        #pk-vet-modal {
+          padding: 12px 10px !important;
+        }
         #pk-vet-modal-card {
           flex-direction: column !important;
-          max-height: 90vh !important;
-          overflow-y: auto !important;
+          max-width: 100% !important;
+          width: 100% !important;
+          min-height: auto !important;
+          max-height: 92vh !important;
+          border-radius: 20px !important;
+          overflow: hidden !important;
+          box-sizing: border-box !important;
         }
         #pk-vet-modal-img-col {
-          min-height: 220px !important;
-          height: 220px !important;
+          display: none !important;
+        }
+        .pk-vet-form-col {
+          padding: 24px 18px 20px 18px !important;
+          justify-content: flex-start !important;
+          max-height: 92vh !important;
+          overflow-y: auto !important;
+          -webkit-overflow-scrolling: touch !important;
+          box-sizing: border-box !important;
+          width: 100% !important;
+        }
+        .pk-vet-form-col h2,
+        .pk-vet-heading {
+          font-size: 26px !important;
+          line-height: 1.15 !important;
+          margin: 0 0 6px 0 !important;
+        }
+        .pk-vet-form-col p,
+        .pk-vet-subtitle {
+          font-size: 13px !important;
+          line-height: 1.4 !important;
+          margin: 0 0 16px 0 !important;
+        }
+        .pk-vet-badge {
+          font-size: 11px !important;
+          padding: 5px 12px !important;
+          margin-bottom: 8px !important;
+        }
+        #pk-vet-modal button[aria-label="Close"] {
+          top: 14px !important;
+          right: 14px !important;
+          width: 32px !important;
+          height: 32px !important;
+          z-index: 30 !important;
+        }
+        #pk-vet-form .pk-modal-grid-2 {
+          grid-template-columns: 1fr !important;
+          gap: 10px !important;
+          margin-bottom: 10px !important;
+        }
+        #pk-vet-form input,
+        #pk-vet-form select {
+          width: 100% !important;
+          height: 44px !important;
+          padding: 10px 14px !important;
+          font-size: 14px !important;
+          box-sizing: border-box !important;
+          border-radius: 12px !important;
+        }
+        #pk-vet-form label {
+          font-size: 13px !important;
+          margin: 12px 0 8px 0 !important;
+        }
+        #pk-vet-form .pk-vet-pill {
+          padding: 6px 12px !important;
+          font-size: 12px !important;
+        }
+        #pk-vet-submit-btn {
+          width: 100% !important;
+          min-width: 100% !important;
+          padding: 13px 20px !important;
+          font-size: 15px !important;
+          border-radius: 9999px !important;
+          box-sizing: border-box !important;
         }
       }
       
@@ -8040,15 +8110,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         </button>
 
         <!-- Left Column: Form -->
-        <div style="flex:1.15; padding:44px 44px 36px 44px; background:radial-gradient(120% 90% at 0% 0%, #FFF8D5 0%, #FFFFFF 50%, #F5F7FF 100%); overflow-y:auto; box-sizing:border-box; display:flex; flex-direction:column; justify-content:center;">
+        <div class="pk-vet-form-col" style="flex:1.15; padding:44px 44px 36px 44px; background:radial-gradient(120% 90% at 0% 0%, #FFF8D5 0%, #FFFFFF 50%, #F5F7FF 100%); overflow-y:auto; box-sizing:border-box; display:flex; flex-direction:column; justify-content:center;">
           <!-- Free 15 Minutes Pill Badge -->
-          <div style="background:#FFE330; color:#16130F; font-size:12px; font-weight:700; padding:6px 14px; border-radius:9999px; display:inline-block; width:fit-content; margin-bottom:14px; letter-spacing:-0.1px;">Free 15 Minutes</div>
+          <div class="pk-vet-badge" style="background:#FFE330; color:#16130F; font-size:12px; font-weight:700; padding:6px 14px; border-radius:9999px; display:inline-block; width:fit-content; margin-bottom:14px; letter-spacing:-0.1px;">Free 15 Minutes</div>
           
           <!-- Heading -->
-          <h2 style="margin:0 0 10px 0; font-size:38px; font-weight:800; color:#16130F; font-family:'Cabinet Grotesk', sans-serif !important; letter-spacing:-0.8px; line-height:1.12;">Talk to a vet</h2>
+          <h2 class="pk-vet-heading" style="margin:0 0 10px 0; font-size:38px; font-weight:800; color:#16130F; font-family:'Cabinet Grotesk', sans-serif !important; letter-spacing:-0.8px; line-height:1.12;">Talk to a vet</h2>
           
           <!-- Subtitle -->
-          <p style="margin:0 0 24px 0; font-size:14.5px; color:#555B64; line-height:1.45; font-family:'Inter', sans-serif;">Free short call with a Purrkins vet. No purchase needed.</p>
+          <p class="pk-vet-subtitle" style="margin:0 0 24px 0; font-size:14.5px; color:#555B64; line-height:1.45; font-family:'Inter', sans-serif;">Free short call with a Purrkins vet. No purchase needed.</p>
 
           <form id="pk-vet-form" onsubmit="pkSubmitVetCall(event)" style="margin:0;">
             <!-- Row 1: Name & Phone -->
