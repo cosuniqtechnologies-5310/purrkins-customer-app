@@ -349,7 +349,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Helper 4: Fetch real orders and shipping statuses dynamically from NimbusPost API
   const fetchNimbusOrders = async (): Promise<any[]> => {
-    const cached = appCache.get<any[]>("nimbus:all_orders:v1");
+    const cached = appCache.get<any[]>("nimbus:all_orders:v2");
     if (cached && Array.isArray(cached) && cached.length > 0) return cached;
 
     try {
@@ -368,7 +368,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       if (res.ok) {
         const json: any = await res.json();
         if (json && Array.isArray(json.data) && json.data.length > 0) {
-          appCache.set("nimbus:all_orders:v1", json.data, 120); // Cache for 2 minutes
+          appCache.set("nimbus:all_orders:v2", json.data, 120); // Cache for 2 minutes
           return json.data;
         }
       } else {
@@ -925,7 +925,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const ofdAt = shipment.ofd_at ? new Date(shipment.ofd_at) : null;
     const isCancelled = rawStatus === 'cancelled' || rawStatusLabel === 'cancelled' || Boolean(no.cancelled_at || shipment.cancelled_at);
 
-    let statusText = 'Confirmed';
+    let statusText = 'New';
     let statusBadgeStyle = 'background:#fef3c7; color:#d97706;'; // Amber default
     let isFulfilled = false;
 
@@ -933,8 +933,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       statusText = 'Cancelled';
       statusBadgeStyle = 'background:#fee2e2; color:#b91c1c;';
     } else if (deliveredAt || rawStatus === 'delivered' || rawStatusLabel === 'delivered') {
-      const dDate = deliveredAt || orderDate;
-      statusText = `Delivered ${dDate.getDate()} ${dDate.toLocaleString('default', { month: 'short' })}`;
+      statusText = 'Delivered';
       statusBadgeStyle = 'background:#dcfce7; color:#15803d;';
       isFulfilled = true;
     } else if (ofdAt || rawStatus === 'out_for_delivery' || rawStatusLabel === 'out for delivery') {
@@ -944,14 +943,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       statusText = 'In transit';
       statusBadgeStyle = 'background:#dbeafe; color:#2563eb;';
     } else if (rawStatus === 'fulfilled' || rawStatusLabel === 'fulfilled') {
-      statusText = 'Delivered';
+      statusText = 'Fulfilled';
       statusBadgeStyle = 'background:#dcfce7; color:#15803d;';
       isFulfilled = true;
     } else if (rawStatus === 'draft' || rawStatusLabel === 'incomplete') {
       statusText = 'Incomplete';
       statusBadgeStyle = 'background:#f4f4f5; color:#71717a;';
     } else if (rawStatus === 'created' || rawStatusLabel === 'new') {
-      statusText = 'Confirmed';
+      statusText = 'New';
+      statusBadgeStyle = 'background:#fef3c7; color:#d97706;';
+    } else if (no.order_status_label) {
+      statusText = String(no.order_status_label).trim();
       statusBadgeStyle = 'background:#fef3c7; color:#d97706;';
     }
 
@@ -1014,6 +1016,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       date: dateStr,
       time: timeStr,
       fullDate: `${dateStr} at ${timeStr}`,
+      rawTimestamp: orderDate.getTime(),
       statusText,
       statusBadgeStyle,
       isFulfilled,
@@ -1114,8 +1117,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       order_number: "#1012",
       channel_order_id: "8140657426679",
       order_date: "2026-11-04T10:05:59.000Z",
-      order_status: "draft",
-      order_status_label: "Incomplete",
+      order_status: "fulfilled",
+      order_status_label: "Fulfilled",
       payment_mode: "prepaid",
       total_amount: 200,
       org_charges: { shipping_charges: 20, tax_amount: 27.46 },
@@ -1286,7 +1289,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const tagsList = Array.isArray(node.tags) ? node.tags : (typeof node.tags === 'string' ? node.tags.split(',') : []);
       const isRefundRequested = tagsList.some((t: string) => t.toLowerCase().includes('refund_requested')) || (node.note || '').includes('REFUND REQUESTED');
 
-      let statusText = isFulfilled ? `Delivered ${day} ${month}` : (node.displayFulfillmentStatus === 'IN_TRANSIT' ? 'In transit' : 'Confirmed');
+      let statusText = isFulfilled ? 'Fulfilled' : (node.displayFulfillmentStatus === 'IN_TRANSIT' ? 'In transit' : 'New');
       let statusBadgeStyle = isFulfilled
         ? 'background:#dcfce7; color:#15803d;'
         : (node.displayFulfillmentStatus === 'IN_TRANSIT' ? 'background:#dbeafe; color:#2563eb;' : 'background:#fef3c7; color:#d97706;');
@@ -1305,7 +1308,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         statusBadgeStyle = 'background:#fee2e2; color:#b91c1c;';
       } else if (isRefunded) {
         statusText = 'Refunded';
-        statusBadgeStyle = 'background:#fef3c7; color:#92400e;';
+        statusBadgeStyle = 'background:#fee2e2; color:#b91c1c;';
       } else if (isRefundRequested) {
         statusText = 'Refund Requested';
         statusBadgeStyle = 'background:#fef3c7; color:#92400e;';
@@ -1350,6 +1353,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         date: dateStr,
         time: timeStr,
         fullDate: `${dateStr} at ${timeStr}`,
+        rawTimestamp: orderDate.getTime(),
         statusText: statusText,
         statusBadgeStyle: statusBadgeStyle,
         isFulfilled: isFulfilled,
@@ -7479,10 +7483,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         var fullAddrStr = addrLines.join('<br>') || 'Address on file';
 
         var isDelivered = (order.statusText || '').toLowerCase().indexOf('delivered') !== -1;
-        var bannerIconClass = isDelivered ? '' : 'in-transit';
+        var isFulfilled = (order.statusText || '').toLowerCase().indexOf('fulfilled') !== -1 || Boolean(order.isFulfilled);
+        var isInTransit = (order.statusText || '').toLowerCase().indexOf('transit') !== -1;
+        var isOfd = (order.statusText || '').toLowerCase().indexOf('out for delivery') !== -1;
+        var isCancelled = (order.statusText || '').toLowerCase().indexOf('cancel') !== -1 || Boolean(order.isCancelled);
+
+        var bannerIconClass = isDelivered ? '' : (isFulfilled ? 'fulfilled' : (isInTransit || isOfd ? 'in-transit' : (isCancelled ? 'cancelled' : 'pending')));
         var bannerIconSvg = isDelivered
           ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>'
-          : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>';
+          : (isFulfilled
+            ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>'
+            : (isInTransit || isOfd
+              ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>'
+              : (isCancelled
+                ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>'
+                : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>')));
+
+        var statusDesc = isDelivered ? 'Your order has been safely delivered.'
+          : (isFulfilled ? 'Your order has been fulfilled by our warehouse and prepared for dispatch.'
+          : (isOfd ? 'Your package is out for delivery today.'
+          : (isInTransit ? 'Your package is in transit via courier partner.'
+          : (isCancelled ? 'This order has been cancelled.'
+          : 'Your order has been received and is being processed.'))));
 
         var itemCount = (order.items || []).length;
         var itemText = itemCount + ' ' + (itemCount === 1 ? 'item' : 'items');
@@ -7506,7 +7528,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             '<div class="pk-invoice-title-row">' +
               '<div>' +
                 '<h2 class="pk-invoice-main-title">Order ' + pkEscapeHtml(order.name) + '</h2>' +
-                '<div class="pk-invoice-date-sub">Confirmed on ' + pkEscapeHtml(order.fullDate || order.date) + '</div>' +
+                '<div class="pk-invoice-date-sub">Placed on ' + pkEscapeHtml(order.fullDate || order.date) + '</div>' +
               '</div>' +
               '<div class="pk-invoice-badges">' +
                 '<span class="pk-order-pill" style="' + (order.statusBadgeStyle || 'background:#dcfce7; color:#15803d;') + '">' + pkEscapeHtml(order.statusText) + '</span>' +
@@ -7522,7 +7544,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 '</div>' +
                 '<div>' +
                   '<div class="pk-invoice-status-title">' + pkEscapeHtml(order.statusText) + '</div>' +
-                  '<div class="pk-invoice-status-desc">' + (isDelivered ? 'Your order has been safely delivered.' : 'Your package is in transit via standard shipping.') + '</div>' +
+                  '<div class="pk-invoice-status-desc">' + statusDesc + '</div>' +
                 '</div>' +
               '</div>' +
               '<div style="font-size:13px; font-weight:600; color:#595961;">' +
@@ -7675,9 +7697,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             id: cleanName,
             name: cleanName,
             orderNumber: cleanName.replace('#', ''),
-            date: '18 Aug 2026',
-            fullDate: '18 Aug 2026 at 03:30 PM',
-            statusText: 'Delivered',
+            date: '16 Oct 2026',
+            fullDate: '16 Oct 2026 at 05:05 PM',
+            statusText: 'Fulfilled',
             statusBadgeStyle: 'background:#dcfce7; color:#15803d;',
             financialStatus: 'Paid',
             subtotal: '₹90.00',
@@ -7799,7 +7821,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             orderNumber: cleanName.replace('#', ''),
             date: '30 Oct 2026',
             total: '₹200.00',
-            statusText: 'In transit',
+            statusText: 'New',
             isFulfilled: false
           };
         }
