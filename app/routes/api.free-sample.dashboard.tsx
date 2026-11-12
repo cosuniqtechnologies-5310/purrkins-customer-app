@@ -1432,58 +1432,53 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   });
 
-  // 3. Register all NimbusPost orders in ordersMap so invoice and refund modals always resolve
-  activeNimbusList.forEach((no: any) => {
-    const cleanNum = String(no.order_number || '').replace('#', '').replace('PK-', '').trim();
-    if (!ordersMap[cleanNum]) {
-      const parsed = parseNimbusOrder(no, defaultFallbackImg);
-      ordersMap[parsed.name] = parsed;
-      ordersMap[cleanNum] = parsed;
-      ordersMap['#' + cleanNum] = parsed;
-      ordersMap['PK-' + cleanNum] = parsed;
-    }
+  // 3. Register all relevant customer orders in ordersMap so invoice and refund modals resolve
+  finalCustomerOrders.forEach((o: any) => {
+    ordersMap[o.name] = o;
+    ordersMap[o.orderNumber] = o;
+    ordersMap['#' + o.orderNumber] = o;
+    ordersMap['PK-' + o.orderNumber] = o;
   });
 
-  // 4. If fewer than 3 orders (like screenshot test mode or new customer), supplement with real NimbusPost orders
-  if (finalCustomerOrders.length < 3) {
-    activeNimbusList.forEach((no: any) => {
-      const cleanNum = String(no.order_number || '').replace('#', '').replace('PK-', '').trim();
-      if (!addedOrderNumbers.has(cleanNum)) {
-        const parsed = parseNimbusOrder(no, defaultFallbackImg);
-        finalCustomerOrders.push(parsed);
-        addedOrderNumbers.add(cleanNum);
-      }
-    });
-  }
+  // Sort current customer orders descending by date (newest first)
+  finalCustomerOrders.sort((a, b) => {
+    const diff = (b.rawTimestamp || 0) - (a.rawTimestamp || 0);
+    if (diff !== 0) return diff;
+    const numA = parseInt(String(a.orderNumber || '').replace(/[^0-9]/g, ''), 10) || 0;
+    const numB = parseInt(String(b.orderNumber || '').replace(/[^0-9]/g, ''), 10) || 0;
+    return numB - numA;
+  });
 
-  // Generate dynamic, real NimbusPost order rows
-  const ordersHtml = finalCustomerOrders.map((order: any) => {
-    const orderNameClean = escAttr(order.name);
-    const canRefund = !order.isCancelled && !order.isRefunded && !order.isRefundRequested;
-    return `
-      <div class="pk-order-row" data-order-name="${orderNameClean}" data-order-id="${escAttr(order.id)}">
-        <div>
-          <div class="pk-order-id">${orderNameClean}</div>
-          <div class="pk-order-sub">${order.lineCount} ${order.lineCount === 1 ? 'pouch' : 'pouches'} · ${escAttr((order.lineItemsDesc || '').substring(0, 36))}</div>
-        </div>
-        <div class="pk-order-date">${escAttr(order.date)}</div>
-        <div>
-          <span class="pk-order-pill" style="${order.statusBadgeStyle}">${escAttr(order.statusText)}</span>
-        </div>
-        <div class="pk-order-total">${escAttr(order.total)}</div>
-        <div class="pk-order-actions">
-          <button type="button" onclick="pkViewInvoice('${order.orderNumber}', event)" class="pk-btn-invoice">Invoice</button>
-          ${canRefund ? `
-            <button type="button" onclick="pkOpenRefundModal('${order.orderNumber}', event)" class="pk-btn-refund">Refund</button>
-          ` : `
-            <span class="pk-order-refunded-badge" style="font-size:12px; font-weight:700; color:${order.isCancelled ? '#b91c1c' : '#92400e'}; padding:5px 12px; background:${order.isCancelled ? '#fee2e2' : '#fef3c7'}; border-radius:20px;">
-              ${order.isCancelled ? 'Cancelled' : (order.isRefunded ? 'Refunded' : 'Refund Pending')}
-            </span>
-          `}
-        </div>
-      </div>
-    `;
-  }).join('');
+  // Generate dynamic order rows strictly for current customer
+  const ordersHtml = finalCustomerOrders.length > 0
+    ? finalCustomerOrders.map((order: any) => {
+        const orderNameClean = escAttr(order.name);
+        const canRefund = !order.isCancelled && !order.isRefunded && !order.isRefundRequested;
+        return `
+          <div class="pk-order-row" data-order-name="${orderNameClean}" data-order-id="${escAttr(order.id)}">
+            <div>
+              <div class="pk-order-id">${orderNameClean}</div>
+              <div class="pk-order-sub">${order.lineCount} ${order.lineCount === 1 ? 'pouch' : 'pouches'} · ${escAttr((order.lineItemsDesc || '').substring(0, 36))}</div>
+            </div>
+            <div class="pk-order-date">${escAttr(order.date)}</div>
+            <div>
+              <span class="pk-order-pill" style="${order.statusBadgeStyle}">${escAttr(order.statusText)}</span>
+            </div>
+            <div class="pk-order-total">${escAttr(order.total)}</div>
+            <div class="pk-order-actions">
+              <button type="button" onclick="pkViewInvoice('${order.orderNumber}', event)" class="pk-btn-invoice">Invoice</button>
+              ${canRefund ? `
+                <button type="button" onclick="pkOpenRefundModal('${order.orderNumber}', event)" class="pk-btn-refund">Refund</button>
+              ` : `
+                <span class="pk-order-refunded-badge" style="font-size:12px; font-weight:700; color:${order.isCancelled ? '#b91c1c' : '#92400e'}; padding:5px 12px; background:${order.isCancelled ? '#fee2e2' : '#fef3c7'}; border-radius:20px;">
+                  ${order.isCancelled ? 'Cancelled' : (order.isRefunded ? 'Refunded' : 'Refund Pending')}
+                </span>
+              `}
+            </div>
+          </div>
+        `;
+      }).join('')
+    : '<div style="text-align:center; padding:32px 16px; color:#71717a; font-size:14px; font-weight:500;">No orders found for this account yet.</div>';
 
   const addressesHtml = customer.addresses?.length > 0
     ? customer.addresses.map((a: any) => `
