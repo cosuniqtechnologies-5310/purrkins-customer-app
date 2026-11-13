@@ -2844,7 +2844,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         color: #fff;
         padding: 14px 24px;
         display: grid;
-        grid-template-columns: 1.8fr 1.1fr 1.2fr 1fr 1.9fr;
+        grid-template-columns: 1.6fr 1.1fr 1.4fr 1fr 1.9fr;
         align-items: center;
         font-size: 12px;
         font-weight: 800;
@@ -2853,7 +2853,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .pk-order-row {
         padding: 18px 24px;
         display: grid;
-        grid-template-columns: 1.8fr 1.1fr 1.2fr 1fr 1.9fr;
+        grid-template-columns: 1.6fr 1.1fr 1.4fr 1fr 1.9fr;
         align-items: center;
         border-bottom: 1px solid #f0f1f3;
         background: #fff;
@@ -5231,7 +5231,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 <div class="pk-orders-header">
                   <div>ORDER</div>
                   <div>DATE</div>
-                  <div>STATUS</div>
+                  <div>DELIVERY STATUS</div>
                   <div>TOTAL</div>
                   <div></div>
                 </div>
@@ -8047,7 +8047,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               <div id="pk-refund-amount-display" style="font-size:20px; font-weight:800; color:#121217; margin-top:2px;">₹0.00</div>
             </div>
             <div style="text-align:right;">
-              <div style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Current Status</div>
+              <div style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Delivery Status</div>
               <div id="pk-refund-status-display" style="margin-top:2px;"><span class="pk-order-pill" style="background:#dbeafe; color:#2563eb; font-size:12px;">In transit</span></div>
             </div>
           </div>
