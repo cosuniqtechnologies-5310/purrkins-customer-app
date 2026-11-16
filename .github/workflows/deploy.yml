@@ -51,10 +51,15 @@ jobs:
           port: ${{ secrets.EC2_PORT || secrets.VPS_PORT || 22 }}
           script: |
             cd ~/purrkins-app
-            # Create a dummy .env if it doesn't exist so docker-compose doesn't fail
             touch .env
+
+            # Stop and disable Apache/Nginx from old WordPress so port 80 is freed
+            sudo systemctl stop apache2 nginx httpd 2>/dev/null || true
+            sudo systemctl disable apache2 nginx httpd 2>/dev/null || true
+            sudo fuser -k 80/tcp 443/tcp 2>/dev/null || true
             
-            # Stop the old container, build the new image, and start it
+            # Recreate containers cleanly
+            docker compose down 2>/dev/null || true
             docker compose up --build -d
             
             # Prune old images to save disk space on the EC2 instance
