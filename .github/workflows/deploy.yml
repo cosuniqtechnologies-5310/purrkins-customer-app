@@ -26,16 +26,20 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -p $EC2_PORT -H $EC2_HOST >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: Sync files to AWS EC2 via rsync
+      - name: Sync files to AWS EC2 via rsync (Purrkins App only, no theme)
         env:
           EC2_HOST: ${{ secrets.EC2_HOST || secrets.VPS_HOST }}
           EC2_USER: ${{ secrets.EC2_USERNAME || secrets.VPS_USERNAME || 'ubuntu' }}
           EC2_PORT: ${{ secrets.EC2_PORT || secrets.VPS_PORT || '22' }}
         run: |
-          # Copies everything to a 'purrkins-app' folder on your AWS EC2 instance
+          # Copies only the Purrkins App to ~/purrkins-app/ on EC2 (strictly excludes theme, git, and local node_modules)
           rsync -avz --delete \
             -e "ssh -p $EC2_PORT -o StrictHostKeyChecking=no" \
-            --exclude='.git' --exclude='node_modules' --exclude='.env' \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.env' \
+            --exclude='theme' \
+            --exclude='theme/**' \
             ./ $EC2_USER@$EC2_HOST:~/purrkins-app/
 
       - name: Start Docker containers on AWS EC2
