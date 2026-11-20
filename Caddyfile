@@ -2,6 +2,10 @@
     reverse_proxy web:3000
 }
 
+purrkinsnew.duckdns.org {
+    reverse_proxy web:3000
+}
+
 purrkins.duckdns.org {
     reverse_proxy web:3000
 }
